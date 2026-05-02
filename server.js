@@ -58,7 +58,7 @@ for (const url of FEEDS) {
     }
   });
 }
-const arrivals = [];
+61 arrivals.sort((a, b) => a.arrival_time - b.arrival_time);
 
 
 
