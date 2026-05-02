@@ -108,7 +108,8 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
     }
   }))
 ]
-});
+
+  });
 
 const text = await glideRes.text();
 
