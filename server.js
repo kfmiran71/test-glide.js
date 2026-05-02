@@ -23,38 +23,44 @@ const FEEDS = [
 ];
 
 
-const buffer = await mtaResponse.arrayBuffer();
-
 const GtfsRealtimeBindings = (await import("gtfs-realtime-bindings")).default;
-
-const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-  new Uint8Array(buffer)
-);
 
 const arrivals = [];
 
-feed.entity.forEach(entity => {
-  if (entity.tripUpdate) {
-    entity.tripUpdate.stopTimeUpdate.forEach(update => {
-      if (update.stopId === stopId && update.arrival?.time) {
-        const arrivalTime = new Date(update.arrival.time * 1000);
-        const now = new Date();
+for (const url of FEEDS) {
+  const res = await fetch(url);
+  const buffer = await res.arrayBuffer();
 
-        const diffMin = Math.round((arrivalTime - now) / 60000);
+  const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+    new Uint8Array(buffer)
+  );
 
-        if (diffMin >= 0 && diffMin <= 60) {
-          arrivals.push({
-            platform_id: stopId,
-            route: entity.tripUpdate.trip.routeId,
-            arrival_time: diffMin + " min",
-            station: "Atlantic Av - Barclays",
-            direction: "Uptown"
-          });
+  feed.entity.forEach(entity => {
+    if (entity.tripUpdate) {
+      entity.tripUpdate.stopTimeUpdate.forEach(update => {
+        if (update.stopId === stopId && update.arrival?.time) {
+          const arrivalTime = new Date(update.arrival.time * 1000);
+          const now = new Date();
+
+          const diffMin = Math.round((arrivalTime - now) / 60000);
+
+          if (diffMin >= 0 && diffMin <= 60) {
+            arrivals.push({
+              platform_id: stopId,
+              route: entity.tripUpdate.trip.routeId,
+              arrival_time: diffMin, 
+              station: "Atlantic Av - Barclays",
+              direction: "Uptown"
+            });
+          }
         }
-      }
-    });
-  }
-});
+      });
+    }
+  });
+}
+const arrivals = [];
+
+
 
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
@@ -70,7 +76,7 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
       columnValues: {
         "Name": arrival.platform_id,
         "wuIO9": arrival.route,
-        "58c8P": arrival.arrival_time,
+        "58c8P": arrival.arrival_time + " min",
         "jQXCB": arrival.station,
         "Qfui6": arrival.direction
       }
