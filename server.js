@@ -59,7 +59,7 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
     appID: "TYenWzXz52pcp3wCTXG6",
     mutations: arrivals.slice(0, 5).map(arrival => ({
       kind: "add-row-to-table",
-      tableName: "native-table-d3UgjzNMFLdWdcIIc8AP",
+      tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
       columnValues: {
         "Name": arrival.platform_id,
         "wuIO9": arrival.route,
