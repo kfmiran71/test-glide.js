@@ -73,12 +73,11 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
 
 const text = await glideRes.text();
 
-    res.json({
-      status: response.status,
-      ok: response.ok,
-      response: text
-    });
-
+   res.json({
+  status: glideRes.status,
+  ok: glideRes.ok,
+  response: text
+});
   } catch (err) {
     res.json({ error: err.message });
   }
