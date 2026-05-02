@@ -27,20 +27,23 @@ const GtfsRealtimeBindings = (await import("gtfs-realtime-bindings")).default;
 
 const arrivals = [];
 
-for (const url of FEEDS) {
-  const res = await fetch(url);
-  const buffer = await res.arrayBuffer();
+await Promise.all(
+  FEEDS.map(async (url) => {
+    const res = await fetch(url);
+    const buffer = await res.arrayBuffer();
 
-  const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-    new Uint8Array(buffer)
-  );
+    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+      new Uint8Array(buffer)
+    );
 
-  feed.entity.forEach(entity => {
-    if (entity.tripUpdate) {
+    feed.entity.forEach(entity => {
+      if (!entity.tripUpdate) return;
+
       entity.tripUpdate.stopTimeUpdate.forEach(update => {
         if (update.stopId === stopId && update.arrival?.time) {
-          const arrivalTime = new Date(update.arrival.time * 1000);
-          const now = new Date();
+
+          const arrivalTime = update.arrival.time * 1000;
+          const now = Date.now();
 
           const diffMin = Math.round((arrivalTime - now) / 60000);
 
@@ -48,19 +51,37 @@ for (const url of FEEDS) {
             arrivals.push({
               platform_id: stopId,
               route: entity.tripUpdate.trip.routeId,
-              arrival_time: diffMin, 
-              station: "Atlantic Av - Barclays",
+              arrival_time: Number(diffMin), 
+              station: "Atlantic Av – Barclays",
               direction: "Uptown"
             });
           }
         }
       });
-    }
-  });
-}
+    });
+  })
+);
  arrivals.sort((a, b) => a.arrival_time - b.arrival_time);
+const grouped = {};
 
+arrivals.forEach(arrival => {
+  const route = arrival.route;
 
+  if (!grouped[route]) {
+    grouped[route] = [];
+  }
+
+  grouped[route].push(arrival);
+});
+    Object.keys(grouped).forEach(route => {
+  grouped[route].sort((a, b) => a.arrival_time - b.arrival_time);
+  grouped[route] = grouped[route].slice(0, 3);
+});
+const finalArrivals = [];
+
+Object.values(grouped).forEach(routeArrivals => {
+  routeArrivals.forEach(a => finalArrivals.push(a));
+});
 
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
@@ -70,7 +91,7 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
   },
   body: JSON.stringify({
     appID: "TYenWzXz52pcp3wCTXG6",
-    mutations: arrivals.slice(0, 5).map(arrival => ({
+    mutations: finalArrivals.map(arrival => ({
       kind: "add-row-to-table",
       tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
       columnValues: {
