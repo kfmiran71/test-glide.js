@@ -23,7 +23,7 @@ app.get("/push-arrivals", async (req, res) => {
             kind: "add-row-to-table",
             tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
             columnValues: {
-  "Platform ID": "235N",
+  "Name": "235N",
   "wuIO9": "3",
   "58c8P": "5 min",
   "jQXCB": "Atlantic Av - Barclays",
