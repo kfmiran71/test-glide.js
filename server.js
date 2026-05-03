@@ -1,18 +1,9 @@
 import express from "express";
 import fetch from "node-fetch";
-import * as glide from "@glideapps/tables";
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const arrivalsTable = glide.table({
-  token: "d25737fc-2ba6-4dfa-bcc1-0b1150680e14",
-  app: "TYenWzXz52pcp3wCTXG6",
-  table: "native-table-d3UgJzNMFLdWdcIIc8AP",
-  columns: {
-    platformId: { type: "string", name: "Name" },
-    route: { type: "string", name: "wuIO9" },
-    times: { type: "string", name: "58c8P" }
-  }
-});
+
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
@@ -38,9 +29,8 @@ const arrivals = [];
 
 await Promise.all(
   FEEDS.map(async (url) => {
-    const res = await fetch(url);
-    const buffer = await res.arrayBuffer();
-
+    const response = await fetch(url);
+const buffer = await response.arrayBuffer();
     const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
       new Uint8Array(buffer)
     );
