@@ -80,7 +80,42 @@ Object.values(grouped).forEach(routeArrivals => {
   routeArrivals.forEach(a => finalArrivals.push(a));
 });
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
+const mutations = [];
 
+mutations.push({
+  kind: "delete-all-rows-from-table",
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
+});
+
+finalArrivals.forEach(arrival => {
+  mutations.push({
+    kind: "add-row-to-table",
+    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+    columnValues: {
+      "Name": String(arrival.platformId),
+      "wuIO9": String(arrival.route),
+      "58c8P": `${arrival.times} min`
+    }
+  });
+});
+
+console.log("MUTATIONS:", JSON.stringify(mutations, null, 2));
+
+const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
+  },
+  body: JSON.stringify({
+    appID: "TYenWzXz52pcp3wCTXG6",
+    mutations: mutations
+  })
+});
+
+const glideText = await glideRes.text();
+
+console.log("GLIDE RESPONSE:", glideText);
 
  
    res.json({
