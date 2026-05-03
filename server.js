@@ -85,24 +85,7 @@ Object.values(grouped).forEach(routeArrivals => {
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
 
 console.log("MUTATIONS PREVIEW:", JSON.stringify(
-  finalArrivals.map(a => ({
-    Name: a.platform_id,
-    route: a.route,
-    time: a.arrival_time,
-    station: a.station,
-    direction: a.direction
-  })), null, 2
-));
-
-const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
-  },
-  body: JSON.stringify({
-    appID: "TYenWzXz52pcp3wCTXG6",
-   const mutations = [];
+  const mutations = [];
 
 mutations.push({
   kind: "delete-all-rows-from-table",
@@ -123,7 +106,28 @@ finalArrivals.forEach(arrival => {
   });
 });
   })
-  });
+  }); 
+  finalArrivals.map(a => ({
+    Name: a.platform_id,
+    route: a.route,
+    time: a.arrival_time,
+    station: a.station,
+    direction: a.direction
+  })), null, 2
+));
+
+const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
+  },
+ body: JSON.stringify({
+  appID: "TYenWzXz52pcp3wCTXG6",
+  mutations: mutations
+})
+});
+  
 
 const text = await glideRes.text();
 
