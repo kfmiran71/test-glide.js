@@ -99,7 +99,7 @@ finalArrivals.forEach(arrival => {
     columnValues: {
       "Name": String(arrival.platformId),
       "wuIO9": String(arrival.route),
-      "58c8P": String(arrival.times) + " min",
+      "58c8P": String(arrival.times),
       "jQXCB": String(arrival.station),
       "Qfui6": String(arrival.direction)
     }
