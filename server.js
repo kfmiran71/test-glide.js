@@ -47,12 +47,10 @@ const buffer = await response.arrayBuffer();
           const diffMin = Math.round((arrivalTime - now) / 60000) || 0;
 
           if (diffMin >= 0 && diffMin <= 60) {
-            arrivals.push({
+           arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId || "UNKNOWN",
-  times: Number(diffMin) || 0,
-  station: "Atlantic Av – Barclays",
-  direction: "Uptown"
+  times: Number(diffMin) || 0
 });
           }
         }
