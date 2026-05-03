@@ -82,14 +82,7 @@ Object.values(grouped).forEach(routeArrivals => {
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
 
 
- for (const arrival of finalArrivals) {
-  await arrivalsTable.add({
-    platformId: String(arrival.platformId),
-    route: String(arrival.route),
-    times: `${arrival.times} min`
-  });
-}
-
+ 
    res.json({
   success: true,
   rowsWritten: finalArrivals.length
