@@ -82,6 +82,17 @@ const finalArrivals = [];
 Object.values(grouped).forEach(routeArrivals => {
   routeArrivals.forEach(a => finalArrivals.push(a));
 });
+console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
+
+console.log("MUTATIONS PREVIEW:", JSON.stringify(
+  finalArrivals.map(a => ({
+    Name: a.platform_id,
+    route: a.route,
+    time: a.arrival_time,
+    station: a.station,
+    direction: a.direction
+  })), null, 2
+));
 
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
