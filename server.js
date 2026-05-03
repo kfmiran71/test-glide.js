@@ -97,7 +97,7 @@ finalArrivals.forEach(arrival => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      "Name": String(arrival.platform_id),
+      "Name": String(arrival.platformId),
       "wuIO9": String(arrival.route),
       "58c8P": String(arrival.arrival_time) + " min",
       "jQXCB": String(arrival.station),
