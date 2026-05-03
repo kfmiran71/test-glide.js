@@ -49,9 +49,9 @@ await Promise.all(
 
           if (diffMin >= 0 && diffMin <= 60) {
             arrivals.push({
-  platform_id: stopId,
+  platformId: stopId,
   route: entity.tripUpdate.trip.routeId || "UNKNOWN",
-  arrival_time: Number(diffMin) || 0,
+  times: Number(diffMin) || 0,
   station: "Atlantic Av – Barclays",
   direction: "Uptown"
 });
