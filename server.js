@@ -61,7 +61,7 @@ await Promise.all(
     });
   })
 );
- arrivals.sort((a, b) => a.arrival_time - b.arrival_time);
+ arrivals.sort((a, b) => a.times - b.times);
 const grouped = {};
 
 arrivals.forEach(arrival => {
@@ -74,7 +74,7 @@ arrivals.forEach(arrival => {
   grouped[route].push(arrival);
 });
     Object.keys(grouped).forEach(route => {
-  grouped[route].sort((a, b) => a.arrival_time - b.arrival_time);
+  grouped[route].sort((a, b) => a.times - b.times);
   grouped[route] = grouped[route].slice(0, 3);
 });
 const finalArrivals = [];
@@ -99,7 +99,7 @@ finalArrivals.forEach(arrival => {
     columnValues: {
       "Name": String(arrival.platformId),
       "wuIO9": String(arrival.route),
-      "58c8P": String(arrival.arrival_time) + " min",
+      "58c8P": String(arrival.times) + " min",
       "jQXCB": String(arrival.station),
       "Qfui6": String(arrival.direction)
     }
