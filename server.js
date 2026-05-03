@@ -114,9 +114,19 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
   },
  body: JSON.stringify({
   appID: "TYenWzXz52pcp3wCTXG6",
-  mutations: mutations
-})
-});
+  const mutations = [
+  {
+    kind: "add-row-to-table",
+    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+    columnValues: {
+      "Name": "TEST",
+      "wuIO9": "X",
+      "58c8P": "1",
+      "jQXCB": "Test Station",
+      "Qfui6": "Test"
+    }
+  }
+];
   
 
 const text = await glideRes.text();
