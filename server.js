@@ -45,7 +45,7 @@ await Promise.all(
           const arrivalTime = update.arrival.time * 1000;
           const now = Date.now();
 
-          const diffMin = Math.round((arrivalTime - now) / 60000);
+          const diffMin = Math.round((arrivalTime - now) / 60000) || 0;
 
           if (diffMin >= 0 && diffMin <= 60) {
             arrivals.push({
@@ -110,12 +110,13 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
 
   ...finalArrivals
     .filter(a =>
-      a.platform_id &&
-      a.route &&
-      a.arrival_time !== undefined &&
-      a.station &&
-      a.direction
-    )
+  a.platform_id &&
+  a.route &&
+  typeof a.arrival_time === "number" &&
+  !isNaN(a.arrival_time) &&
+  a.station &&
+  a.direction
+)
     .map(arrival => ({
       kind: "add-row-to-table",
       tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
