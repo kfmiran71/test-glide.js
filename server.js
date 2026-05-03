@@ -92,10 +92,12 @@ finalArrivals.forEach(arrival => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      "Name": String(arrival.platformId),
-      "wuIO9": String(arrival.route),
-      "58c8P": `${arrival.times} min`
-    }
+  "Name": String(arrival.platformId),
+  "wuIO9": String(arrival.route),
+  "58c8P": `${arrival.times} min`,
+  "jQXCB": "Atlantic Av – Barclays",
+  "Qfui6": "Uptown"
+}
   });
 });
 
