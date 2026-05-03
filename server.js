@@ -104,17 +104,6 @@ finalArrivals.forEach(arrival => {
       "Qfui6": String(arrival.direction)
     }
   });
-});
-  })
-  }); 
-  finalArrivals.map(a => ({
-    Name: a.platform_id,
-    route: a.route,
-    time: a.arrival_time,
-    station: a.station,
-    direction: a.direction
-  })), null, 2
-));
 
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
