@@ -1,9 +1,18 @@
 import express from "express";
 import fetch from "node-fetch";
-
+import * as glide from "@glideapps/tables";
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+const arrivalsTable = glide.table({
+  token: "d25737fc-2ba6-4dfa-bcc1-0b1150680e14",
+  app: "TYenWzXz52pcp3wCTXG6",
+  table: "native-table-d3UgJzNMFLdWdcIIc8AP",
+  columns: {
+    platformId: { type: "string", name: "Name" },
+    route: { type: "string", name: "wuIO9" },
+    times: { type: "string", name: "58c8P" }
+  }
+});
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
@@ -85,44 +94,17 @@ Object.values(grouped).forEach(routeArrivals => {
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
 
 
-  const mutations = [];
-
-mutations.push({
-  kind: "delete-all-rows-from-table",
-  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-});
-
-finalArrivals.forEach(arrival => {
-  mutations.push({
-    kind: "add-row-to-table",
-    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-    columnValues: {
-  "Name": "TEST",
-  "wuIO9": "2",
-  "58c8P": "5 min"
-}
+ for (const arrival of finalArrivals) {
+  await arrivalsTable.add({
+    platformId: String(arrival.platformId),
+    route: String(arrival.route),
+    times: `${arrival.times} min`
   });
-});
-    console.log("MUTATIONS SENT:", JSON.stringify(mutations, null, 2));
-const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
-  },
-  body: JSON.stringify({
-  appID: "TYenWzXz52pcp3wCTXG6",
-   mutations: mutations
-  })
-});
-  
-
-const text = await glideRes.text();
+}
 
    res.json({
-  status: glideRes.status,
-  ok: glideRes.ok,
-  response: text
+  success: true,
+  rowsWritten: finalArrivals.length
 });
   } catch (err) {
     res.json({ error: err.message });
