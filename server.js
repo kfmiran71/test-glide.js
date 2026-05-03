@@ -105,6 +105,7 @@ finalArrivals.forEach(arrival => {
     }
   });
 });
+    console.log("MUTATIONS SENT:", JSON.stringify(mutations, null, 2));
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
   headers: {
