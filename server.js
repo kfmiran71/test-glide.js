@@ -97,10 +97,10 @@ finalArrivals.forEach(arrival => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      "Name": String(arrival.platformId),
-      "wuIO9": String(arrival.route),
-      "58c8P": `${arrival.times} min`
-    }
+  "Name": "TEST",
+  "wuIO9": "2",
+  "58c8P": "5 min"
+}
   });
 });
     console.log("MUTATIONS SENT:", JSON.stringify(mutations, null, 2));
