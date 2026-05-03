@@ -93,20 +93,16 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
     appID: "TYenWzXz52pcp3wCTXG6",
     mutations: [
   {
-    kind: "delete-all-rows-from-table",
-    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-  },
-  ...finalArrivals.map(arrival => ({
-    kind: "add-row-to-table",
-    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-    columnValues: {
-      "Name": arrival.platform_id,
-      "wuIO9": arrival.route,
-      "58c8P": arrival.arrival_time + " min",
-      "jQXCB": arrival.station,
-      "Qfui6": arrival.direction
-    }
-  }))
+  kind: "add-row-to-table",
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+  columnValues: {
+    "Name": "TEST",
+    "wuIO9": "3",
+    "58c8P": "5 min",
+    "jQXCB": "Atlantic Av – Barclays",
+    "Qfui6": "Uptown"
+  }
+}
 ]
   })
   });
