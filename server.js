@@ -102,34 +102,26 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
   },
   body: JSON.stringify({
     appID: "TYenWzXz52pcp3wCTXG6",
-    mutations: [
-  {
-    kind: "delete-all-rows-from-table",
-    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-  },
+   const mutations = [];
 
-  ...finalArrivals
-    .filter(a =>
-  a.platform_id &&
-  typeof a.route === "string" &&
-  a.route !== "UNKNOWN" &&
-  typeof a.arrival_time === "number" &&
-  a.arrival_time >= 0 &&
-  a.station &&
-  a.direction
-)
-    .map(arrival => ({
-      kind: "add-row-to-table",
-      tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-      columnValues: {
-        "Name": String(arrival.platform_id),
-        "wuIO9": String(arrival.route),
-        "58c8P": String(arrival.arrival_time) + " min",
-        "jQXCB": String(arrival.station),
-        "Qfui6": String(arrival.direction)
-      }
-    }))
-]
+mutations.push({
+  kind: "delete-all-rows-from-table",
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
+});
+
+finalArrivals.forEach(arrival => {
+  mutations.push({
+    kind: "add-row-to-table",
+    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+    columnValues: {
+      "Name": String(arrival.platform_id),
+      "wuIO9": String(arrival.route),
+      "58c8P": String(arrival.arrival_time) + " min",
+      "jQXCB": String(arrival.station),
+      "Qfui6": String(arrival.direction)
+    }
+  });
+});
   })
   });
 
