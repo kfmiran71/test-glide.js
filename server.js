@@ -84,7 +84,7 @@ Object.values(grouped).forEach(routeArrivals => {
 });
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
 
-console.log("MUTATIONS PREVIEW:", JSON.stringify(
+
   const mutations = [];
 
 mutations.push({
@@ -104,7 +104,7 @@ finalArrivals.forEach(arrival => {
       "Qfui6": String(arrival.direction)
     }
   });
-
+});
 const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
   headers: {
