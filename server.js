@@ -49,12 +49,12 @@ await Promise.all(
 
           if (diffMin >= 0 && diffMin <= 60) {
             arrivals.push({
-              platform_id: stopId,
-              route: entity.tripUpdate.trip.routeId,
-              arrival_time: Number(diffMin), 
-              station: "Atlantic Av – Barclays",
-              direction: "Uptown"
-            });
+  platform_id: stopId,
+  route: entity.tripUpdate.trip.routeId || "UNKNOWN",
+  arrival_time: Number(diffMin) || 0,
+  station: "Atlantic Av – Barclays",
+  direction: "Uptown"
+});
           }
         }
       });
@@ -111,9 +111,10 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
   ...finalArrivals
     .filter(a =>
   a.platform_id &&
-  a.route &&
+  typeof a.route === "string" &&
+  a.route !== "UNKNOWN" &&
   typeof a.arrival_time === "number" &&
-  !isNaN(a.arrival_time) &&
+  a.arrival_time >= 0 &&
   a.station &&
   a.direction
 )
