@@ -36,8 +36,13 @@ app.get("/push-arrivals", async (req, res) => {
       },
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
-        mutations: arrivals.map(arrival => ({
-  kind: "add-row-to-table",
+        mutations: [
+     {
+     kind: "delete-all-rows-from-table",
+     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
+   },
+       ...arrivals.map(arrival => ({   
+          kind: "add-row-to-table",
   tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
   columnValues: {
     "Name": arrival.platformId,
