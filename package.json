@@ -10,6 +10,6 @@
   "express": "^4.18.2",
   "node-fetch": "^3.3.2",
   "gtfs-realtime-bindings": "^1.0.0",
-  "@glideapps/tables": "^2.0.0"
+  "@glideapps/tables": "^1.0.0"
 }
 }
