@@ -44,9 +44,13 @@ app.get("/push-arrivals", async (req, res) => {
     "wuIO9": arrival.route,
     "58c8P": arrival.time,
     "jQXCB": arrival.station,
-    "Qfui6": arrival.direction
-  }
+   "Qfui6": arrival.direction
+}
 }))
+})
+;
+
+const text = await response.text();
     
     const text = await response.text();
 
