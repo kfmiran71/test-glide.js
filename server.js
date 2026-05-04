@@ -36,25 +36,25 @@ app.get("/push-arrivals", async (req, res) => {
       },
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
-        mutations: [
-     {
-     kind: "delete-all-rows-from-table",
-     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-   },
-       ...arrivals.map(arrival => ({   
-          kind: "add-row-to-table",
-  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-  columnValues: {
-    "Name": arrival.platformId,
-    "wuIO9": arrival.route,
-    "58c8P": arrival.time,
-    "jQXCB": arrival.station,
-   "Qfui6": arrival.direction
-    }
-  }))
- ]
-})
-});
+        39:   mutations: [
+    {
+       kind: "delete-all-rows-from-table",
+       tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
+     },
+     ...arrivals.map(arrival => ({
+       kind: "add-row-to-table",
+       tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+       columnValues: {
+         "Name": arrival.platformId,
+         "wuIO9": arrival.route,
+         "58c8P": arrival.time,
+         "jQXCB": arrival.station,
+         "Qfui6": arrival.direction
+       }
+     }))
+   ]
+ })
+ });
   
     const text = await response.text();
 
