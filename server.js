@@ -23,11 +23,11 @@ app.get("/push-arrivals", async (req, res) => {
             kind: "add-row-to-table",
             tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
             columnValues: {
-  "Name": "235N",
-  "wuIO9": "3",
-  "58c8P": "5 min",
-  "jQXCB": "Atlantic Av - Barclays",
-  "Qfui6": "Uptown"
+  "Name": arrival.platformId || "TEST",
+  "wuIO9": arrival.route || "X",
+  "58c8P": arrival.time || "0 min",
+  "jQXCB": arrival.station || "Unknown",
+  "Qfui6": arrival.direction || "Unknown"
 }
           }
         ]
