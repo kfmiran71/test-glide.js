@@ -28,6 +28,15 @@ app.get("/push-arrivals", async (req, res) => {
   }
 ];
     console.log("PAYLOAD ARRIVALS:", arrivals);
+    arrivals.forEach((a, i) => {
+  console.log("ROW", i, {
+    platformId: a.platformId,
+    route: a.route,
+    time: a.time,
+    station: a.station,
+    direction: a.direction
+  });
+});
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
