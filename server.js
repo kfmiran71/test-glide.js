@@ -8,7 +8,7 @@ app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-app.get("/test-write", async (req, res) => {
+app.get("/push-arrivals", async (req, res) => {
   try {
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
@@ -23,8 +23,12 @@ app.get("/test-write", async (req, res) => {
             kind: "add-row-to-table",
             tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
             columnValues: {
-              "Name": "TEST123"
-            }
+  "Platform ID": "235N",
+  "wuIO9": "3",
+  "58c8P": "5 min",
+  "jQXCB": "Atlantic Av - Barclays",
+  "Qfui6": "Uptown"
+}
           }
         ]
       })
