@@ -92,11 +92,11 @@ finalArrivals.forEach(arrival => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      "Name": "TEST",
-      "wuIO9": arrival.route,
-      "58c8P": `${arrival.times}`,
-      "jQXCB": "Atlantic Av - Barclays",
-      "Qfui6": "Uptown"
+      "Platform ID": arrival.platformId,
+      "Route": arrival.route,
+      "Times": `${arrival.times}`,
+      "Station": "Atlantic Av - Barclays",
+      "Direction": "Uptown"
     }
   });
 });
