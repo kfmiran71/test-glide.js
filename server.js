@@ -107,8 +107,8 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
       "Qfui6": arrival.direction
     }
   }))
-]
-
+].flat()
+  })
   });
 
 const text = await glideRes.text();
