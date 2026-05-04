@@ -100,7 +100,22 @@ finalArrivals.forEach(arrival => {
   });
 });
 
-await fetch("https://api.glideapp.io/api/function/mutateTables", {
+const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
+  },
+  body: JSON.stringify({
+    appID: "TYenWzXz52pcp3wCTXG6",
+    mutations
+  })
+});
+
+const glideText = await glideRes.text();
+
+console.log("GLIDE STATUS:", glideRes.status);
+console.log("GLIDE RESPONSE:", glideText);
   method: "POST",
   headers: {
     "Content-Type": "application/json",
