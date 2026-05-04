@@ -12,9 +12,16 @@ app.get("/push-arrivals", async (req, res) => {
   try {
     const stopId = req.query.stop || "235N";
 
-const mtaResponse = await fetch(
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
-);
+const FEEDS = [
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
+];
+
 
 const buffer = await mtaResponse.arrayBuffer();
 
@@ -59,7 +66,7 @@ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables"
     appID: "TYenWzXz52pcp3wCTXG6",
     mutations: arrivals.slice(0, 5).map(arrival => ({
       kind: "add-row-to-table",
-      tableName: "native-table-d3UgjzNMFLdWdcIIc8AP",
+      tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
       columnValues: {
         "Name": arrival.platform_id,
         "wuIO9": arrival.route,
