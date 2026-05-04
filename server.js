@@ -51,7 +51,7 @@ app.get("/push-arrivals", async (req, res) => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      ""04m7z": runId,
+      "04m7z": runId,
       "Name": arrival.platformId,
       "wuIO9": arrival.route,
       "58c8P": arrival.time,
