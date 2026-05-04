@@ -48,7 +48,6 @@ app.get("/push-arrivals", async (req, res) => {
 }
 }))
 })
-;
 
 const text = await response.text();
     
