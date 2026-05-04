@@ -52,6 +52,7 @@ app.get("/push-arrivals", async (req, res) => {
    "Qfui6": arrival.direction
     }
   }))
+ ]
 })
 });
   
