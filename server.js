@@ -37,6 +37,7 @@ app.get("/push-arrivals", async (req, res) => {
     direction: a.direction
   });
 });
+    const runId = Date.now().toString();
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
@@ -46,19 +47,19 @@ app.get("/push-arrivals", async (req, res) => {
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
            mutations: [
-   
-     ...arrivals.map(arrival => ({
-       kind: "add-row-to-table",
-       tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-       columnValues: {
-         "Name": arrival.platformId,
-         "wuIO9": arrival.route,
-         "58c8P": arrival.time,
-         "jQXCB": arrival.station,
-         "Qfui6": arrival.direction
-       }
-     }))
-   ]
+  ...arrivals.map(arrival => ({
+    kind: "add-row-to-table",
+    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+    columnValues: {
+      "RunID": runId,
+      "Name": arrival.platformId,
+      "wuIO9": arrival.route,
+      "58c8P": arrival.time,
+      "jQXCB": arrival.station,
+      "Qfui6": arrival.direction
+    }
+  }))
+]
  })
  });
   
