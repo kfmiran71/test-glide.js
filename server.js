@@ -104,7 +104,7 @@ await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${process.env.GLIDE_API_KEY}`
+    "Authorization": "Bearer d25737fc-2ba6-4dfa-bcc1-0b1150680e14"
   },
   body: JSON.stringify({
     appID: "TYenWzXz52pcp3wCTXG6",
