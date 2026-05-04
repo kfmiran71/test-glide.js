@@ -57,6 +57,7 @@ app.get("/push-arrivals", async (req, res) => {
     direction: "Uptown"
   }
 ];
+    arrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
     console.log("PAYLOAD ARRIVALS:", arrivals);
     arrivals.forEach((a, i) => {
   console.log("ROW", i, {
