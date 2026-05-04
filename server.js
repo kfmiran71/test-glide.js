@@ -3,7 +3,7 @@ import fetch from "node-fetch";
 import * as glide from "@glideapps/tables";
 const app = express();
 const PORT = process.env.PORT || 3000;
-const client = new glide.GlideClient({
+const client = glide.createClient({
   apiKey: process.env.GLIDE_API_KEY
 });
 app.get("/", (req, res) => {
