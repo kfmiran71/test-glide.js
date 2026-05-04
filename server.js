@@ -58,6 +58,19 @@ app.get("/push-arrivals", async (req, res) => {
   }
 ];
     arrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
+    const limitedArrivals = [];
+const routeCounts = {};
+
+for (const a of arrivals) {
+  if (!routeCounts[a.route]) {
+    routeCounts[a.route] = 0;
+  }
+
+  if (routeCounts[a.route] < 3) {
+    limitedArrivals.push(a);
+    routeCounts[a.route]++;
+  }
+}
     console.log("PAYLOAD ARRIVALS:", arrivals);
     arrivals.forEach((a, i) => {
   console.log("ROW", i, {
@@ -79,7 +92,7 @@ app.get("/push-arrivals", async (req, res) => {
         appID: "TYenWzXz52pcp3wCTXG6",
            mutations: [
              
-  ...arrivals.map(arrival => ({
+  ...limitedArrivals.map(arrival => ({
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
