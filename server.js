@@ -81,10 +81,7 @@ Object.values(grouped).forEach(routeArrivals => {
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
 const mutations = [];
 
-mutations.push({
-  kind: "delete-all-rows-from-table",
-  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-});
+
 
 finalArrivals.forEach(arrival => {
   mutations.push({
@@ -100,6 +97,10 @@ finalArrivals.forEach(arrival => {
   });
 });
 
+mutations.push({
+  kind: "delete-all-rows-from-table",
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
+});
 
 
  const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
