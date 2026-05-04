@@ -101,10 +101,7 @@ finalArrivals.forEach(arrival => {
 });
 
 
-const glideText = await glideRes.text();
 
-console.log("GLIDE STATUS:", glideRes.status);
-console.log("GLIDE RESPONSE:", glideText);
  const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
   headers: {
