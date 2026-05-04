@@ -27,7 +27,7 @@ app.get("/push-arrivals", async (req, res) => {
     direction: "Uptown"
   }
 ];
-    
+    console.log("PAYLOAD ARRIVALS:", arrivals);
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
