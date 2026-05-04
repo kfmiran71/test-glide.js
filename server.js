@@ -42,20 +42,16 @@ app.get("/push-arrivals", async (req, res) => {
   try {
     
    const arrivals = [
-  {
-    platformId: "235N",
-    route: "3",
-    time: "5 min",
-    station: "Atlantic Av - Barclays",
-    direction: "Uptown"
-  },
-  {
-    platformId: "235N",
-    route: "4",
-    time: "2 min",
-    station: "Atlantic Av - Barclays",
-    direction: "Uptown"
-  }
+  { platformId: "235N", route: "4", time: "1 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "4", time: "2 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "4", time: "3 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "4", time: "4 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "4", time: "5 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+
+  { platformId: "235N", route: "3", time: "1 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "3", time: "2 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "3", time: "3 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  { platformId: "235N", route: "3", time: "4 min", station: "Atlantic Av - Barclays", direction: "Uptown" }
 ];
     arrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
     const limitedArrivals = [];
