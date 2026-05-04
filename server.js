@@ -92,7 +92,7 @@ finalArrivals.forEach(arrival => {
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
-      "Name": arrival.platformId,
+      "Name": "TEST",
       "wuIO9": arrival.route,
       "58c8P": `${arrival.times}`,
       "jQXCB": "Atlantic Av - Barclays",
