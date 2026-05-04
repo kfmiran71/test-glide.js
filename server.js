@@ -11,13 +11,22 @@ app.get("/", (req, res) => {
 app.get("/push-arrivals", async (req, res) => {
   try {
     
-    const arrival = {
-  platformId: "235N",
-  route: "3",
-  time: "5 min",
-  station: "Atlantic Av - Barclays",
-  direction: "Uptown"
-};
+   const arrivals = [
+  {
+    platformId: "235N",
+    route: "3",
+    time: "5 min",
+    station: "Atlantic Av - Barclays",
+    direction: "Uptown"
+  },
+  {
+    platformId: "235N",
+    route: "4",
+    time: "2 min",
+    station: "Atlantic Av - Barclays",
+    direction: "Uptown"
+  }
+];
     
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
@@ -27,22 +36,18 @@ app.get("/push-arrivals", async (req, res) => {
       },
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
-        mutations: [
-          {
-            kind: "add-row-to-table",
-            tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
-            columnValues: {
-  "Name": arrival.platformId,
-  "wuIO9": arrival.route,
-  "58c8P": arrival.time,
-  "jQXCB": arrival.station,
-  "Qfui6": arrival.direction
-}
-          }
-        ]
-      })
-    });
-
+        mutations: arrivals.map(arrival => ({
+  kind: "add-row-to-table",
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
+  columnValues: {
+    "Name": arrival.platformId,
+    "wuIO9": arrival.route,
+    "58c8P": arrival.time,
+    "jQXCB": arrival.station,
+    "Qfui6": arrival.direction
+  }
+}))
+    
     const text = await response.text();
 
     res.json({
