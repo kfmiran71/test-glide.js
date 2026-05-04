@@ -36,7 +36,7 @@ app.get("/push-arrivals", async (req, res) => {
       },
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
-        39:   mutations: [
+           mutations: [
     {
        kind: "delete-all-rows-from-table",
        tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
