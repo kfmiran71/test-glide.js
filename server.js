@@ -121,8 +121,10 @@ console.log("GLIDE STATUS:", glideRes.status);
 console.log("GLIDE RESPONSE:", glideText);
  
    res.json({
-  success: true,
-  rowsWritten: finalArrivals.length
+  success: glideRes.ok,
+  rowsWritten: finalArrivals.length,
+  glideStatus: glideRes.status,
+  glideResponse: glideText
 });
   } catch (err) {
     res.json({ error: err.message });
