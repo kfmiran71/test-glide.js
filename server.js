@@ -10,6 +10,15 @@ app.get("/", (req, res) => {
 
 app.get("/push-arrivals", async (req, res) => {
   try {
+    
+    const arrival = {
+  platformId: "235N",
+  route: "3",
+  time: "5 min",
+  station: "Atlantic Av - Barclays",
+  direction: "Uptown"
+};
+    
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
@@ -23,11 +32,11 @@ app.get("/push-arrivals", async (req, res) => {
             kind: "add-row-to-table",
             tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
             columnValues: {
- "Name": "TEST",
-"wuIO9": "X",
-"58c8P": "0 min",
-"jQXCB": "Unknown",
-"Qfui6": "Unknown"
+  "Name": arrival.platformId,
+  "wuIO9": arrival.route,
+  "58c8P": arrival.time,
+  "jQXCB": arrival.station,
+  "Qfui6": arrival.direction
 }
           }
         ]
