@@ -79,7 +79,38 @@ Object.values(grouped).forEach(routeArrivals => {
   routeArrivals.forEach(a => finalArrivals.push(a));
 });
 console.log("FINAL ARRIVALS:", JSON.stringify(finalArrivals, null, 2));
+const mutations = [];
 
+mutations.push({
+  kind: "delete-all-rows-from-table",
+  tableName: "native-table-d3UgjzNMFLdWdcIIc8AP"
+});
+
+finalArrivals.forEach(arrival => {
+  mutations.push({
+    kind: "add-row-to-table",
+    tableName: "native-table-d3UgjzNMFLdWdcIIc8AP",
+    columnValues: {
+      "Name": arrival.platformId,
+      "wuIO9": arrival.route,
+      "58c8P": `${arrival.times}`,
+      "jQXCB": "Atlantic Av - Barclays",
+      "Qfui6": "Uptown"
+    }
+  });
+});
+
+await fetch("https://api.glideapp.io/api/function/mutateTables", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${process.env.GLIDE_API_KEY}`
+  },
+  body: JSON.stringify({
+    appID: "TYenWzXz52pcp3wCTXG6",
+    mutations
+  })
+});
  
    res.json({
   success: true,
