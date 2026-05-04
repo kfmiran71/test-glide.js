@@ -100,14 +100,12 @@ finalArrivals.forEach(arrival => {
   });
 });
 
-const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
- 
-});
 
 const glideText = await glideRes.text();
 
 console.log("GLIDE STATUS:", glideRes.status);
 console.log("GLIDE RESPONSE:", glideText);
+ const glideRes = await fetch("https://api.glideapp.io/api/function/mutateTables", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -118,6 +116,11 @@ console.log("GLIDE RESPONSE:", glideText);
     mutations
   })
 });
+
+const glideText = await glideRes.text();
+
+console.log("GLIDE STATUS:", glideRes.status);
+console.log("GLIDE RESPONSE:", glideText);
  
    res.json({
   success: true,
