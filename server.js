@@ -83,13 +83,13 @@ const mutations = [];
 
 mutations.push({
   kind: "delete-all-rows-from-table",
-  tableName: "native-table-d3UgjzNMFLdWdcIIc8AP"
+  tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
 });
 
 finalArrivals.forEach(arrival => {
   mutations.push({
     kind: "add-row-to-table",
-    tableName: "native-table-d3UgjzNMFLdWdcIIc8AP",
+    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
       "Name": arrival.platformId,
       "wuIO9": arrival.route,
