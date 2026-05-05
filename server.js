@@ -40,7 +40,7 @@ app.get("/clear-arrivals", async (req, res) => {
 });
 app.get("/push-arrivals", async (req, res) => {
   try {
-    
+ const targetPlatform = req.query.platformId;   
   let arrivals = [];
 
 const feeds = [
@@ -77,13 +77,17 @@ for (const url of feeds) {
 
       if (minutes < 0 || minutes > 60) continue;
 
-      arrivals.push({
-        platformId: stopTimeUpdate.stopId,
-        route: entity.tripUpdate.trip.routeId,
-        time: minutes.toString(),
-        station: "TBD",
-        direction: "TBD"
-      });
+      const stopId = stopTimeUpdate.stopId;
+
+if (targetPlatform && stopId !== targetPlatform) continue;
+
+arrivals.push({
+  platformId: stopId,
+  route: entity.tripUpdate.trip.routeId,
+  time: minutes.toString(),
+  station: "TBD",
+  direction: "TBD"
+});
     }
   }
 }
