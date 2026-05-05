@@ -88,7 +88,7 @@ arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
-  station: stationCode,
+  station: stopId,
   direction: direction
 });
     }
