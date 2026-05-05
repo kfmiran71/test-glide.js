@@ -1,7 +1,11 @@
 import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
-import stations from "./stations.json" assert { type: "json" };
+import fs from "fs";
+
+const stations = JSON.parse(
+  fs.readFileSync(new URL("./stations.json", import.meta.url))
+);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
