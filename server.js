@@ -128,7 +128,7 @@ for (const a of arrivals) {
         appID: "TYenWzXz52pcp3wCTXG6",
            mutations: [
              
-  ...limitedArrivals.map(arrival => ({
+  ...limitedArrivals.map((arrival, index) => ({
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
@@ -137,7 +137,8 @@ for (const a of arrivals) {
       "wuIO9": arrival.route,
       "58c8P": arrival.time,
       "jQXCB": arrival.station,
-      "Qfui6": arrival.direction
+      "Qfui6": arrival.direction,
+      "2sD53": index + 1
     }
   }))
 ]
