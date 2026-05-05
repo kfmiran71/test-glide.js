@@ -1,14 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
-const STATION_MAP = {
-  "235": "Atlantic Av – Barclays Center",
-  "236": "Bergen St",
-  "237": "Grand Army Plaza",
-  "238": "Eastern Pkwy – Brooklyn Museum",
-  "239": "Franklin Av",
-  "248": "Nostrand Av"
-};
+import stations from "./stations.json" assert { type: "json" };
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -37,10 +30,8 @@ app.get("/clear-arrivals", async (req, res) => {
     const text = await response.text();
 
     res.json({
-      status: response.status,
-      ok: response.ok,
-      response: text
-    });
+  arrivals: limitedArrivals
+});
 
   } catch (err) {
     res.json({ error: err.message });
@@ -97,7 +88,7 @@ const direction =
   directionCode === "S" ? "Southbound" :
   directionCode;
 
-const stationName = STATION_MAP[stationCode] || stationCode;
+const stationName = stations[stationCode]?.stop_name || stationCode;
 
 arrivals.push({
   platformId: stopId,
@@ -164,14 +155,10 @@ for (const a of arrivals) {
  })
  });
   
-    const text = await response.text();
-
     res.json({
-      status: response.status,
-      ok: response.ok,
-      response: text
-    });
-
+  status: 200,
+  arrivals: limitedArrivals
+});
   } catch (err) {
     res.json({ error: err.message });
   }
