@@ -81,12 +81,15 @@ for (const url of feeds) {
 
 if (targetPlatform && stopId !== targetPlatform) continue;
 
+const direction = stopId.slice(-1); // N or S
+const stationCode = stopId.slice(0, -1);
+
 arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
-  station: "TBD",
-  direction: "TBD"
+  station: stationCode,
+  direction: direction
 });
     }
   }
