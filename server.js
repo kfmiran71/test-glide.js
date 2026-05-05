@@ -2,12 +2,12 @@ import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 const STATION_MAP = {
-  "A24": "Atlantic Av – Barclays Center",
-  "A25": "Bergen St",
-  "A27": "Grand Army Plaza",
-  "A28": "Eastern Pkwy – Brooklyn Museum",
-  "A30": "Franklin Av",
-  "A31": "Nostrand Av"
+  "235": "Atlantic Av – Barclays Center",
+  "236": "Bergen St",
+  "237": "Grand Army Plaza",
+  "238": "Eastern Pkwy – Brooklyn Museum",
+  "239": "Franklin Av",
+  "248": "Nostrand Av"
 };
 const app = express();
 const PORT = process.env.PORT || 3000;
