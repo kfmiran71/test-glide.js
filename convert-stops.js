@@ -25,6 +25,6 @@ const result = Object.entries(stationMap).map(([id, name]) => ({
   name: name
 }));
 
-fs.writeFileSync("./stations.json", JSON.stringify(result, null, 2));
+fs.writeFileSync("./stations.NEW.json", JSON.stringify(result, null, 2));
 
 console.log("stations.json created");
