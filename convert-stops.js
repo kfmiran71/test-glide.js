@@ -12,8 +12,8 @@ for (const line of lines) {
 
   const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-const stop_id = parts[0];
-const stop_name = parts[2]?.replace(/^"|"$/g, "");
+  const stop_id = parts[0];
+  const stop_name = parts[2]?.replace(/^"|"$/g, "");
 
   if (stop_id && stop_name) {
     stationMap[stop_id] = stop_name;
@@ -25,6 +25,6 @@ const result = Object.entries(stationMap).map(([id, name]) => ({
   name: name
 }));
 
-fs.writeFileSync("./stations.NEW.json", JSON.stringify(result, null, 2));
+fs.writeFileSync("./stations.json", JSON.stringify(result, null, 2));
 
 console.log("stations.json created");
