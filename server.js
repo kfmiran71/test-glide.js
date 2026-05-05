@@ -1,6 +1,6 @@
 import express from "express";
 import fetch from "node-fetch";
-
+import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
