@@ -10,10 +10,10 @@ const stationMap = {};
 for (const line of lines) {
   if (!line.trim()) continue;
 
-  const parts = line.split(",");
+  const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-  const stop_id = parts[0];
-  const stop_name = parts[1];
+const stop_id = parts[0];
+const stop_name = parts[2]?.replace(/^"|"$/g, "");
 
   if (stop_id && stop_name) {
     stationMap[stop_id] = stop_name;
