@@ -138,7 +138,8 @@ for (const a of arrivals) {
       "58c8P": arrival.time,
       "jQXCB": arrival.station,
       "Qfui6": arrival.direction,
-      "2sD53": index + 1
+      "2sD53": index + 1,
+      "v3Wj7": `${runId}-${String(index + 1).padStart(3, "0")}`
     }
   }))
 ]
