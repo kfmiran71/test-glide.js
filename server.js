@@ -105,6 +105,8 @@ for (const a of arrivals) {
     routeCounts[a.route]++;
   }
 }
+    
+    limitedArrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
     console.log("PAYLOAD ARRIVALS:", arrivals);
     arrivals.forEach((a, i) => {
   console.log("ROW", i, {
