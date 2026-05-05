@@ -1,6 +1,14 @@
 import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
+const STATION_MAP = {
+  "A24": "Atlantic Av – Barclays Center",
+  "A25": "Bergen St",
+  "A27": "Grand Army Plaza",
+  "A28": "Eastern Pkwy – Brooklyn Museum",
+  "A30": "Franklin Av",
+  "A31": "Nostrand Av"
+};
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -81,14 +89,21 @@ for (const url of feeds) {
 
 if (targetPlatform && stopId !== targetPlatform) continue;
 
-const direction = stopId.slice(-1); // N or S
+const directionCode = stopId.slice(-1);
 const stationCode = stopId.slice(0, -1);
+
+const direction =
+  directionCode === "N" ? "Northbound" :
+  directionCode === "S" ? "Southbound" :
+  directionCode;
+
+const stationName = STATION_MAP[stationCode] || stationCode;
 
 arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
-  station: stopId,
+  station: stationName,
   direction: direction
 });
     }
