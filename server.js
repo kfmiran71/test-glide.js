@@ -41,18 +41,52 @@ app.get("/clear-arrivals", async (req, res) => {
 app.get("/push-arrivals", async (req, res) => {
   try {
     
-   const arrivals = [
-  { platformId: "235N", route: "4", time: "1 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "4", time: "2 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "4", time: "3 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "4", time: "4 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "4", time: "5 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
+  let arrivals = [];
 
-  { platformId: "235N", route: "3", time: "1 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "3", time: "2 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "3", time: "3 min", station: "Atlantic Av - Barclays", direction: "Uptown" },
-  { platformId: "235N", route: "3", time: "4 min", station: "Atlantic Av - Barclays", direction: "Uptown" }
+const feeds = [
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
 ];
+
+for (const url of feeds) {
+  const mtaRes = await fetch(url, {
+    headers: {
+      "x-api-key": process.env.MTA_API_KEY
+    }
+  });
+
+  const buffer = await mtaRes.arrayBuffer();
+  const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+    new Uint8Array(buffer)
+  );
+
+  for (const entity of feed.entity) {
+    if (!entity.tripUpdate) continue;
+
+    for (const stopTimeUpdate of entity.tripUpdate.stopTimeUpdate || []) {
+      if (!stopTimeUpdate.arrival?.time) continue;
+
+      const arrivalTime = stopTimeUpdate.arrival.time * 1000;
+      const now = Date.now();
+      const minutes = Math.round((arrivalTime - now) / 60000);
+
+      if (minutes < 0 || minutes > 60) continue;
+
+      arrivals.push({
+        platformId: stopTimeUpdate.stopId,
+        route: entity.tripUpdate.trip.routeId,
+        time: minutes.toString(),
+        station: "TBD",
+        direction: "TBD"
+      });
+    }
+  }
+}
     arrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
     const limitedArrivals = [];
 const routeCounts = {};
