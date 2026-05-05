@@ -13,7 +13,7 @@ for (const line of lines) {
   const parts = line.split(",");
 
   const stop_id = parts[0];
-  const stop_name = parts[2];
+  const stop_name = parts[1];
 
   if (stop_id && stop_name) {
     stationMap[stop_id] = stop_name;
