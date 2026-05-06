@@ -2,17 +2,14 @@ import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 import fs from "fs";
-<<<<<<< HEAD
 
-const stations = JSON.parse(
-  fs.readFileSync(new URL("./stations.json", import.meta.url))
-);
-=======
+
+
 import path from "path";
 
 const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
->>>>>>> 1802321 (Use stations.json)
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
