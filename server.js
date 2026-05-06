@@ -79,18 +79,19 @@ for (const url of feeds) {
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue;
 
-    for (const stopTimeUpdate of entity.tripUpdate.stopTimeUpdate || []) {
-      if (!stopTimeUpdate.arrival?.time) continue;
+  for (const stopTimeUpdate of entity.tripUpdate.stopTimeUpdate || []) {
 
-      const arrivalTime = stopTimeUpdate.arrival.time * 1000;
-      const now = Date.now();
-      const minutes = Math.round((arrivalTime - now) / 60000);
+  const stopId = stopTimeUpdate.stopId;
 
-      if (minutes < 0 || minutes > 60) continue;
+  if (targetPlatform && stopId !== targetPlatform) continue;
 
-      const stopId = stopTimeUpdate.stopId;
+  if (!stopTimeUpdate.arrival?.time) continue;
 
-if (targetPlatform && stopId !== targetPlatform) continue;
+  const arrivalTime = stopTimeUpdate.arrival.time * 1000;
+  const now = Date.now();
+  const minutes = Math.round((arrivalTime - now) / 60000);
+
+  if (minutes < 0 || minutes > 60) continue;
 
 const directionCode = stopId.slice(-1);
 const stationCode = stopId.slice(0, -1);
