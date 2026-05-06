@@ -104,7 +104,7 @@ const stationName = STATION_MAP[stationCode] || stationCode;
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
-  station: station,
+  station: stationName,
   direction: direction
 });
     }
