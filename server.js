@@ -38,7 +38,9 @@ app.get("/clear-arrivals", async (req, res) => {
     const text = await response.text();
 
     res.json({
-  arrivals: limitedArrivals
+  status: response.status,
+  ok: response.ok,
+  response: text
 });
 
   } catch (err) {
@@ -96,8 +98,7 @@ const direction =
   directionCode === "S" ? "Southbound" :
   directionCode;
 
-const stationName = stations[stationCode]?.stop_name || stationCode;
-
+const stationName = STATION_MAP[stationCode] || stationCode;
 arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
