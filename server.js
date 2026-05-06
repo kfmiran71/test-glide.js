@@ -19,6 +19,7 @@ app.get("/", (req, res) => {
 app.get("/clear-arrivals", async (req, res) => {
   try {
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+      console.log("BACKEND VERSION: station-string-v2");
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -155,7 +156,7 @@ for (const a of arrivals) {
       "Name": arrival.platformId,
       "wuIO9": arrival.route,
       "58c8P": arrival.time,
-      "jQXCB": arrival.station,
+      "jQXCB": String(arrival.station || ""),
       "Qfui6": arrival.direction,
       "2sD53": index + 1,
       "v3Wj7": `${runId}-${String(index + 1).padStart(3, "0")}`
