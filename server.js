@@ -101,9 +101,14 @@ const direction =
   directionCode === "S" ? "Southbound" :
   directionCode;
 
-const stationName = STATION_MAP[stationCode] || stationCode;
+const rawStation = STATION_MAP[stationCode] || STATION_MAP[stopId];
 
-      arrivals.push({
+    const stationName =
+  typeof rawStation === "string"
+    ? rawStation
+    : rawStation?.name || stationCode;
+      
+    arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
