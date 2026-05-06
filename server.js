@@ -101,12 +101,17 @@ const direction =
   directionCode === "S" ? "Southbound" :
   directionCode;
 
-const rawStation = STATION_MAP[stationCode] || STATION_MAP[stopId];
+let stationName = stationCode;
 
-    const stationName =
-  typeof rawStation === "string"
-    ? rawStation
-    : rawStation?.name || stationCode;
+if (Array.isArray(STATION_MAP)) {
+  const match = STATION_MAP.find(s => s.stop_id === stopId);
+  if (match) stationName = match.name;
+}
+
+else if (STATION_MAP[stopId]) {
+  const val = STATION_MAP[stopId];
+  stationName = typeof val === "string" ? val : val.name;
+}
       
     arrivals.push({
   platformId: stopId,
