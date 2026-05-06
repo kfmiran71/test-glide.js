@@ -162,10 +162,6 @@ limitedArrivals.forEach((a, i) => {
       body: JSON.stringify({
         appID: "TYenWzXz52pcp3wCTXG6",
            mutations: [
-  {
-    kind: "delete-all-rows-from-table",
-    tableName: "native-table-d3UgJzNMFLdWdcIIc8AP"
-  },
            
   ...limitedArrivals.map((arrival, index) => ({
     kind: "add-row-to-table",
