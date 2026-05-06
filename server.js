@@ -170,9 +170,7 @@ limitedArrivals.forEach((a, i) => {
       "wuIO9": arrival.route,
       "58c8P": arrival.time,
       "jQXCB": arrival.station ? arrival.station : "",
-      "Qfui6": arrival.direction,
-      "2sD53": index + 1,
-      "v3Wj7": `${runId}-${String(index + 1).padStart(3, "0")}`
+      "Qfui6": arrival.direction 
     }
   }))
 ]
