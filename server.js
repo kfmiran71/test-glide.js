@@ -128,13 +128,14 @@ for (const a of arrivals) {
 }
     
     limitedArrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
-    console.log("PAYLOAD ARRIVALS:", arrivals);
-    arrivals.forEach((a, i) => {
-  console.log("ROW", i, {
+    console.log("LIMITED ARRIVALS BEING SENT TO GLIDE:", limitedArrivals);
+limitedArrivals.forEach((a, i) => {
+  console.log("GLIDE ROW", i, {
     platformId: a.platformId,
     route: a.route,
     time: a.time,
     station: a.station,
+    stationType: typeof a.station,
     direction: a.direction
   });
 });
