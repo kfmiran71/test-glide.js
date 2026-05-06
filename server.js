@@ -99,7 +99,8 @@ const direction =
   directionCode;
 
 const stationName = STATION_MAP[stationCode] || stationCode;
-arrivals.push({
+
+      arrivals.push({
   platformId: stopId,
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
