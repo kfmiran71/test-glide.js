@@ -85,9 +85,13 @@ for (const url of feeds) {
 
   if (targetPlatform && stopId !== targetPlatform) continue;
 
-  if (!stopTimeUpdate.arrival?.time) continue;
+  const eventTime =
+  stopTimeUpdate.departure?.time ||
+  stopTimeUpdate.arrival?.time;
 
-  const arrivalTime = stopTimeUpdate.arrival.time * 1000;
+if (!eventTime) continue;
+
+const arrivalTime = eventTime * 1000;
   const now = Date.now();
   const minutes = Math.round((arrivalTime - now) / 60000);
 
