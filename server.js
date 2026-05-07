@@ -54,16 +54,51 @@ app.get("/push-arrivals", async (req, res) => {
     console.log("BACKEND VERSION: station-string-v2");
   let arrivals = [];
 
-const feeds = [
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
-  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
-];
+const routeId = req.query.routeId;
 
+let feeds = [];
+
+if (["1","2","3","4","5","6","7"].includes(routeId)) {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
+  ];
+}
+
+else if (["A","C","E"].includes(routeId)) {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
+  ];
+}
+
+else if (["B","D","F","M"].includes(routeId)) {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"
+  ];
+}
+
+else if (["N","Q","R","W"].includes(routeId)) {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"
+  ];
+}
+
+else if (["J","Z"].includes(routeId)) {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"
+  ];
+}
+
+else if (routeId === "G") {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"
+  ];
+}
+
+else if (routeId === "L") {
+  feeds = [
+    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
+  ];
+}
 for (const url of feeds) {
   const mtaRes = await fetch(url, {
     headers: {
