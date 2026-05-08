@@ -25,6 +25,8 @@ const params = new URLSearchParams(window.location.search);
 const stop = params.get("stop");
 const route = params.get("route");
 
+function loadArrivals() {
+
 fetch(`/push-arrivals?platformId=${stop}&routeId=${route}`)
   .then(res => res.json())
   .then(data => {
@@ -106,6 +108,11 @@ document.getElementById("results").innerHTML = html;
     document.getElementById("results").innerHTML =
       "Error loading arrivals";
   });
+  }
+
+loadArrivals();
+
+setInterval(loadArrivals, 15000);
 </script>
 
 </body>
