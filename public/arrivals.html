@@ -30,7 +30,9 @@ function loadArrivals() {
 fetch(`/push-arrivals?platformId=${stop}&routeId=${route}`)
   .then(res => res.json())
   .then(data => {
-
+if (!data.arrivals || data.arrivals.length === 0) {
+  return;
+}
  let grouped = {};
 
 data.arrivals.forEach(arrival => {
