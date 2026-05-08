@@ -48,62 +48,7 @@ data.arrivals.forEach(arrival => {
 
 });
 
-let html = "";
 
-Object.keys(grouped).forEach(route => {
-
-  html += `
-    <div style="
-      padding:14px 16px;
-margin-bottom:8px;
-background:#1A1A1D;
-border-radius:16px;
-font-family:Arial;
-
-
-    ">
-<div style="
-  display:flex;
-  align-items:center;
-">
-     <div style="
- width:42px;
-height:42px;
-  border-radius:50%;
-  background:${route === "2" ? "#EE352E" :
-              route === "3" ? "#EE352E" :
-              route === "4" ? "#00933C" :
-              route === "5" ? "#00933C" :
-              route === "6" ? "#00933C" :
-              "#444"};
-
-  color:white;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:24px;
-  font-weight:bold;
-  margin-right:16px;
-flex-shrink:0;
-">
-  ${route}
-</div>
-<div>
-      <div style="
-        font-size:22px;
-font-weight:600;
-letter-spacing:0.5px;
-      ">
-        ${grouped[route].join(" • ")} min
-      </div>
-</div>
-</div>
-  
-  `;
-
-});
-
-document.getElementById("results").innerHTML = html;
 })
   .catch(err => {
     document.getElementById("results").innerHTML =
