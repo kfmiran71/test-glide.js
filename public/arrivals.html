@@ -47,13 +47,27 @@ Object.keys(grouped).forEach(route => {
       font-family:Arial;
     ">
 
-      <div style="
-        font-size:36px;
-        font-weight:bold;
-        margin-bottom:8px;
-      ">
-        ${route}
-      </div>
+     <div style="
+  width:56px;
+  height:56px;
+  border-radius:50%;
+  background:${route === "2" ? "#EE352E" :
+              route === "3" ? "#EE352E" :
+              route === "4" ? "#00933C" :
+              route === "5" ? "#00933C" :
+              route === "6" ? "#00933C" :
+              "#444"};
+
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:32px;
+  font-weight:bold;
+  margin-bottom:12px;
+">
+  ${route}
+</div>
 
       <div style="
         font-size:24px;
