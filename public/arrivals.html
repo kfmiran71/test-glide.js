@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Commuter Eye Arrivals</title>
+</head>
+
+<body>
+
+<h1>Commuter Eye Arrivals</h1>
+
+<div id="results">
+Loading arrivals...
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+
+const stop = params.get("stop");
+const route = params.get("route");
+
+fetch(`/arrivals?stop=${stop}&route=${route}`)
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("results").innerHTML =
+      JSON.stringify(data, null, 2);
+  })
+  .catch(err => {
+    document.getElementById("results").innerHTML =
+      "Error loading arrivals";
+  });
+</script>
+
+</body>
+</html>
