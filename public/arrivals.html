@@ -63,7 +63,10 @@ display:flex;
 align-items:center;
 justify-content:space-between;
     ">
-
+<div style="
+  display:flex;
+  align-items:center;
+">
      <div style="
  width:42px;
 height:42px;
@@ -86,7 +89,7 @@ flex-shrink:0;
 ">
   ${route}
 </div>
-
+<div>
       <div style="
         font-size:22px;
 font-weight:600;
@@ -94,8 +97,9 @@ letter-spacing:0.5px;
       ">
         ${grouped[route].join(" • ")} min
       </div>
-
-    </div>
+</div>
+</div>
+  
   `;
 
 });
