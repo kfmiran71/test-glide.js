@@ -129,10 +129,7 @@ else if (routeId === "L") {
   ];
 
 }
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
-  ];
-}
+  
 for (const url of feeds) {
   const mtaRes = await fetch(url, {
     headers: {
