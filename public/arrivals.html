@@ -22,49 +22,51 @@ fetch(`/push-arrivals?platformId=${stop}&routeId=${route}`)
   .then(res => res.json())
   .then(data => {
 
-  let html = "";
+ let grouped = {};
 
-  data.arrivals.forEach(arrival => {
+data.arrivals.forEach(arrival => {
 
-    html += `
+  if (!grouped[arrival.route]) {
+    grouped[arrival.route] = [];
+  }
+
+  grouped[arrival.route].push(arrival.time);
+
+});
+
+let html = "";
+
+Object.keys(grouped).forEach(route => {
+
+  html += `
+    <div style="
+      padding:16px;
+      margin-bottom:12px;
+      border:1px solid #ccc;
+      border-radius:12px;
+      font-family:Arial;
+    ">
+
       <div style="
-        padding:16px;
-        margin-bottom:12px;
-        border:1px solid #ccc;
-        border-radius:12px;
-        font-family:Arial;
+        font-size:36px;
+        font-weight:bold;
+        margin-bottom:8px;
       ">
-
-        <div style="
-          font-size:32px;
-          font-weight:bold;
-          margin-bottom:8px;
-        ">
-          ${arrival.route}
-        </div>
-
-        <div style="
-          font-size:22px;
-          margin-bottom:4px;
-        ">
-          ${arrival.time} min
-        </div>
-
-        <div>
-          ${arrival.station}
-        </div>
-
-        <div>
-          ${arrival.direction}
-        </div>
-
+        ${route}
       </div>
-    `;
 
-  });
+      <div style="
+        font-size:24px;
+      ">
+        ${grouped[route].join(" • ")} min
+      </div>
 
-  document.getElementById("results").innerHTML = html;
+    </div>
+  `;
 
+});
+
+document.getElementById("results").innerHTML = html;
 })
   .catch(err => {
     document.getElementById("results").innerHTML =
