@@ -21,9 +21,51 @@ const route = params.get("route");
 fetch(`/push-arrivals?platformId=${stop}&routeId=${route}`)
   .then(res => res.json())
   .then(data => {
-    document.getElementById("results").innerHTML =
-      JSON.stringify(data, null, 2);
-  })
+
+  let html = "";
+
+  data.arrivals.forEach(arrival => {
+
+    html += `
+      <div style="
+        padding:16px;
+        margin-bottom:12px;
+        border:1px solid #ccc;
+        border-radius:12px;
+        font-family:Arial;
+      ">
+
+        <div style="
+          font-size:32px;
+          font-weight:bold;
+          margin-bottom:8px;
+        ">
+          ${arrival.route}
+        </div>
+
+        <div style="
+          font-size:22px;
+          margin-bottom:4px;
+        ">
+          ${arrival.time} min
+        </div>
+
+        <div>
+          ${arrival.station}
+        </div>
+
+        <div>
+          ${arrival.direction}
+        </div>
+
+      </div>
+    `;
+
+  });
+
+  document.getElementById("results").innerHTML = html;
+
+})
   .catch(err => {
     document.getElementById("results").innerHTML =
       "Error loading arrivals";
