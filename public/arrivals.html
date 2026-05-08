@@ -4,11 +4,25 @@
   <title>Commuter Eye Arrivals</title>
 </head>
 
-<body>
+<body style="
+  margin:0;
+  background:#111;
+  font-family:Arial;
+  color:white;
+">
 
-<h1>Commuter Eye Arrivals</h1>
+<div style="
+  padding:20px;
+  font-size:34px;
+  font-weight:bold;
+  border-bottom:1px solid #333;
+">
+  Arrivals
+</div>
 
-<div id="results">
+<div id="results" style="
+  padding:16px;
+">
 Loading arrivals...
 </div>
 
@@ -42,9 +56,9 @@ Object.keys(grouped).forEach(route => {
     <div style="
       padding:16px;
       margin-bottom:12px;
-      border:1px solid #ccc;
-      border-radius:12px;
-      font-family:Arial;
+      background:#1E1E1E;
+border-radius:18px;
+font-family:Arial;
     ">
 
      <div style="
@@ -70,7 +84,9 @@ Object.keys(grouped).forEach(route => {
 </div>
 
       <div style="
-        font-size:24px;
+        font-size:34px;
+font-weight:bold;
+letter-spacing:1px;
       ">
         ${grouped[route].join(" • ")} min
       </div>
