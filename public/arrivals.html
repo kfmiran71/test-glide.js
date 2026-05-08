@@ -27,7 +27,11 @@ const route = params.get("route");
 
 function loadArrivals() {
 
-fetch(`/push-arrivals?platformId=${stop}&routeId=${route}`)
+const url = route
+  ? `/push-arrivals?platformId=${stop}&routeId=${route}`
+  : `/push-arrivals?platformId=${stop}`;
+
+fetch(url)
   .then(res => res.json())
   .then(data => {
 if (!data.arrivals || data.arrivals.length === 0) {
