@@ -11,6 +11,7 @@ const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const app = express();
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
