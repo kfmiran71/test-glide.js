@@ -27,8 +27,14 @@ const route = params.get("route");
 
 function getDirectionStops(baseStop) {
 
-  const uptownStop = `${baseStop}N`;
-  const downtownStop = `${baseStop}S`;
+  const cleanedStop =
+    baseStop.replace(/N$|S$/, "");
+
+  const uptownStop =
+    `${cleanedStop}N`;
+
+  const downtownStop =
+    `${cleanedStop}S`;
 
   return {
     uptownStop,
