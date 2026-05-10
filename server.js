@@ -235,6 +235,7 @@ limitedArrivals.forEach((a, i) => {
 
     
     const runId = Date.now().toString();
+    return res.send("Push paused");
     const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
