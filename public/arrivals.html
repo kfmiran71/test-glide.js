@@ -211,8 +211,9 @@
     .arrival-line {
       display: flex;
       align-items: baseline;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 10px;
+      width: 100%;
     }
 
     .route-label {
@@ -481,7 +482,10 @@ function formatTimes(times) {
 
   return `
     <span class="time-cluster">
-      ${first}<span class="time-unit">min</span>
+      ${new Date(Date.now() + first * 60000).toLocaleTimeString([], {
+  hour: "numeric",
+  minute: "2-digit"
+})}
       ${next.length ? `<span class="time-secondary">${next.join(" • ")}</span>` : ""}
     </span>
   `;
