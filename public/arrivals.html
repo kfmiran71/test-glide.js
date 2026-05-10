@@ -94,6 +94,8 @@
     }
 
     .status-pill {
+  display: none;
+}
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -165,6 +167,8 @@
     }
 
     .direction-count {
+  display: none;
+}
       color: var(--muted);
       font-size: 12px;
       font-weight: 750;
@@ -261,23 +265,18 @@
     }
 
     .time-secondary {
-      margin-left: 6px;
-      color: #6b7280;
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
 
     .station-line {
-      margin-top: 4px;
-      overflow: hidden;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
-      letter-spacing: -0.01em;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
 
     .empty-state,
     .message-card {
@@ -346,7 +345,7 @@
       <div class="direction-stack">
         <div class="direction-card">
           <div class="direction-header">
-            <h2 class="direction-title"><span class="direction-arrow">↑</span> Uptown</h2>
+            <h2 class="direction-title">Uptown</h2>
             <span class="direction-count">Updating</span>
           </div>
           <div class="arrival-list">
@@ -356,7 +355,7 @@
 
         <div class="direction-card">
           <div class="direction-header">
-            <h2 class="direction-title"><span class="direction-arrow">↓</span> Downtown</h2>
+            <h2 class="direction-title">Downtown</h2>
             <span class="direction-count">Updating</span>
           </div>
           <div class="arrival-list">
