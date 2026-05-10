@@ -545,7 +545,7 @@ function renderDirection(title, arrow, groups) {
   return `
     <section class="direction-card" aria-label="${title} arrivals">
       <div class="direction-header">
-        <h2 class="direction-title"><span class="direction-arrow">${arrow}</span> ${title}</h2>
+        <h2 class="direction-title">${title}</h2>
         <span class="direction-count">${groups.length ? countLabel : "No trains"}</span>
       </div>
       ${groups.length
