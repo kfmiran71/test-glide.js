@@ -257,6 +257,7 @@
   align-items: flex-end;
 
   padding-top: 18px;
+  gap: 10px;
 }
       
       
@@ -274,13 +275,16 @@
       letter-spacing: -0.02em;
     }
 
-    .time-secondary {
-  color: #111827;
+   .time-secondary {
+  color: #374151;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
-}
 
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
     .station-line {
   color: #111827;
   font-size: 16px;
@@ -512,7 +516,7 @@ function formatTimes(times) {
   hour: "numeric",
   minute: "2-digit"
 })}
-      ${next.length ? `<span class="time-secondary">${next.join(" • ")}</span>` : ""}
+      ${next.length ? `<span class="time-secondary">• ${next.join(" • ")}</span>` : ""}
     </span>
   `;
 
