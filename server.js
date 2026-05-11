@@ -270,7 +270,54 @@ limitedArrivals.forEach((a, i) => {
     res.json({ error: err.message });
   }
 });
+app.get("/stations", async (req, res) => {
 
+  try {
+
+    const routeId = req.query.routeId;
+    const direction = req.query.direction;
+
+    if (!routeId || !direction) {
+      return res.status(400).json({
+        error: "Missing routeId or direction"
+      });
+    }
+
+    const stops = [];
+
+    for (const [stopId, stopData] of Object.entries(STATION_MAP)) {
+
+      if (!stopId.endsWith(direction)) {
+        continue;
+      }
+
+      const name =
+        typeof stopData === "string"
+          ? stopData
+          : stopData.name;
+
+      stops.push({
+        stopId,
+        name
+      });
+
+    }
+
+    res.json({
+      stations: stops
+    });
+
+  }
+
+  catch(err) {
+
+    res.status(500).json({
+      error: "Failed to load stations"
+    });
+
+  }
+
+});
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
