@@ -662,17 +662,13 @@ function renderShell(uptownGroups, downtownGroups) {
   <div class="direction-stack">
 
   <div class="station-select-wrap">
-    <select class="station-select" id="uptownSelect">
-      <option>${stop}</option>
-    </select>
+    <select class="station-select" id="uptownSelect"></select>
   </div>
 
   ${renderDirection("Uptown", "↑", uptownGroups)}
 
   <div class="station-select-wrap">
-    <select class="station-select" id="downtownSelect">
-      <option>${stop}</option>
-    </select>
+    <select class="station-select" id="downtownSelect"></select>
   </div>
 
   ${renderDirection("Downtown", "↓", downtownGroups)}
