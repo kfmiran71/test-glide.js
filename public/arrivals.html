@@ -13,8 +13,8 @@
       --card: rgba(255, 255, 255, 0.96);
       --hairline: rgba(15, 23, 42, 0.08);
       --shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
-      --radius-xl: 24px;
-      --radius-lg: 18px;
+      --radius-xl: 14px;
+      --radius-lg: 10px;
     }
 
     * {
@@ -44,7 +44,7 @@
         radial-gradient(circle at 12% -10%, rgba(0, 147, 60, 0.13), transparent 34%),
         radial-gradient(circle at 96% 0%, rgba(0, 57, 166, 0.12), transparent 32%),
         linear-gradient(180deg, #090d2e, #090d2e);
-      border-radius: 34px;
+      border-radius: 16px;
       overflow: hidden;
     }
 
@@ -182,18 +182,18 @@
       padding: 0 8px 8px;
     }
 
-    .arrival-card {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      align-items: flex-end;
-      gap: 11px;
-      min-height: 58px;
-      border: 1px solid rgba(15, 23, 42, 0.055);
-      border-radius: var(--radius-lg);
-      padding: 9px 11px;
-      background: var(--card);
-      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.055);
-    }
+   .arrival-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 92px;
+  border: 1px solid rgba(15, 23, 42, 0.055);
+  border-radius: 10px;
+  padding: 12px 18px;
+  background: var(--card);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
 
     .route-bullet {
       display: inline-grid;
@@ -210,19 +210,19 @@
     }
 
     .arrival-main {
-      min-width: 0;
-      display: flex;
-flex-direction: column;
-justify-content: flex-end;
-    }
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 
     .arrival-line {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 18px;
 }
       
     
@@ -244,17 +244,17 @@ justify-content: flex-end;
       white-space: nowrap;
     }
 
-   .time-cluster {
+  .time-cluster {
   color: #111827;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
   line-height: 1;
   white-space: nowrap;
   margin-left: auto;
-  padding-top: 10px;
-  display: inline-flex;
+  display: flex;
   align-items: flex-end;
+  padding-top: 14px;
 }
       
       
@@ -281,14 +281,13 @@ justify-content: flex-end;
 
     .station-line {
   color: #111827;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  align-items: flex-start;
-  padding-top: 2px;
-  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  display: flex;
+  align-items: center;
 }
-
     .empty-state,
     .message-card {
       margin: 0 8px 8px;
