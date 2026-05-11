@@ -531,12 +531,12 @@ function renderArrival(group, title) {
         aria-label="${displayRoute} train"
       >${displayRoute}</span>
       <div class="arrival-main">
-        <div class="arrival-line">
-          <span class="route-label">${displayRoute} train</span>
-          ${formatTimes(group.times)}
-        </div>
-        <div class="station-line">${station}</div>
-      </div>
+  <div class="arrival-line">
+    <div class="station-line">${station}</div>
+
+    ${formatTimes(group.times)}
+  </div>
+</div>
     </article>
   `;
 
