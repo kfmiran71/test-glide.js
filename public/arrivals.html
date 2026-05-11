@@ -122,7 +122,36 @@
 
     .direction-stack {
       display: grid;
-      gap: 42px;
+      gap: 42px;.station-select-wrap {
+  padding: 0 8px;
+}
+
+.station-select {
+  width: 100%;
+  height: 44px;
+
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+
+  background: rgba(255,255,255,0.12);
+  color: white;
+
+  font-size: 15px;
+  font-weight: 600;
+
+  padding: 0 14px;
+
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.station-select option {
+  color: black;
+}
     }
 
     .direction-card {
@@ -584,10 +613,25 @@ function renderShell(uptownGroups, downtownGroups) {
       </div>
       <div class="status-pill"><span class="live-dot"></span> ${updatedAt}</div>
     </div>
-    <div class="direction-stack">
-      ${renderDirection("Uptown", "↑", uptownGroups)}
-      ${renderDirection("Downtown", "↓", downtownGroups)}
-    </div>
+  <div class="direction-stack">
+
+  <div class="station-select-wrap">
+    <select class="station-select" id="uptownSelect">
+      <option>${stop}</option>
+    </select>
+  </div>
+
+  ${renderDirection("Uptown", "↑", uptownGroups)}
+
+  <div class="station-select-wrap">
+    <select class="station-select" id="downtownSelect">
+      <option>${stop}</option>
+    </select>
+  </div>
+
+  ${renderDirection("Downtown", "↓", downtownGroups)}
+
+</div>
   `;
 
 }
