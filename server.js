@@ -283,23 +283,36 @@ app.get("/stations", async (req, res) => {
       });
     }
 
-    const stops = [];
+    let stops = [];
 
-    for (const [stopId, stopData] of Object.entries(STATION_MAP)) {
+    if (Array.isArray(STATION_MAP)) {
 
-      if (!stopId.endsWith(direction)) {
-        continue;
-      }
+      stops = STATION_MAP
+        .filter(stop => {
 
-      const name =
-        typeof stopData === "string"
-          ? stopData
-          : stopData.name;
+          if (!stop.stop_id) return false;
 
-      stops.push({
-        stopId,
-        name
-      });
+          return stop.stop_id.endsWith(direction);
+
+        })
+        .map(stop => ({
+          stopId: stop.stop_id,
+          name: stop.name
+        }));
+
+    }
+
+    else {
+
+      stops = Object.entries(STATION_MAP)
+        .filter(([stopId]) => stopId.endsWith(direction))
+        .map(([stopId, stopData]) => ({
+          stopId,
+          name:
+            typeof stopData === "string"
+              ? stopData
+              : stopData.name
+        }));
 
     }
 
@@ -312,7 +325,7 @@ app.get("/stations", async (req, res) => {
   catch(err) {
 
     res.status(500).json({
-      error: "Failed to load stations"
+      error: err.message
     });
 
   }
