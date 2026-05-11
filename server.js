@@ -299,8 +299,16 @@ app.get("/stations", async (req, res) => {
 const stopPrefix =
   stop.stop_id.replace(/[NS]$/, "").charAt(0);
 
-if (routeId === "1" || routeId === "2" || routeId === "3") {
+if (routeId === "1") {
   return stopPrefix === "1" || stopPrefix === "2";
+}
+
+if (routeId === "2") {
+  return stopPrefix === "2";
+}
+
+if (routeId === "3") {
+  return stopPrefix === "2";
 }
 
 if (routeId === "4" || routeId === "5" || routeId === "6") {
