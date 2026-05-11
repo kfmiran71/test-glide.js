@@ -421,7 +421,53 @@ const route = params.get("route");
 const resultsEl = document.getElementById("results");
 
 function getDirectionStops(baseStop) {
+async function fetchStations(direction) {
 
+  const query = new URLSearchParams({
+    direction
+  });
+
+  if (route) {
+    query.set("routeId", route);
+  }
+
+  const res = await fetch(`/stations?${query.toString()}`);
+
+  const data = await res.json();
+
+  return data.stations || [];
+
+}
+
+function populateStationSelect(id, stations, selectedStop) {
+
+  const select = document.getElementById(id);
+
+  if (!select) {
+    return;
+  }
+
+  select.replaceChildren();
+
+  stations.forEach(station => {
+
+    const option =
+      document.createElement("option");
+
+    option.value = station.stopId;
+
+    option.textContent =
+      station.name;
+
+    if (station.stopId === selectedStop) {
+      option.selected = true;
+    }
+
+    select.appendChild(option);
+
+  });
+
+}
   const cleanedStop =
     baseStop.replace(/N$|S$/, "");
 
