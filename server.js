@@ -292,7 +292,26 @@ app.get("/stations", async (req, res) => {
 
           if (!stop.stop_id) return false;
 
-          return stop.stop_id.endsWith(direction);
+          if (!stop.stop_id.endsWith(direction)) {
+  return false;
+}
+
+const stopPrefix =
+  stop.stop_id.replace(/[NS]$/, "").charAt(0);
+
+if (routeId === "1" || routeId === "2" || routeId === "3") {
+  return stopPrefix === "1" || stopPrefix === "2";
+}
+
+if (routeId === "4" || routeId === "5" || routeId === "6") {
+  return stopPrefix === "4";
+}
+
+if (routeId === "7") {
+  return stopPrefix === "7";
+}
+
+return true;
 
         })
         .map(stop => ({
