@@ -706,7 +706,23 @@ async function loadArrivals() {
       groupArrivals(downtownArrivals);
 
     resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown);
+const uptownStations =
+  await fetchStations("N");
 
+const downtownStations =
+  await fetchStations("S");
+
+populateStationSelect(
+  "uptownSelect",
+  uptownStations,
+  uptownStop
+);
+
+populateStationSelect(
+  "downtownSelect",
+  downtownStations,
+  downtownStop
+);
   }
 
   catch(err) {
