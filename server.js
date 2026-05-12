@@ -11,6 +11,11 @@ const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
 const routeStopMapPath = path.resolve("./route-stop-map.json");
 const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
+const ROUTE_ORDER = [
+  "1", "2", "3", "4", "5", "6", "6X", "7", "7X",
+  "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
+  "GS", "J", "Z", "L", "M", "N", "Q", "R", "W"
+];
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -27,6 +32,84 @@ app.use((req, res, next) => {
   next();
 });
 const PORT = process.env.PORT || 3000;
+
+function sortRoutes(routes) {
+  return [...routes].sort((a, b) => {
+    const routeA = ROUTE_ORDER.indexOf(a);
+    const routeB = ROUTE_ORDER.indexOf(b);
+
+    if (routeA !== -1 && routeB !== -1) {
+      return routeA - routeB;
+    }
+
+    if (routeA !== -1) return -1;
+    if (routeB !== -1) return 1;
+
+    return a.localeCompare(b);
+  });
+}
+
+function findStopByStationId(stationId) {
+  for (const routeStops of Object.values(ROUTE_STOP_MAP)) {
+    for (const direction of ["N", "S"]) {
+      const match = routeStops[direction]?.find(stop => stop.station_id === stationId);
+
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getTransferGroups(stationId) {
+  const currentStop = findStopByStationId(stationId);
+
+  if (!currentStop) {
+    return [];
+  }
+
+  const groups = new Map();
+
+  for (const [routeId, routeStops] of Object.entries(ROUTE_STOP_MAP)) {
+    for (const direction of ["N", "S"]) {
+      for (const stop of routeStops[direction] || []) {
+        if (
+          stop.stop_name !== currentStop.stop_name ||
+          stop.station_id === currentStop.station_id
+        ) {
+          continue;
+        }
+
+        const key = `${stop.station_id}|${direction}`;
+        const group = groups.get(key) || {
+          direction,
+          stopId: stop.stop_id,
+          stationId: stop.station_id,
+          stationName: stop.stop_name,
+          routes: new Set()
+        };
+
+        group.routes.add(routeId);
+        groups.set(key, group);
+      }
+    }
+  }
+
+  return [...groups.values()]
+    .map(group => ({
+      ...group,
+      routes: sortRoutes(group.routes)
+    }))
+    .sort((a, b) => {
+      if (a.direction !== b.direction) {
+        return a.direction.localeCompare(b.direction);
+      }
+
+      return a.stationId.localeCompare(b.stationId);
+    });
+}
 
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
@@ -271,6 +354,34 @@ limitedArrivals.forEach((a, i) => {
   } catch (err) {
     res.json({ error: err.message });
   }
+});
+app.get("/transfers", async (req, res) => {
+
+  try {
+
+    const stopId = req.query.stopId;
+    const stationId = stopId ? stopId.replace(/[NS]$/, "") : "";
+
+    if (!stationId) {
+      return res.status(400).json({
+        error: "Missing stopId"
+      });
+    }
+
+    res.json({
+      transfers: getTransferGroups(stationId)
+    });
+
+  }
+
+  catch(err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
 });
 app.get("/stations", async (req, res) => {
 
