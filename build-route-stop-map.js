@@ -10,6 +10,7 @@ const GTFS_FILES = {
 
 const ARCHIVE_PATH = "Archive.zip";
 const OUTPUT_PATH = "route-stop-map.json";
+const PLATFORM_ROUTE_OUTPUT_PATH = "platform-route-map.json";
 
 function readGtfsFile(fileName) {
   if (fs.existsSync(fileName)) {
@@ -117,6 +118,7 @@ trips.forEach(trip => {
 
 const routeStops = {};
 const tripStops = new Map();
+const platformRoutes = {};
 
 function ensureDirection(routeId, direction) {
   routeStops[routeId] ??= { N: {}, S: {} };
@@ -134,6 +136,8 @@ for (const row of parseCsv(readGtfsFile(GTFS_FILES.stopTimes))) {
 
   const sequence = Number(row.stop_sequence);
   const directionStops = ensureDirection(routeId, direction);
+  platformRoutes[row.stop_id] ??= new Set();
+  platformRoutes[row.stop_id].add(routeId);
 
   directionStops[row.stop_id] ??= {
     ...stop,
@@ -202,4 +206,16 @@ Object.keys(routeStops).sort().forEach(routeId => {
 
 fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(output, null, 2)}\n`);
 
+const platformRouteOutput = Object.fromEntries(
+  Object.entries(platformRoutes)
+    .sort(([stopA], [stopB]) => stopA.localeCompare(stopB))
+    .map(([stopId, routes]) => [stopId, [...routes].sort()])
+);
+
+fs.writeFileSync(
+  PLATFORM_ROUTE_OUTPUT_PATH,
+  `${JSON.stringify(platformRouteOutput, null, 2)}\n`
+);
+
 console.log(`${OUTPUT_PATH} generated`);
+console.log(`${PLATFORM_ROUTE_OUTPUT_PATH} generated`);

@@ -11,6 +11,8 @@ const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
 const routeStopMapPath = path.resolve("./route-stop-map.json");
 const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
+const platformRouteMapPath = path.resolve("./platform-route-map.json");
+const PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(platformRouteMapPath, "utf-8"));
 const ROUTE_ORDER = [
   "1", "2", "3", "4", "5", "6", "6X", "7", "7X",
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
@@ -59,17 +61,7 @@ function sortRoutes(routes) {
 }
 
 function getRoutesForPlatform(platformId) {
-  const routes = new Set();
-
-  for (const [routeId, routeStops] of Object.entries(ROUTE_STOP_MAP)) {
-    for (const direction of ["N", "S"]) {
-      if (routeStops[direction]?.some(stop => stop.stop_id === platformId)) {
-        routes.add(routeId);
-      }
-    }
-  }
-
-  return sortRoutes(routes);
+  return sortRoutes(PLATFORM_ROUTE_MAP[platformId] || []);
 }
 
 function getFeedUrlsForRoutes(routeIds) {
@@ -240,9 +232,9 @@ app.get("/clear-arrivals", async (req, res) => {
     res.json({ error: err.message });
   }
 });
-app.get("/push-arrivals", async (req, res) => {
+async function handleArrivals(req, res) {
   try {
- const targetPlatform = req.query.platformId; 
+ const targetPlatform = req.query.stop || req.query.platformId; 
     console.log("BACKEND VERSION: station-string-v2");
   let arrivals = [];
 
@@ -384,7 +376,10 @@ limitedArrivals.forEach((a, i) => {
   } catch (err) {
     res.json({ error: err.message });
   }
-});
+}
+
+app.get("/push-arrivals", handleArrivals);
+app.get("/arrivals", handleArrivals);
 app.get("/transfers", async (req, res) => {
 
   try {

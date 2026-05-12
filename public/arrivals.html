@@ -559,6 +559,7 @@ const params = new URLSearchParams(window.location.search);
 const stop = params.get("stop");
 const route = params.get("route");
 const resultsEl = document.getElementById("results");
+let selectedPlatformStop = stop && /[NS]$/.test(stop) ? stop : "";
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
 
@@ -678,10 +679,11 @@ function populateStationSelect(id, stations, selectedStop) {
   });
 
   select.addEventListener("change", () => {
-    selectedStopBase = select.value.replace(/N$|S$/, "");
+    selectedPlatformStop = select.value;
+    selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
 
     const nextParams = new URLSearchParams(window.location.search);
-    nextParams.set("stop", selectedStopBase);
+    nextParams.set("stop", selectedPlatformStop);
     window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
     loadArrivals();
@@ -690,7 +692,7 @@ function populateStationSelect(id, stations, selectedStop) {
 }
 async function fetchDirection(platformId) {
 
-  const query = new URLSearchParams({ platformId });
+  const query = new URLSearchParams({ stop: platformId });
 
   if (selectedRoute) {
     query.set("routeId", selectedRoute);
@@ -979,11 +981,12 @@ function attachTransferHandlers() {
 
   document.querySelectorAll(".transfer-block").forEach(button => {
     button.addEventListener("click", () => {
-      selectedStopBase = button.dataset.stopId.replace(/N$|S$/, "");
+      selectedPlatformStop = button.dataset.stopId;
+      selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
       selectedRoute = button.dataset.routeId;
 
       const nextParams = new URLSearchParams(window.location.search);
-      nextParams.set("stop", selectedStopBase);
+      nextParams.set("stop", selectedPlatformStop);
       nextParams.set("route", selectedRoute);
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
@@ -1009,9 +1012,15 @@ async function loadArrivals() {
       downtownStop
     } = getDirectionStops(selectedStopBase);
 
+    const shouldFetchUptown =
+      !selectedPlatformStop || selectedPlatformStop.endsWith("N");
+
+    const shouldFetchDowntown =
+      !selectedPlatformStop || selectedPlatformStop.endsWith("S");
+
     const [uptownArrivals, downtownArrivals, transferGroups] = await Promise.all([
-      fetchDirection(uptownStop),
-      fetchDirection(downtownStop),
+      shouldFetchUptown ? fetchDirection(uptownStop) : Promise.resolve([]),
+      shouldFetchDowntown ? fetchDirection(downtownStop) : Promise.resolve([]),
       fetchTransfers(uptownStop)
     ]);
 
