@@ -9,6 +9,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
+const routeStopMapPath = path.resolve("./route-stop-map.json");
+const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -283,65 +285,13 @@ app.get("/stations", async (req, res) => {
       });
     }
 
-    let stops = [];
+    const routeStops =
+      ROUTE_STOP_MAP[routeId]?.[direction] || [];
 
-    if (Array.isArray(STATION_MAP)) {
-
-      stops = STATION_MAP
-        .filter(stop => {
-
-          if (!stop.stop_id) return false;
-
-          if (!stop.stop_id.endsWith(direction)) {
-  return false;
-}
-
-const stopPrefix =
-  stop.stop_id.replace(/[NS]$/, "").charAt(0);
-
-if (routeId === "1") {
-  return stopPrefix === "1" || stopPrefix === "2";
-}
-
-if (routeId === "2") {
-  return stopPrefix === "2";
-}
-
-if (routeId === "3") {
-  return stopPrefix === "2";
-}
-
-if (routeId === "4" || routeId === "5" || routeId === "6") {
-  return stopPrefix === "4";
-}
-
-if (routeId === "7") {
-  return stopPrefix === "7";
-}
-
-return true;
-
-        })
-        .map(stop => ({
-          stopId: stop.stop_id,
-          name: stop.name
-        }));
-
-    }
-
-    else {
-
-      stops = Object.entries(STATION_MAP)
-        .filter(([stopId]) => stopId.endsWith(direction))
-        .map(([stopId, stopData]) => ({
-          stopId,
-          name:
-            typeof stopData === "string"
-              ? stopData
-              : stopData.name
-        }));
-
-    }
+    const stops = routeStops.map(stop => ({
+      stopId: stop.stop_id,
+      name: stop.stop_name
+    }));
 
     res.json({
       stations: stops

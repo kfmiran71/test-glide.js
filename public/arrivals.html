@@ -421,6 +421,7 @@ const params = new URLSearchParams(window.location.search);
 const stop = params.get("stop");
 const route = params.get("route");
 const resultsEl = document.getElementById("results");
+let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 
 function getDirectionStops(baseStop) {
 
@@ -487,6 +488,16 @@ function populateStationSelect(id, stations, selectedStop) {
 
     select.appendChild(option);
 
+  });
+
+  select.addEventListener("change", () => {
+    selectedStopBase = select.value.replace(/N$|S$/, "");
+
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set("stop", selectedStopBase);
+    window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+    loadArrivals();
   });
 
 }
@@ -688,7 +699,7 @@ async function loadArrivals() {
 
   try {
 
-    if (!stop) {
+    if (!selectedStopBase) {
       resultsEl.innerHTML = `
         <div class="message-card">Add a stop query parameter to show arrivals.</div>
       `;
@@ -698,7 +709,7 @@ async function loadArrivals() {
     const {
       uptownStop,
       downtownStop
-    } = getDirectionStops(stop);
+    } = getDirectionStops(selectedStopBase);
 
     const [uptownArrivals, downtownArrivals] = await Promise.all([
       fetchDirection(uptownStop),
