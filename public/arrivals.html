@@ -127,25 +127,62 @@
     }
 
     .station-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       width: 100%;
+      min-height: 40px;
+      border: 1px solid rgba(15,23,42,0.08);
+      border-radius: 10px;
       padding: 0;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .station-route-switcher {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding-left: 7px;
+      flex-shrink: 0;
+    }
+
+    .station-route-button {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0;
+      background: var(--route-color, #6b7280);
+      color: var(--route-text, #fff);
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .station-route-button.is-active {
+      outline: 2px solid #111827;
+      outline-offset: 2px;
     }
 
     .station-select {
-      width: 100%;
+      flex: 1;
+      min-width: 0;
       height: 40px;
-      border: 1px solid rgba(15,23,42,0.08);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.96);
+      border: 0;
+      background: transparent;
       color: #111827;
       font-size: 15px;
       font-weight: 600;
-      padding: 0 14px;
+      padding: 0 14px 0 0;
       outline: none;
       appearance: none;
       -webkit-appearance: none;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
     }
 
     .station-select option {
@@ -223,6 +260,7 @@
 }
 
     .route-bullet {
+      position: relative;
       display: inline-grid;
       place-items: center;
       width: 38px;
@@ -234,6 +272,16 @@
       font-weight: 900;
       letter-spacing: -0.03em;
       box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+    }
+
+    .route-badge-secondary {
+      position: absolute;
+      right: 5px;
+      bottom: 4px;
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
     }
 
     .transfer-blocks {
@@ -260,6 +308,7 @@
     }
 
     .route-mini {
+      position: relative;
       display: inline-grid;
       place-items: center;
       width: 22px;
@@ -271,6 +320,12 @@
       font-weight: 900;
       line-height: 1;
       letter-spacing: 0;
+    }
+
+    .route-mini .route-badge-secondary {
+      right: 3px;
+      bottom: 2px;
+      font-size: 5px;
     }
 
     .arrival-main {
@@ -454,6 +509,12 @@ transform: translateY(-6px);
         height: 20px;
         font-size: 10px;
       }
+
+      .station-route-button {
+        width: 20px;
+        height: 20px;
+        font-size: 9px;
+      }
     }
   </style>
 </head>
@@ -518,10 +579,11 @@ function getDirectionStops(baseStop) {
   };
 
 }
-async function fetchStations(direction) {
+async function fetchStations(direction, currentStop) {
 
   const query = new URLSearchParams({
-    direction
+    direction,
+    currentStop
   });
 
   if (selectedRoute) {
@@ -534,7 +596,54 @@ async function fetchStations(direction) {
   const data =
     await res.json();
 
-  return data.stations || [];
+  return {
+    routes: data.routes || [],
+    stations: data.stations || []
+  };
+
+}
+
+function populateStationRouteButtons(id, routes) {
+
+  const switcher =
+    document.getElementById(id);
+
+  if (!switcher) {
+    return;
+  }
+
+  switcher.replaceChildren();
+
+  routes.forEach(routeId => {
+    const button =
+      document.createElement("button");
+
+    button.className =
+      `station-route-button${routeId === selectedRoute ? " is-active" : ""}`;
+
+    button.type =
+      "button";
+
+    button.dataset.routeId =
+      routeId;
+
+    button.style.setProperty("--route-color", routeColor(routeId));
+    button.style.setProperty("--route-text", routeTextColor(routeId));
+    button.setAttribute("aria-label", `${routeId} station list`);
+    button.innerHTML = renderRouteBadgeContent(routeId);
+
+    button.addEventListener("click", () => {
+      selectedRoute = routeId;
+
+      const nextParams = new URLSearchParams(window.location.search);
+      nextParams.set("route", selectedRoute);
+      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+      loadArrivals();
+    });
+
+    switcher.appendChild(button);
+  });
 
 }
 
@@ -681,6 +790,43 @@ function routeTextColor(route) {
 
 }
 
+function routeBadgeParts(route) {
+
+  if (route === "GS") {
+    return {
+      primary: "S",
+      secondary: ""
+    };
+  }
+
+  if (route === "FS") {
+    return {
+      primary: "S",
+      secondary: "F"
+    };
+  }
+
+  return {
+    primary: route,
+    secondary: ""
+  };
+
+}
+
+function renderRouteBadgeContent(route) {
+
+  const {
+    primary,
+    secondary
+  } = routeBadgeParts(route);
+
+  return `
+    <span class="route-badge-primary">${escapeHtml(primary)}</span>
+    ${secondary ? `<span class="route-badge-secondary">${escapeHtml(secondary)}</span>` : ""}
+  `;
+
+}
+
 function escapeHtml(value) {
 
   return String(value)
@@ -736,7 +882,7 @@ function renderTransferBlocks(direction, transferGroups) {
               <span
                 class="route-mini"
                 style="--route-color:${routeColor(transferRoute)}; --route-text:${routeTextColor(transferRoute)};"
-              >${escapeHtml(transferRoute)}</span>
+              >${renderRouteBadgeContent(transferRoute)}</span>
             `).join("")}
           </button>
         `;
@@ -758,7 +904,7 @@ function renderArrival(group, title, transferBlocks) {
         class="route-bullet"
         style="--route-color:${routeColor(safeRoute)}; --route-text:${routeTextColor(safeRoute)};"
         aria-label="${displayRoute} train"
-      >${displayRoute}</span>
+      >${renderRouteBadgeContent(safeRoute)}</span>
       <div class="arrival-main">
   <div class="arrival-line">
     <div class="station-line">${station}</div>
@@ -811,12 +957,14 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
   <div class="direction-stack">
 
   <div class="station-select-wrap">
+    <div class="station-route-switcher" id="uptownRouteSwitcher"></div>
     <select class="station-select" id="uptownSelect"></select>
   </div>
 
   ${renderDirection("Uptown", "N", uptownGroups, transferGroups)}
 
   <div class="station-select-wrap">
+    <div class="station-route-switcher" id="downtownRouteSwitcher"></div>
     <select class="station-select" id="downtownSelect"></select>
   </div>
 
@@ -874,21 +1022,31 @@ async function loadArrivals() {
       groupArrivals(downtownArrivals);
 
     resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups);
-const uptownStations =
-  await fetchStations("N");
+const uptownStationData =
+  await fetchStations("N", uptownStop);
 
-const downtownStations =
-  await fetchStations("S");
+const downtownStationData =
+  await fetchStations("S", downtownStop);
+
+populateStationRouteButtons(
+  "uptownRouteSwitcher",
+  uptownStationData.routes
+);
+
+populateStationRouteButtons(
+  "downtownRouteSwitcher",
+  downtownStationData.routes
+);
 
 populateStationSelect(
   "uptownSelect",
-  uptownStations,
+  uptownStationData.stations,
   uptownStop
 );
 
 populateStationSelect(
   "downtownSelect",
-  downtownStations,
+  downtownStationData.stations,
   downtownStop
 );
 

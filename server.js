@@ -16,6 +16,15 @@ const ROUTE_ORDER = [
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
   "GS", "J", "Z", "L", "M", "N", "Q", "R", "W"
 ];
+const FEED_URLS = {
+  numbered: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
+  ace: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
+  bdfm: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",
+  nqrw: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
+  jz: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
+  g: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
+  l: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
+};
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -49,6 +58,61 @@ function sortRoutes(routes) {
   });
 }
 
+function getRoutesForPlatform(platformId) {
+  const routes = new Set();
+
+  for (const [routeId, routeStops] of Object.entries(ROUTE_STOP_MAP)) {
+    for (const direction of ["N", "S"]) {
+      if (routeStops[direction]?.some(stop => stop.stop_id === platformId)) {
+        routes.add(routeId);
+      }
+    }
+  }
+
+  return sortRoutes(routes);
+}
+
+function getFeedUrlsForRoutes(routeIds) {
+  const feeds = new Set();
+
+  if (!routeIds.length) {
+    Object.values(FEED_URLS).forEach(url => feeds.add(url));
+    return [...feeds];
+  }
+
+  routeIds.forEach(routeId => {
+    if (["1","2","3","4","5","6","6X","7","7X","GS","FS"].includes(routeId)) {
+      feeds.add(FEED_URLS.numbered);
+    }
+
+    else if (["A","C","E"].includes(routeId)) {
+      feeds.add(FEED_URLS.ace);
+    }
+
+    else if (["B","D","F","FX","M"].includes(routeId)) {
+      feeds.add(FEED_URLS.bdfm);
+    }
+
+    else if (["N","Q","R","W"].includes(routeId)) {
+      feeds.add(FEED_URLS.nqrw);
+    }
+
+    else if (["J","Z"].includes(routeId)) {
+      feeds.add(FEED_URLS.jz);
+    }
+
+    else if (routeId === "G") {
+      feeds.add(FEED_URLS.g);
+    }
+
+    else if (routeId === "L") {
+      feeds.add(FEED_URLS.l);
+    }
+  });
+
+  return [...feeds];
+}
+
 function findStopByStationId(stationId) {
   for (const routeStops of Object.values(ROUTE_STOP_MAP)) {
     for (const direction of ["N", "S"]) {
@@ -61,6 +125,34 @@ function findStopByStationId(stationId) {
   }
 
   return null;
+}
+
+function distanceMiles(stopA, stopB) {
+  const latA = Number(stopA.lat);
+  const lonA = Number(stopA.lon);
+  const latB = Number(stopB.lat);
+  const lonB = Number(stopB.lon);
+
+  if (
+    !Number.isFinite(latA) ||
+    !Number.isFinite(lonA) ||
+    !Number.isFinite(latB) ||
+    !Number.isFinite(lonB)
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const earthRadiusMiles = 3958.8;
+  const toRadians = degrees => degrees * Math.PI / 180;
+  const deltaLat = toRadians(latB - latA);
+  const deltaLon = toRadians(lonB - lonA);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(latA)) *
+      Math.cos(toRadians(latB)) *
+      Math.sin(deltaLon / 2) ** 2;
+
+  return earthRadiusMiles * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function getTransferGroups(stationId) {
@@ -77,7 +169,8 @@ function getTransferGroups(stationId) {
       for (const stop of routeStops[direction] || []) {
         if (
           stop.stop_name !== currentStop.stop_name ||
-          stop.station_id === currentStop.station_id
+          stop.station_id === currentStop.station_id ||
+          distanceMiles(currentStop, stop) > 0.22
         ) {
           continue;
         }
@@ -155,77 +248,14 @@ app.get("/push-arrivals", async (req, res) => {
 
 const routeId = req.query.routeId;
 
-let feeds = [];
+const platformRoutes =
+  targetPlatform ? getRoutesForPlatform(targetPlatform) : [];
 
-if (!routeId) {
+const routesForFeeds =
+  platformRoutes.length ? platformRoutes : routeId ? [routeId] : [];
 
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
-  ];
-
-}
-
-else if (["1","2","3","4","5","6","7"].includes(routeId)) {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
-  ];
-
-}
-
-else if (["A","C","E"].includes(routeId)) {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
-  ];
-
-}
-
-else if (["B","D","F","M"].includes(routeId)) {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"
-  ];
-
-}
-
-else if (["N","Q","R","W"].includes(routeId)) {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"
-  ];
-
-}
-
-else if (["J","Z"].includes(routeId)) {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"
-  ];
-
-}
-
-else if (routeId === "G") {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"
-  ];
-
-}
-
-else if (routeId === "L") {
-
-  feeds = [
-    "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
-  ];
-
-}
+const feeds =
+  getFeedUrlsForRoutes(routesForFeeds);
   
 for (const url of feeds) {
   const mtaRes = await fetch(url, {
@@ -389,6 +419,7 @@ app.get("/stations", async (req, res) => {
 
     const routeId = req.query.routeId;
     const direction = req.query.direction;
+    const currentStop = req.query.currentStop;
 
     if (!routeId || !direction) {
       return res.status(400).json({
@@ -399,12 +430,28 @@ app.get("/stations", async (req, res) => {
     const routeStops =
       ROUTE_STOP_MAP[routeId]?.[direction] || [];
 
-    const stops = routeStops.map(stop => ({
+    const currentStationId =
+      currentStop ? currentStop.replace(/[NS]$/, "") : "";
+
+    const currentStopId =
+      currentStationId ? `${currentStationId}${direction}` : "";
+
+    const currentStopIndex =
+      routeStops.findIndex(stop => stop.stop_id === currentStopId);
+
+    const visibleStops =
+      currentStopIndex >= 0 ? routeStops.slice(currentStopIndex) : routeStops;
+
+    const platformRoutes =
+      currentStopId ? getRoutesForPlatform(currentStopId) : [routeId];
+
+    const stops = visibleStops.map(stop => ({
       stopId: stop.stop_id,
       name: stop.stop_name
     }));
 
     res.json({
+      routes: platformRoutes,
       stations: stops
     });
 
