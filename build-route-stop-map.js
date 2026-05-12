@@ -183,28 +183,19 @@ Object.keys(routeStops).sort().forEach(routeId => {
 
   ["N", "S"].forEach(direction => {
     const representative = representativeTrips.get(`${routeId}|${direction}`);
-    const representativeOrder = new Map();
 
     if (representative) {
-      [...representative.stops.entries()]
+      output[routeId][direction] = [...representative.stops.entries()]
         .sort((a, b) => a[1] - b[1])
-        .forEach(([stopId], index) => representativeOrder.set(stopId, index));
+        .map(([stopId]) => routeStops[routeId][direction][stopId])
+        .filter(Boolean)
+        .map(({ min_sequence, ...stop }) => stop);
+
+      return;
     }
 
     output[routeId][direction] = Object.values(routeStops[routeId][direction])
-      .sort((a, b) => {
-        const orderA = representativeOrder.get(a.stop_id);
-        const orderB = representativeOrder.get(b.stop_id);
-
-        if (orderA !== undefined && orderB !== undefined) {
-          return orderA - orderB;
-        }
-
-        if (orderA !== undefined) return -1;
-        if (orderB !== undefined) return 1;
-
-        return a.min_sequence - b.min_sequence || a.stop_id.localeCompare(b.stop_id);
-      })
+      .sort((a, b) => a.min_sequence - b.min_sequence || a.stop_id.localeCompare(b.stop_id))
       .map(({ min_sequence, ...stop }) => stop);
   });
 });

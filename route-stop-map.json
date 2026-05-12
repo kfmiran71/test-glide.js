@@ -965,76 +965,6 @@
         "stop_name": "Wakefield-241 St",
         "lat": "40.903125",
         "lon": "-73.850620"
-      },
-      {
-        "stop_id": "257N",
-        "station_id": "257",
-        "stop_name": "New Lots Av",
-        "lat": "40.666235",
-        "lon": "-73.884079"
-      },
-      {
-        "stop_id": "256N",
-        "station_id": "256",
-        "stop_name": "Van Siclen Av",
-        "lat": "40.665449",
-        "lon": "-73.889395"
-      },
-      {
-        "stop_id": "255N",
-        "station_id": "255",
-        "stop_name": "Pennsylvania Av",
-        "lat": "40.664635",
-        "lon": "-73.894895"
-      },
-      {
-        "stop_id": "254N",
-        "station_id": "254",
-        "stop_name": "Junius St",
-        "lat": "40.663515",
-        "lon": "-73.902447"
-      },
-      {
-        "stop_id": "253N",
-        "station_id": "253",
-        "stop_name": "Rockaway Av",
-        "lat": "40.662549",
-        "lon": "-73.908946"
-      },
-      {
-        "stop_id": "252N",
-        "station_id": "252",
-        "stop_name": "Saratoga Av",
-        "lat": "40.661453",
-        "lon": "-73.916327"
-      },
-      {
-        "stop_id": "251N",
-        "station_id": "251",
-        "stop_name": "Sutter Av-Rutland Rd",
-        "lat": "40.664717",
-        "lon": "-73.922610"
-      },
-      {
-        "stop_id": "250N",
-        "station_id": "250",
-        "stop_name": "Crown Hts-Utica Av",
-        "lat": "40.668897",
-        "lon": "-73.932942"
-      },
-      {
-        "stop_id": "249N",
-        "station_id": "249",
-        "stop_name": "Kingston Av",
-        "lat": "40.669399",
-        "lon": "-73.942161"
-      },
-      {
-        "stop_id": "248N",
-        "station_id": "248",
-        "stop_name": "Nostrand Av",
-        "lat": "40.669847",
-        "lon": "-73.950466"
       }
     ],
     "S": [
@@ -1464,76 +1394,6 @@
         "stop_name": "Flatbush Av-Brooklyn College",
         "lat": "40.632836",
         "lon": "-73.947642"
-      },
-      {
-        "stop_id": "248S",
-        "station_id": "248",
-        "stop_name": "Nostrand Av",
-        "lat": "40.669847",
-        "lon": "-73.950466"
-      },
-      {
-        "stop_id": "249S",
-        "station_id": "249",
-        "stop_name": "Kingston Av",
-        "lat": "40.669399",
-        "lon": "-73.942161"
-      },
-      {
-        "stop_id": "250S",
-        "station_id": "250",
-        "stop_name": "Crown Hts-Utica Av",
-        "lat": "40.668897",
-        "lon": "-73.932942"
-      },
-      {
-        "stop_id": "251S",
-        "station_id": "251",
-        "stop_name": "Sutter Av-Rutland Rd",
-        "lat": "40.664717",
-        "lon": "-73.922610"
-      },
-      {
-        "stop_id": "252S",
-        "station_id": "252",
-        "stop_name": "Saratoga Av",
-        "lat": "40.661453",
-        "lon": "-73.916327"
-      },
-      {
-        "stop_id": "253S",
-        "station_id": "253",
-        "stop_name": "Rockaway Av",
-        "lat": "40.662549",
-        "lon": "-73.908946"
-      },
-      {
-        "stop_id": "254S",
-        "station_id": "254",
-        "stop_name": "Junius St",
-        "lat": "40.663515",
-        "lon": "-73.902447"
-      },
-      {
-        "stop_id": "255S",
-        "station_id": "255",
-        "stop_name": "Pennsylvania Av",
-        "lat": "40.664635",
-        "lon": "-73.894895"
-      },
-      {
-        "stop_id": "256S",
-        "station_id": "256",
-        "stop_name": "Van Siclen Av",
-        "lat": "40.665449",
-        "lon": "-73.889395"
-      },
-      {
-        "stop_id": "257S",
-        "station_id": "257",
-        "stop_name": "New Lots Av",
-        "lat": "40.666235",
-        "lon": "-73.884079"
       }
     ]
   },
@@ -3055,118 +2915,6 @@
         "stop_name": "Eastchester-Dyre Av",
         "lat": "40.888300",
         "lon": "-73.830834"
-      },
-      {
-        "stop_id": "247N",
-        "station_id": "247",
-        "stop_name": "Flatbush Av-Brooklyn College",
-        "lat": "40.632836",
-        "lon": "-73.947642"
-      },
-      {
-        "stop_id": "246N",
-        "station_id": "246",
-        "stop_name": "Newkirk Av-Little Haiti",
-        "lat": "40.639967",
-        "lon": "-73.948411"
-      },
-      {
-        "stop_id": "245N",
-        "station_id": "245",
-        "stop_name": "Beverly Rd",
-        "lat": "40.645098",
-        "lon": "-73.948959"
-      },
-      {
-        "stop_id": "244N",
-        "station_id": "244",
-        "stop_name": "Church Av",
-        "lat": "40.650843",
-        "lon": "-73.949575"
-      },
-      {
-        "stop_id": "243N",
-        "station_id": "243",
-        "stop_name": "Winthrop St",
-        "lat": "40.656652",
-        "lon": "-73.950200"
-      },
-      {
-        "stop_id": "242N",
-        "station_id": "242",
-        "stop_name": "Sterling St",
-        "lat": "40.662742",
-        "lon": "-73.950850"
-      },
-      {
-        "stop_id": "241N",
-        "station_id": "241",
-        "stop_name": "President St-Medgar Evers College",
-        "lat": "40.667883",
-        "lon": "-73.950683"
-      },
-      {
-        "stop_id": "208N",
-        "station_id": "208",
-        "stop_name": "Gun Hill Rd",
-        "lat": "40.877850",
-        "lon": "-73.866256"
-      },
-      {
-        "stop_id": "212N",
-        "station_id": "212",
-        "stop_name": "Bronx Park East",
-        "lat": "40.848828",
-        "lon": "-73.868457"
-      },
-      {
-        "stop_id": "211N",
-        "station_id": "211",
-        "stop_name": "Pelham Pkwy",
-        "lat": "40.857192",
-        "lon": "-73.867615"
-      },
-      {
-        "stop_id": "210N",
-        "station_id": "210",
-        "stop_name": "Allerton Av",
-        "lat": "40.865462",
-        "lon": "-73.867352"
-      },
-      {
-        "stop_id": "209N",
-        "station_id": "209",
-        "stop_name": "Burke Av",
-        "lat": "40.871356",
-        "lon": "-73.867164"
-      },
-      {
-        "stop_id": "207N",
-        "station_id": "207",
-        "stop_name": "219 St",
-        "lat": "40.883895",
-        "lon": "-73.862633"
-      },
-      {
-        "stop_id": "206N",
-        "station_id": "206",
-        "stop_name": "225 St",
-        "lat": "40.888022",
-        "lon": "-73.860341"
-      },
-      {
-        "stop_id": "205N",
-        "station_id": "205",
-        "stop_name": "233 St",
-        "lat": "40.893193",
-        "lon": "-73.857473"
-      },
-      {
-        "stop_id": "204N",
-        "station_id": "204",
-        "stop_name": "Nereid Av",
-        "lat": "40.898379",
-        "lon": "-73.854376"
       }
     ],
     "S": [
@@ -3421,76 +3169,6 @@
         "stop_name": "Flatbush Av-Brooklyn College",
         "lat": "40.632836",
         "lon": "-73.947642"
-      },
-      {
-        "stop_id": "204S",
-        "station_id": "204",
-        "stop_name": "Nereid Av",
-        "lat": "40.898379",
-        "lon": "-73.854376"
-      },
-      {
-        "stop_id": "205S",
-        "station_id": "205",
-        "stop_name": "233 St",
-        "lat": "40.893193",
-        "lon": "-73.857473"
-      },
-      {
-        "stop_id": "206S",
-        "station_id": "206",
-        "stop_name": "225 St",
-        "lat": "40.888022",
-        "lon": "-73.860341"
-      },
-      {
-        "stop_id": "207S",
-        "station_id": "207",
-        "stop_name": "219 St",
-        "lat": "40.883895",
-        "lon": "-73.862633"
-      },
-      {
-        "stop_id": "208S",
-        "station_id": "208",
-        "stop_name": "Gun Hill Rd",
-        "lat": "40.877850",
-        "lon": "-73.866256"
-      },
-      {
-        "stop_id": "209S",
-        "station_id": "209",
-        "stop_name": "Burke Av",
-        "lat": "40.871356",
-        "lon": "-73.867164"
-      },
-      {
-        "stop_id": "210S",
-        "station_id": "210",
-        "stop_name": "Allerton Av",
-        "lat": "40.865462",
-        "lon": "-73.867352"
-      },
-      {
-        "stop_id": "211S",
-        "station_id": "211",
-        "stop_name": "Pelham Pkwy",
-        "lat": "40.857192",
-        "lon": "-73.867615"
-      },
-      {
-        "stop_id": "212S",
-        "station_id": "212",
-        "stop_name": "Bronx Park East",
-        "lat": "40.848828",
-        "lon": "-73.868457"
-      },
-      {
-        "stop_id": "250S",
-        "station_id": "250",
-        "stop_name": "Crown Hts-Utica Av",
-        "lat": "40.668897",
-        "lon": "-73.932942"
       }
     ]
   },
@@ -5395,55 +5073,6 @@
         "stop_name": "Inwood-207 St",
         "lat": "40.868072",
         "lon": "-73.919899"
-      },
-      {
-        "stop_id": "A65N",
-        "station_id": "A65",
-        "stop_name": "Ozone Park-Lefferts Blvd",
-        "lat": "40.685951",
-        "lon": "-73.825798"
-      },
-      {
-        "stop_id": "H15N",
-        "station_id": "H15",
-        "stop_name": "Rockaway Park-Beach 116 St",
-        "lat": "40.580903",
-        "lon": "-73.835592"
-      },
-      {
-        "stop_id": "A64N",
-        "station_id": "A64",
-        "stop_name": "111 St",
-        "lat": "40.684331",
-        "lon": "-73.832163"
-      },
-      {
-        "stop_id": "H14N",
-        "station_id": "H14",
-        "stop_name": "Beach 105 St",
-        "lat": "40.583209",
-        "lon": "-73.827559"
-      },
-      {
-        "stop_id": "A63N",
-        "station_id": "A63",
-        "stop_name": "104 St",
-        "lat": "40.681711",
-        "lon": "-73.837683"
-      },
-      {
-        "stop_id": "H13N",
-        "station_id": "H13",
-        "stop_name": "Beach 98 St",
-        "lat": "40.585307",
-        "lon": "-73.820558"
-      },
-      {
-        "stop_id": "H12N",
-        "station_id": "H12",
-        "stop_name": "Beach 90 St",
-        "lat": "40.588034",
-        "lon": "-73.813641"
       }
     ],
     "S": [
@@ -5852,55 +5481,6 @@
         "stop_name": "Far Rockaway-Mott Av",
         "lat": "40.603995",
         "lon": "-73.755405"
-      },
-      {
-        "stop_id": "A63S",
-        "station_id": "A63",
-        "stop_name": "104 St",
-        "lat": "40.681711",
-        "lon": "-73.837683"
-      },
-      {
-        "stop_id": "A64S",
-        "station_id": "A64",
-        "stop_name": "111 St",
-        "lat": "40.684331",
-        "lon": "-73.832163"
-      },
-      {
-        "stop_id": "A65S",
-        "station_id": "A65",
-        "stop_name": "Ozone Park-Lefferts Blvd",
-        "lat": "40.685951",
-        "lon": "-73.825798"
-      },
-      {
-        "stop_id": "H12S",
-        "station_id": "H12",
-        "stop_name": "Beach 90 St",
-        "lat": "40.588034",
-        "lon": "-73.813641"
-      },
-      {
-        "stop_id": "H13S",
-        "station_id": "H13",
-        "stop_name": "Beach 98 St",
-        "lat": "40.585307",
-        "lon": "-73.820558"
-      },
-      {
-        "stop_id": "H14S",
-        "station_id": "H14",
-        "stop_name": "Beach 105 St",
-        "lat": "40.583209",
-        "lon": "-73.827559"
-      },
-      {
-        "stop_id": "H15S",
-        "station_id": "H15",
-        "stop_name": "Rockaway Park-Beach 116 St",
-        "lat": "40.580903",
-        "lon": "-73.835592"
       }
     ]
   },
@@ -7799,34 +7379,6 @@
         "stop_name": "Jamaica Center-Parsons/Archer",
         "lat": "40.702147",
         "lon": "-73.801109"
-      },
-      {
-        "stop_id": "F03N",
-        "station_id": "F03",
-        "stop_name": "Parsons Blvd",
-        "lat": "40.707564",
-        "lon": "-73.803326"
-      },
-      {
-        "stop_id": "F01N",
-        "station_id": "F01",
-        "stop_name": "Jamaica-179 St",
-        "lat": "40.712646",
-        "lon": "-73.783817"
-      },
-      {
-        "stop_id": "F04N",
-        "station_id": "F04",
-        "stop_name": "Sutphin Blvd",
-        "lat": "40.705460",
-        "lon": "-73.810708"
-      },
-      {
-        "stop_id": "F02N",
-        "station_id": "F02",
-        "stop_name": "169 St",
-        "lat": "40.710470",
-        "lon": "-73.793604"
       }
     ],
     "S": [
@@ -8053,20 +7605,6 @@
         "stop_name": "World Trade Center",
         "lat": "40.712582",
         "lon": "-74.009781"
-      },
-      {
-        "stop_id": "F01S",
-        "station_id": "F01",
-        "stop_name": "Jamaica-179 St",
-        "lat": "40.712646",
-        "lon": "-73.783817"
-      },
-      {
-        "stop_id": "F03S",
-        "station_id": "F03",
-        "stop_name": "Parsons Blvd",
-        "lat": "40.707564",
-        "lon": "-73.803326"
       }
     ]
   },
@@ -8456,34 +7994,6 @@
         "stop_name": "Jamaica-179 St",
         "lat": "40.712646",
         "lon": "-73.783817"
-      },
-      {
-        "stop_id": "F12N",
-        "station_id": "F12",
-        "stop_name": "5 Av/53 St",
-        "lat": "40.760167",
-        "lon": "-73.975224"
-      },
-      {
-        "stop_id": "F11N",
-        "station_id": "F11",
-        "stop_name": "Lexington Av/53 St",
-        "lat": "40.757552",
-        "lon": "-73.969055"
-      },
-      {
-        "stop_id": "F09N",
-        "station_id": "F09",
-        "stop_name": "Court Sq-23 St",
-        "lat": "40.747846",
-        "lon": "-73.946000"
-      },
-      {
-        "stop_id": "G21N",
-        "station_id": "G21",
-        "stop_name": "Queens Plaza",
-        "lat": "40.748973",
-        "lon": "-73.937243"
       }
     ],
     "S": [
@@ -8871,34 +8381,6 @@
         "stop_name": "Coney Island-Stillwell Av",
         "lat": "40.577422",
         "lon": "-73.981233"
-      },
-      {
-        "stop_id": "G21S",
-        "station_id": "G21",
-        "stop_name": "Queens Plaza",
-        "lat": "40.748973",
-        "lon": "-73.937243"
-      },
-      {
-        "stop_id": "F09S",
-        "station_id": "F09",
-        "stop_name": "Court Sq-23 St",
-        "lat": "40.747846",
-        "lon": "-73.946000"
-      },
-      {
-        "stop_id": "F11S",
-        "station_id": "F11",
-        "stop_name": "Lexington Av/53 St",
-        "lat": "40.757552",
-        "lon": "-73.969055"
-      },
-      {
-        "stop_id": "F12S",
-        "station_id": "F12",
-        "stop_name": "5 Av/53 St",
-        "lat": "40.760167",
-        "lon": "-73.975224"
       }
     ]
   },
@@ -11520,41 +11002,6 @@
         "stop_name": "Astoria-Ditmars Blvd",
         "lat": "40.775036",
         "lon": "-73.912034"
-      },
-      {
-        "stop_id": "Q01N",
-        "station_id": "Q01",
-        "stop_name": "Canal St",
-        "lat": "40.718383",
-        "lon": "-74.000460"
-      },
-      {
-        "stop_id": "B08N",
-        "station_id": "B08",
-        "stop_name": "Lexington Av/63 St",
-        "lat": "40.764629",
-        "lon": "-73.966113"
-      },
-      {
-        "stop_id": "Q03N",
-        "station_id": "Q03",
-        "stop_name": "72 St",
-        "lat": "40.768799",
-        "lon": "-73.958424"
-      },
-      {
-        "stop_id": "Q04N",
-        "station_id": "Q04",
-        "stop_name": "86 St",
-        "lat": "40.777891",
-        "lon": "-73.951787"
-      },
-      {
-        "stop_id": "Q05N",
-        "station_id": "Q05",
-        "stop_name": "96 St",
-        "lat": "40.784318",
-        "lon": "-73.947152"
       }
     ],
     "S": [
@@ -11872,41 +11319,6 @@
         "stop_name": "Coney Island-Stillwell Av",
         "lat": "40.577422",
         "lon": "-73.981233"
-      },
-      {
-        "stop_id": "Q05S",
-        "station_id": "Q05",
-        "stop_name": "96 St",
-        "lat": "40.784318",
-        "lon": "-73.947152"
-      },
-      {
-        "stop_id": "Q04S",
-        "station_id": "Q04",
-        "stop_name": "86 St",
-        "lat": "40.777891",
-        "lon": "-73.951787"
-      },
-      {
-        "stop_id": "Q03S",
-        "station_id": "Q03",
-        "stop_name": "72 St",
-        "lat": "40.768799",
-        "lon": "-73.958424"
-      },
-      {
-        "stop_id": "B08S",
-        "station_id": "B08",
-        "stop_name": "Lexington Av/63 St",
-        "lat": "40.764629",
-        "lon": "-73.966113"
-      },
-      {
-        "stop_id": "Q01S",
-        "station_id": "Q01",
-        "stop_name": "Canal St",
-        "lat": "40.718383",
-        "lon": "-74.000460"
       }
     ]
   },
@@ -12708,34 +12120,6 @@
         "stop_name": "Forest Hills-71 Av",
         "lat": "40.721691",
         "lon": "-73.844521"
-      },
-      {
-        "stop_id": "B08N",
-        "station_id": "B08",
-        "stop_name": "Lexington Av/63 St",
-        "lat": "40.764629",
-        "lon": "-73.966113"
-      },
-      {
-        "stop_id": "Q03N",
-        "station_id": "Q03",
-        "stop_name": "72 St",
-        "lat": "40.768799",
-        "lon": "-73.958424"
-      },
-      {
-        "stop_id": "Q04N",
-        "station_id": "Q04",
-        "stop_name": "86 St",
-        "lat": "40.777891",
-        "lon": "-73.951787"
-      },
-      {
-        "stop_id": "Q05N",
-        "station_id": "Q05",
-        "stop_name": "96 St",
-        "lat": "40.784318",
-        "lon": "-73.947152"
       }
     ],
     "S": [
@@ -13053,27 +12437,6 @@
         "stop_name": "Bay Ridge-95 St",
         "lat": "40.616622",
         "lon": "-74.030876"
-      },
-      {
-        "stop_id": "B12S",
-        "station_id": "B12",
-        "stop_name": "9 Av",
-        "lat": "40.646292",
-        "lon": "-73.994324"
-      },
-      {
-        "stop_id": "B16S",
-        "station_id": "B16",
-        "stop_name": "62 St",
-        "lat": "40.626472",
-        "lon": "-73.996895"
-      },
-      {
-        "stop_id": "B21S",
-        "station_id": "B21",
-        "stop_name": "Bay Pkwy",
-        "lat": "40.601875",
-        "lon": "-73.993728"
       }
     ]
   },
@@ -13696,27 +13059,6 @@
         "stop_name": "86 St",
         "lat": "40.592721",
         "lon": "-73.978230"
-      },
-      {
-        "stop_id": "B12S",
-        "station_id": "B12",
-        "stop_name": "9 Av",
-        "lat": "40.646292",
-        "lon": "-73.994324"
-      },
-      {
-        "stop_id": "B16S",
-        "station_id": "B16",
-        "stop_name": "62 St",
-        "lat": "40.626472",
-        "lon": "-73.996895"
-      },
-      {
-        "stop_id": "B21S",
-        "station_id": "B21",
-        "stop_name": "Bay Pkwy",
-        "lat": "40.601875",
-        "lon": "-73.993728"
       }
     ]
   },
