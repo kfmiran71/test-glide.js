@@ -421,11 +421,13 @@
     .direction-alert-button {
       appearance: none;
       -webkit-appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border: 0;
-      border-radius: 999px;
-      min-height: 24px;
-      padding: 5px 12px;
-      background: rgba(255, 255, 255, 0.92);
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
       color: var(--app-green);
       font-family: inherit;
       font-size: 11px;
@@ -433,11 +435,27 @@
       line-height: 1;
       white-space: nowrap;
       cursor: pointer;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.10);
     }
 
-    .direction-alert-button.has-alerts {
-      background: rgba(255, 255, 255, 0.92);
+    .direction-alert-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      min-height: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.80);
+      border-radius: 9999px;
+      padding: 4px 10px;
+      background: #f8fafc;
+      color: var(--app-green);
+      font-size: 10px;
+      box-shadow:
+        inset 0 -1px 0 rgba(15, 23, 42, 0.10),
+        0 2px 8px rgba(15, 23, 42, 0.10);
+    }
+
+    .direction-alert-button.has-alerts .direction-alert-label {
+      background: #fff7ed;
       color: var(--app-green);
     }
 
@@ -1668,11 +1686,12 @@ function renderDirection(title, direction, groups, transferGroups, alertData) {
     <section class="direction-card" aria-label="${title} arrivals">
       <div class="direction-header">
         <h2 class="direction-title">${title}</h2>
-        <button
+        <span
           class="direction-alert-button${alertCount ? " has-alerts" : ""}"
-          type="button"
+          role="button"
+          tabindex="0"
           data-alert-direction="${direction}"
-        >${escapeHtml(alertLabel)}</button>
+        ><span class="direction-alert-label">${escapeHtml(alertLabel)}</span></span>
         <span class="direction-count">${groups.length ? countLabel : "No trains"}</span>
       </div>
       ${renderAlertPanel(direction, alertData)}
@@ -1775,6 +1794,13 @@ function attachAlertHandlers() {
 
       if (panel) {
         panel.classList.toggle("is-open");
+      }
+    });
+
+    button.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        button.click();
       }
     });
   });
