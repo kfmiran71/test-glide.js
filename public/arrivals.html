@@ -380,6 +380,81 @@
       white-space: nowrap;
     }
 
+    .direction-alert-button {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: rgba(33, 65, 74, 0.08);
+      color: #21414a;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .direction-alert-button.has-alerts {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .alert-panel {
+      display: none;
+      margin: 0 8px 8px;
+      border: 1px solid rgba(33, 65, 74, 0.18);
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 10px;
+      color: #111827;
+    }
+
+    .alert-panel.is-open {
+      display: grid;
+      gap: 8px;
+    }
+
+    .alert-panel-title {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .alert-feed-label {
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .alert-item {
+      display: grid;
+      gap: 3px;
+      border-top: 1px solid rgba(33, 65, 74, 0.12);
+      padding-top: 8px;
+    }
+
+    .alert-item:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .alert-item-title {
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .alert-item-meta,
+    .alert-item-body {
+      color: #475569;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
     .arrival-list {
       display: grid;
       gap: 7px;
@@ -725,6 +800,10 @@ let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
 let routeWasProvided = Boolean(route);
 let selectedBranchKey = firstParam(["branch", "branchKey"]) || "";
+let latestAlerts = {
+  N: { alerts: [], feedSample: [], error: "" },
+  S: { alerts: [], feedSample: [], error: "" }
+};
 
 function routeHasBranches(routeId) {
 
@@ -1124,6 +1203,39 @@ async function fetchTransfers(stopId) {
 
 }
 
+async function fetchServiceAlerts(direction, stopId) {
+
+  const query =
+    new URLSearchParams({
+      direction,
+      stopId
+    });
+
+  if (selectedRoute) {
+    query.set("routeId", selectedRoute);
+  }
+
+  const res =
+    await fetch(`/service-alerts?${query.toString()}`);
+  const data =
+    await res.json();
+
+  if (!res.ok) {
+    return {
+      alerts: [],
+      feedSample: [],
+      error: data.error || "Service alerts unavailable"
+    };
+  }
+
+  return {
+    alerts: data.alerts || [],
+    feedSample: data.feedSample || [],
+    error: ""
+  };
+
+}
+
 function groupArrivals(arrivals) {
 
   const grouped = {};
@@ -1330,18 +1442,73 @@ ${transferBlocks}
 
 }
 
-function renderDirection(title, direction, groups, transferGroups) {
+function renderAlertPanel(direction, alertData) {
+
+  const alerts =
+    alertData?.alerts || [];
+  const feedSample =
+    alertData?.feedSample || [];
+  const displayAlerts =
+    alerts.length ? alerts : feedSample.slice(0, 5);
+  const title =
+    alerts.length ? "Matched service alerts" : "MTA alert feed sample";
+
+  if (alertData?.error) {
+    return `
+      <div class="alert-panel" id="${direction}AlertPanel">
+        <p class="alert-panel-title">Service alerts unavailable</p>
+        <div class="alert-item-body">${escapeHtml(alertData.error)}</div>
+      </div>
+    `;
+  }
+
+  if (!displayAlerts.length) {
+    return `
+      <div class="alert-panel" id="${direction}AlertPanel">
+        <p class="alert-panel-title">No active alerts found for this platform.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="alert-panel" id="${direction}AlertPanel">
+      <p class="alert-feed-label">${escapeHtml(title)}</p>
+      ${displayAlerts.map(alert => `
+        <div class="alert-item">
+          <div class="alert-item-title">${escapeHtml(alert.header || "Service alert")}</div>
+          <div class="alert-item-meta">
+            ${escapeHtml([alert.effect, alert.cause, alert.severity, alert.routes?.join(" ")].filter(Boolean).join(" • "))}
+          </div>
+          ${alert.description ? `<div class="alert-item-body">${escapeHtml(alert.description).slice(0, 360)}</div>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+}
+
+function renderDirection(title, direction, groups, transferGroups, alertData) {
 
   const count = groups.reduce((total, group) => total + group.times.length, 0);
   const countLabel = count === 1 ? "1 train" : `${count} trains`;
   const transferBlocks = renderTransferBlocks(direction, transferGroups);
+  const alertCount =
+    alertData?.alerts?.length || 0;
+  const alertLabel =
+    alertData?.error ? "Alerts unavailable" : alertCount ? `${alertCount} alert${alertCount === 1 ? "" : "s"}` : "No alerts";
 
   return `
     <section class="direction-card" aria-label="${title} arrivals">
       <div class="direction-header">
         <h2 class="direction-title">${title}</h2>
+        <button
+          class="direction-alert-button${alertCount ? " has-alerts" : ""}"
+          type="button"
+          data-alert-direction="${direction}"
+        >${escapeHtml(alertLabel)}</button>
         <span class="direction-count">${groups.length ? countLabel : "No trains"}</span>
       </div>
+      ${renderAlertPanel(direction, alertData)}
       ${groups.length
         ? `<div class="arrival-list">${groups.map(group => renderArrival(group, title, transferBlocks)).join("")}</div>`
         : `<div class="empty-state">No ${title.toLowerCase()} arrivals in the next hour.</div>`
@@ -1351,7 +1518,7 @@ function renderDirection(title, direction, groups, transferGroups) {
 
 }
 
-function renderShell(uptownGroups, downtownGroups, transferGroups) {
+function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirection) {
 
   const updatedAt = new Date().toLocaleTimeString([], {
     hour: "numeric",
@@ -1380,7 +1547,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
     <div class="station-branch-switcher" id="uptownBranchSwitcher"></div>
   </div>
 
-  ${renderDirection("Uptown", "N", uptownGroups, transferGroups)}
+  ${renderDirection("Uptown", "N", uptownGroups, transferGroups, alertsByDirection.N)}
 
   <div class="station-picker">
     <div class="station-select-wrap">
@@ -1394,7 +1561,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
     <div class="station-branch-switcher" id="downtownBranchSwitcher"></div>
   </div>
 
-  ${renderDirection("Downtown", "S", downtownGroups, transferGroups)}
+  ${renderDirection("Downtown", "S", downtownGroups, transferGroups, alertsByDirection.S)}
 
 </div>
   `;
@@ -1422,6 +1589,23 @@ function attachTransferHandlers() {
 
 }
 
+function attachAlertHandlers() {
+
+  document.querySelectorAll(".direction-alert-button").forEach(button => {
+    button.addEventListener("click", () => {
+      const direction =
+        button.dataset.alertDirection;
+      const panel =
+        document.getElementById(`${direction}AlertPanel`);
+
+      if (panel) {
+        panel.classList.toggle("is-open");
+      }
+    });
+  });
+
+}
+
 async function loadArrivals() {
 
   try {
@@ -1438,11 +1622,18 @@ async function loadArrivals() {
       downtownStop
     } = getDirectionStops(selectedStopBase);
 
-    const [uptownArrivals, downtownArrivals, transferGroups] = await Promise.all([
+    const [uptownArrivals, downtownArrivals, transferGroups, uptownAlerts, downtownAlerts] = await Promise.all([
       fetchDirection(uptownStop),
       fetchDirection(downtownStop),
-      fetchTransfers(uptownStop)
+      fetchTransfers(uptownStop),
+      fetchServiceAlerts("N", uptownStop),
+      fetchServiceAlerts("S", downtownStop)
     ]);
+
+    latestAlerts = {
+      N: uptownAlerts,
+      S: downtownAlerts
+    };
 
     const groupedUptown =
       groupArrivals(uptownArrivals);
@@ -1455,7 +1646,7 @@ async function loadArrivals() {
         firstDisplayedRoute(groupedUptown, groupedDowntown);
     }
 
-    resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups);
+    resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts);
 const uptownStationData =
   await fetchStations("N", uptownStop);
 
@@ -1537,6 +1728,7 @@ populateStationSelect(
 );
 
 attachTransferHandlers();
+attachAlertHandlers();
   }
 
   catch(err) {

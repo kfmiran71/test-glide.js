@@ -20,7 +20,7 @@ const ROUTE_ORDER = [
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
   "GS", "J", "Z", "L", "M", "N", "Q", "R", "W"
 ];
-const HIDDEN_PICKER_ROUTES = new Set(["6X", "7X", "FX"]);
+const HIDDEN_PICKER_ROUTES = new Set(["6X", "7X", "FX", "SI", "SIR"]);
 const FEED_URLS = {
   numbered: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
   ace: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
@@ -30,6 +30,8 @@ const FEED_URLS = {
   g: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",
   l: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"
 };
+const ALERT_FEED_URL =
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -66,6 +68,118 @@ function sortRoutes(routes) {
 function getRoutesForPlatform(platformId) {
   return (OFFICIAL_PLATFORM_ROUTE_MAP[platformId] || [])
     .filter(routeId => !HIDDEN_PICKER_ROUTES.has(routeId));
+}
+
+function enumLabel(enumObject, value) {
+  const match =
+    Object.entries(enumObject).find(([, enumValue]) => enumValue === value);
+
+  if (!match) {
+    return "";
+  }
+
+  if (match[0].startsWith("UNKNOWN_")) {
+    return "";
+  }
+
+  return match[0]
+    .toLowerCase()
+    .split("_")
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function translatedText(textBlock) {
+  return textBlock?.translation?.find(item => item.language === "en")?.text ||
+    textBlock?.translation?.[0]?.text ||
+    "";
+}
+
+function toSeconds(value) {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value.toNumber === "function") {
+    return value.toNumber();
+  }
+
+  return Number(value) || 0;
+}
+
+function isActiveAlert(alert, nowSeconds) {
+  const periods =
+    alert.activePeriod || [];
+
+  if (!periods.length) {
+    return true;
+  }
+
+  return periods.some(period => {
+    const start =
+      toSeconds(period.start);
+    const end =
+      toSeconds(period.end);
+
+    return (!start || start <= nowSeconds) && (!end || end >= nowSeconds);
+  });
+}
+
+function alertMatches(alert, routeIds, stopIds) {
+  const informed =
+    alert.informedEntity || [];
+
+  if (!informed.length) {
+    return true;
+  }
+
+  return informed.some(entity => {
+    const entityRoute =
+      entity.routeId || "";
+    const entityStop =
+      entity.stopId || "";
+    const routeMatches =
+      !entityRoute || routeIds.includes(entityRoute);
+    const stopMatches =
+      !entityStop || stopIds.includes(entityStop);
+
+    return routeMatches && stopMatches;
+  });
+}
+
+function summarizeAlert(entity) {
+  const alert =
+    entity.alert;
+  const routes =
+    sortRoutes([
+      ...new Set(
+        (alert.informedEntity || [])
+          .map(item => item.routeId)
+          .filter(Boolean)
+          .filter(routeId => !HIDDEN_PICKER_ROUTES.has(routeId))
+      )
+    ]);
+
+  const cause =
+    enumLabel(GtfsRealtimeBindings.transit_realtime.Alert.Cause, alert.cause);
+  const effect =
+    enumLabel(GtfsRealtimeBindings.transit_realtime.Alert.Effect, alert.effect);
+  const severity =
+    enumLabel(GtfsRealtimeBindings.transit_realtime.Alert.SeverityLevel, alert.severityLevel);
+
+  return {
+    id: entity.id || "",
+    cause,
+    effect,
+    severity,
+    routes,
+    header: translatedText(alert.headerText),
+    description: translatedText(alert.descriptionText)
+  };
 }
 
 function getRouteBranches(routeId, direction) {
@@ -304,6 +418,82 @@ app.get("/clear-arrivals", async (req, res) => {
   } catch (err) {
     res.json({ error: err.message });
   }
+});
+app.get("/service-alerts", async (req, res) => {
+
+  try {
+
+    const stopId =
+      req.query.stopId || "";
+    const routeId =
+      req.query.routeId || "";
+    const baseStopId =
+      stopId.replace(/[NS]$/, "");
+    const stopIds =
+      [stopId, baseStopId].filter(Boolean);
+    const routeIds =
+      sortRoutes([
+        ...new Set([
+          routeId,
+          ...getRoutesForPlatform(stopId)
+        ].filter(Boolean))
+      ]);
+
+    const mtaRes =
+      await fetch(ALERT_FEED_URL, {
+        headers: {
+          "x-api-key": process.env.MTA_API_KEY
+        }
+      });
+
+    if (!mtaRes.ok) {
+      return res.status(mtaRes.status).json({
+        error: `MTA alerts request failed with ${mtaRes.status}`
+      });
+    }
+
+    const buffer =
+      await mtaRes.arrayBuffer();
+    const feed =
+      GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(buffer)
+      );
+    const nowSeconds =
+      Math.floor(Date.now() / 1000);
+    const alerts =
+      feed.entity
+        .filter(entity => entity.alert)
+        .filter(entity => isActiveAlert(entity.alert, nowSeconds))
+        .filter(entity => alertMatches(entity.alert, routeIds, stopIds))
+        .map(summarizeAlert)
+        .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
+        .slice(0, 12);
+    const feedSample =
+      feed.entity
+        .filter(entity => entity.alert)
+        .filter(entity => isActiveAlert(entity.alert, nowSeconds))
+        .map(summarizeAlert)
+        .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
+        .slice(0, 20);
+
+    res.json({
+      routeIds,
+      stopIds,
+      count: alerts.length,
+      alerts,
+      feedSample
+    });
+
+  }
+
+  catch(err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
 });
 async function handleArrivals(req, res) {
   try {
