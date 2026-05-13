@@ -29,6 +29,7 @@
       margin: 0;
       background: #1D3461;
       overflow: hidden;
+      width: 100%;
     }
 
     body {
@@ -41,12 +42,15 @@
     .embed-shell {
       height: 100vh;
       min-height: 260px;
-      padding: 0px;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      padding: 0;
       background:
        radial-gradient(circle at 12% -10%, rgba(0, 147, 60, 0.13), transparent 34%),
        radial-gradient(circle at 96% 0%, rgba(0, 57, 166, 0.12), transparent 32%), 
      #1D3461;
-      border-radius: 24px;
+      border-radius: 0;
       overflow: hidden;
     }
 
@@ -587,7 +591,7 @@ transform: translateY(-6px);
 
     @media (max-width: 360px) {
       .embed-shell {
-        padding: 8px;
+        padding: 0;
       }
 
       .title {
