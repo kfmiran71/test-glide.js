@@ -11,8 +11,8 @@ const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
 const routeStopMapPath = path.resolve("./route-stop-map.json");
 const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
-const platformRouteMapPath = path.resolve("./platform-route-map.json");
-const PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(platformRouteMapPath, "utf-8"));
+const officialPlatformRouteMapPath = path.resolve("./official-platform-route-map.json");
+const OFFICIAL_PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(officialPlatformRouteMapPath, "utf-8"));
 const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
@@ -63,48 +63,9 @@ function sortRoutes(routes) {
   });
 }
 
-function buildOfficialPlatformRouteMap() {
-  const platformRoutes = new Map();
-  const addStopRoute = (stopId, routeId) => {
-    if (!stopId || !routeId || HIDDEN_PICKER_ROUTES.has(routeId)) {
-      return;
-    }
-
-    const routes = platformRoutes.get(stopId) || new Set();
-    routes.add(routeId);
-    platformRoutes.set(stopId, routes);
-  };
-
-  for (const [routeId, routeStops] of Object.entries(ROUTE_STOP_MAP)) {
-    for (const direction of ["N", "S"]) {
-      for (const stop of routeStops[direction] || []) {
-        addStopRoute(stop.stop_id, routeId);
-      }
-    }
-  }
-
-  for (const [routeId, routeBranches] of Object.entries(ROUTE_BRANCH_MAP)) {
-    for (const branch of Object.values(routeBranches.branches || {})) {
-      for (const direction of ["N", "S"]) {
-        for (const stop of branch.directions?.[direction] || []) {
-          addStopRoute(stop.stop_id, routeId);
-        }
-      }
-    }
-  }
-
-  return Object.fromEntries(
-    [...platformRoutes.entries()].map(([stopId, routes]) => [
-      stopId,
-      sortRoutes([...routes])
-    ])
-  );
-}
-
-const OFFICIAL_PLATFORM_ROUTE_MAP = buildOfficialPlatformRouteMap();
-
 function getRoutesForPlatform(platformId) {
-  return OFFICIAL_PLATFORM_ROUTE_MAP[platformId] || [];
+  return (OFFICIAL_PLATFORM_ROUTE_MAP[platformId] || [])
+    .filter(routeId => !HIDDEN_PICKER_ROUTES.has(routeId));
 }
 
 function getRouteBranches(routeId, direction) {
