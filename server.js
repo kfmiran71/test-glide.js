@@ -462,9 +462,9 @@ app.get("/stations", async (req, res) => {
     const currentStop = req.query.currentStop;
     const requestedBranchKey = req.query.branchKey || "";
 
-    if (!routeId || !direction) {
+    if (!direction) {
       return res.status(400).json({
-        error: "Missing routeId or direction"
+        error: "Missing direction"
       });
     }
 
@@ -474,25 +474,36 @@ app.get("/stations", async (req, res) => {
     const currentStopId =
       currentStationId ? `${currentStationId}${direction}` : "";
 
+    const platformRoutes =
+      currentStopId ? getRoutesForPlatform(currentStopId) : [routeId];
+
+    const effectiveRouteId =
+      routeId && platformRoutes.includes(routeId)
+        ? routeId
+        : platformRoutes[0] || routeId;
+
+    if (!effectiveRouteId) {
+      return res.status(400).json({
+        error: "Missing routeId or recognizable currentStop"
+      });
+    }
+
     const branchKey =
-      chooseBranchKey(routeId, direction, requestedBranchKey, currentStopId);
+      chooseBranchKey(effectiveRouteId, direction, requestedBranchKey, currentStopId);
 
     const branches =
-      getRouteBranches(routeId, direction);
+      getRouteBranches(effectiveRouteId, direction);
 
     const routeStops =
       branchKey
-        ? getBranchStops(routeId, direction, branchKey)
-        : ROUTE_STOP_MAP[routeId]?.[direction] || [];
+        ? getBranchStops(effectiveRouteId, direction, branchKey)
+        : ROUTE_STOP_MAP[effectiveRouteId]?.[direction] || [];
 
     const currentStopIndex =
       routeStops.findIndex(stop => stop.stop_id === currentStopId);
 
     const visibleStops =
       currentStopIndex >= 0 ? routeStops.slice(currentStopIndex) : routeStops;
-
-    const platformRoutes =
-      currentStopId ? getRoutesForPlatform(currentStopId) : [routeId];
 
     const stops = visibleStops.map(stop => ({
       stopId: stop.stop_id,
@@ -502,6 +513,7 @@ app.get("/stations", async (req, res) => {
     res.json({
       branchKey,
       branches,
+      routeId: effectiveRouteId,
       routes: platformRoutes,
       stations: stops
     });

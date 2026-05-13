@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <!-- @-- CODEX WRITE TEST -- -->
+<!-- @-- CODEX HARMLESS COMMENT TEST -- -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -140,6 +141,11 @@
       -webkit-backdrop-filter: blur(14px);
     }
 
+    .station-picker {
+      display: grid;
+      gap: 5px;
+    }
+
     .station-route-switcher {
       display: flex;
       align-items: center;
@@ -171,18 +177,29 @@
     }
 
     .station-branch-switcher {
-      display: flex;
+      display: none;
       align-items: center;
-      gap: 3px;
-      flex-shrink: 0;
+      gap: 5px;
+      min-height: 24px;
+      width: fit-content;
+      max-width: 100%;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 999px;
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    }
+
+    .station-branch-switcher:not(:empty) {
+      display: flex;
     }
 
     .station-branch-button {
       min-height: 22px;
-      border: 1px solid rgba(15, 23, 42, 0.12);
+      border: 0;
       border-radius: 999px;
-      padding: 0 7px;
-      background: rgba(248, 250, 252, 0.96);
+      padding: 0 8px;
+      background: transparent;
       color: #111827;
       font-size: 10px;
       font-weight: 700;
@@ -195,10 +212,32 @@
       color: #ffffff;
     }
 
-    .station-select {
+    .station-select-shell {
+      position: relative;
       flex: 1;
       min-width: 0;
       height: 40px;
+      display: flex;
+      align-items: center;
+    }
+
+    .station-select-label {
+      min-width: 0;
+      overflow: hidden;
+      color: #111827;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.1;
+      padding-right: 26px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .station-select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       border: 0;
       background: transparent;
       color: #111827;
@@ -206,6 +245,7 @@
       font-weight: 600;
       padding: 0 14px 0 0;
       outline: none;
+      opacity: 0;
       appearance: none;
       -webkit-appearance: none;
     }
@@ -540,6 +580,12 @@ transform: translateY(-6px);
         height: 20px;
         font-size: 9px;
       }
+
+      .station-branch-button {
+        min-height: 21px;
+        padding: 0 7px;
+        font-size: 9px;
+      }
     }
   </style>
 </head>
@@ -581,13 +627,27 @@ transform: translateY(-6px);
 <script>
 const params = new URLSearchParams(window.location.search);
 
-const stop = params.get("stop");
-const route = params.get("route");
+function firstParam(names) {
+
+  for (const name of names) {
+    const value = params.get(name);
+
+    if (value) {
+      return value.trim();
+    }
+  }
+
+  return "";
+
+}
+
+const stop = firstParam(["stop", "stopId", "platformId", "stationId"]);
+const route = firstParam(["route", "routeId", "line", "train"]);
 const resultsEl = document.getElementById("results");
 let selectedPlatformStop = stop && /[NS]$/.test(stop) ? stop : "";
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
-let selectedBranchKey = params.get("branch") || "";
+let selectedBranchKey = firstParam(["branch", "branchKey"]) || "";
 
 function getDirectionStops(baseStop) {
 
@@ -630,6 +690,7 @@ async function fetchStations(direction, currentStop) {
   return {
     branchKey: data.branchKey || "",
     branches: data.branches || [],
+    routeId: data.routeId || selectedRoute,
     routes: data.routes || [],
     stations: data.stations || []
   };
@@ -707,7 +768,7 @@ function populateStationBranchButtons(id, branches, activeBranchKey) {
       branch.key;
 
     button.textContent =
-      branch.label;
+      branchShortLabel(branch);
 
     button.setAttribute("aria-label", `${branch.label} branch station list`);
 
@@ -726,10 +787,25 @@ function populateStationBranchButtons(id, branches, activeBranchKey) {
 
 }
 
+function branchShortLabel(branch) {
+
+  const labels = {
+    "A-FAR ROCKAWAY": "Far Rockaway",
+    "A-LEFFERTS": "Lefferts",
+    "5-EASTCHESTER": "Eastchester",
+    "5-NEREID": "Nereid"
+  };
+
+  return labels[branch.key] || branch.label;
+
+}
+
 function populateStationSelect(id, stations, selectedStop) {
 
   const select =
     document.getElementById(id);
+  const label =
+    document.getElementById(`${id}Label`);
 
   if (!select) {
     return;
@@ -756,9 +832,22 @@ function populateStationSelect(id, stations, selectedStop) {
 
   });
 
+  const selectedOption =
+    select.options[select.selectedIndex];
+
+  if (label) {
+    label.textContent =
+      selectedOption?.textContent || stations[0]?.name || "";
+  }
+
   select.addEventListener("change", () => {
     selectedPlatformStop = select.value;
     selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
+
+    if (label) {
+      label.textContent =
+        select.options[select.selectedIndex]?.textContent || "";
+    }
 
     const nextParams = new URLSearchParams(window.location.search);
     nextParams.set("stop", selectedPlatformStop);
@@ -1036,18 +1125,28 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
     </div>
   <div class="direction-stack">
 
-  <div class="station-select-wrap">
-    <div class="station-route-switcher" id="uptownRouteSwitcher"></div>
+  <div class="station-picker">
+    <div class="station-select-wrap">
+      <div class="station-route-switcher" id="uptownRouteSwitcher"></div>
+      <div class="station-select-shell">
+        <span class="station-select-label" id="uptownSelectLabel"></span>
+        <select class="station-select" id="uptownSelect" aria-label="Uptown station"></select>
+      </div>
+    </div>
     <div class="station-branch-switcher" id="uptownBranchSwitcher"></div>
-    <select class="station-select" id="uptownSelect"></select>
   </div>
 
   ${renderDirection("Uptown", "N", uptownGroups, transferGroups)}
 
-  <div class="station-select-wrap">
-    <div class="station-route-switcher" id="downtownRouteSwitcher"></div>
+  <div class="station-picker">
+    <div class="station-select-wrap">
+      <div class="station-route-switcher" id="downtownRouteSwitcher"></div>
+      <div class="station-select-shell">
+        <span class="station-select-label" id="downtownSelectLabel"></span>
+        <select class="station-select" id="downtownSelect" aria-label="Downtown station"></select>
+      </div>
+    </div>
     <div class="station-branch-switcher" id="downtownBranchSwitcher"></div>
-    <select class="station-select" id="downtownSelect"></select>
   </div>
 
   ${renderDirection("Downtown", "S", downtownGroups, transferGroups)}
@@ -1125,6 +1224,18 @@ const resolvedBranchKey =
 
 selectedBranchKey =
   resolvedBranchKey;
+
+const resolvedRoute =
+  uptownStationData.routeId ||
+  downtownStationData.routeId;
+
+if (resolvedRoute && resolvedRoute !== selectedRoute) {
+  selectedRoute = resolvedRoute;
+
+  const nextParams = new URLSearchParams(window.location.search);
+  nextParams.set("route", selectedRoute);
+  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+}
 
 populateStationRouteButtons(
   "uptownRouteSwitcher",
