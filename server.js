@@ -20,6 +20,7 @@ const ROUTE_ORDER = [
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
   "GS", "J", "Z", "L", "M", "N", "Q", "R", "W"
 ];
+const HIDDEN_PICKER_ROUTES = new Set(["6X", "7X", "FX"]);
 const FEED_URLS = {
   numbered: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
   ace: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
@@ -62,8 +63,48 @@ function sortRoutes(routes) {
   });
 }
 
+function buildOfficialPlatformRouteMap() {
+  const platformRoutes = new Map();
+  const addStopRoute = (stopId, routeId) => {
+    if (!stopId || !routeId || HIDDEN_PICKER_ROUTES.has(routeId)) {
+      return;
+    }
+
+    const routes = platformRoutes.get(stopId) || new Set();
+    routes.add(routeId);
+    platformRoutes.set(stopId, routes);
+  };
+
+  for (const [routeId, routeStops] of Object.entries(ROUTE_STOP_MAP)) {
+    for (const direction of ["N", "S"]) {
+      for (const stop of routeStops[direction] || []) {
+        addStopRoute(stop.stop_id, routeId);
+      }
+    }
+  }
+
+  for (const [routeId, routeBranches] of Object.entries(ROUTE_BRANCH_MAP)) {
+    for (const branch of Object.values(routeBranches.branches || {})) {
+      for (const direction of ["N", "S"]) {
+        for (const stop of branch.directions?.[direction] || []) {
+          addStopRoute(stop.stop_id, routeId);
+        }
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    [...platformRoutes.entries()].map(([stopId, routes]) => [
+      stopId,
+      sortRoutes([...routes])
+    ])
+  );
+}
+
+const OFFICIAL_PLATFORM_ROUTE_MAP = buildOfficialPlatformRouteMap();
+
 function getRoutesForPlatform(platformId) {
-  return sortRoutes(PLATFORM_ROUTE_MAP[platformId] || []);
+  return OFFICIAL_PLATFORM_ROUTE_MAP[platformId] || [];
 }
 
 function getRouteBranches(routeId, direction) {
@@ -531,7 +572,8 @@ app.get("/stations", async (req, res) => {
 
     const stops = visibleStops.map(stop => ({
       stopId: stop.stop_id,
-      name: stop.stop_name
+      name: stop.stop_name,
+      routes: getRoutesForPlatform(stop.stop_id)
     }));
 
     res.json({
@@ -541,6 +583,7 @@ app.get("/stations", async (req, res) => {
         ? {
             stopId: currentStopId,
             name: getStationName(currentStopId),
+            routes: getRoutesForPlatform(currentStopId),
             inList: currentStopIndex >= 0
           }
         : null,

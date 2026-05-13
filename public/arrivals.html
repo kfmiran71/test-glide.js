@@ -129,6 +129,7 @@
 
     .station-select-wrap {
       position: relative;
+      z-index: 1;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -142,9 +143,18 @@
       -webkit-backdrop-filter: blur(14px);
     }
 
+    .station-select-wrap.is-open {
+      z-index: 70;
+    }
+
     .station-picker {
+      position: relative;
       display: grid;
       gap: 5px;
+    }
+
+    .station-picker:has(.station-select-wrap.is-open) {
+      z-index: 60;
     }
 
     .station-route-switcher {
@@ -254,7 +264,7 @@
       overflow-y: auto;
       border: 1px solid rgba(15, 23, 42, 0.14);
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.98);
+      background: #ffffff;
       box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
       padding: 6px;
       -webkit-overflow-scrolling: touch;
@@ -268,6 +278,7 @@
     .station-menu-option {
       display: flex;
       align-items: center;
+      gap: 8px;
       width: 100%;
       min-height: 34px;
       border: 0;
@@ -285,6 +296,33 @@
     .station-menu-option.is-active {
       background: #2563eb;
       color: #ffffff;
+    }
+
+    .station-menu-routes {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .station-menu-route {
+      display: inline-grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--route-color, #6b7280);
+      color: var(--route-text, #ffffff);
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .station-menu-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .direction-card {
@@ -952,8 +990,43 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
       item.dataset.stopId =
         station.stopId;
 
-      item.textContent =
+      const routes =
+        station.routes || [];
+      const routeWrap =
+        document.createElement("span");
+
+      routeWrap.className =
+        "station-menu-routes";
+
+      routes.forEach(routeId => {
+        const routeBadge =
+          document.createElement("span");
+
+        routeBadge.className =
+          "station-menu-route";
+
+        routeBadge.style.setProperty("--route-color", routeColor(routeId));
+        routeBadge.style.setProperty("--route-text", routeTextColor(routeId));
+        routeBadge.innerHTML =
+          renderRouteBadgeContent(routeId);
+
+        routeWrap.appendChild(routeBadge);
+      });
+
+      const stationName =
+        document.createElement("span");
+
+      stationName.className =
+        "station-menu-name";
+
+      stationName.textContent =
         station.name;
+
+      if (routes.length) {
+        item.appendChild(routeWrap);
+      }
+
+      item.appendChild(stationName);
 
       item.addEventListener("click", () => {
         selectStationFromPicker(id, station.stopId, station.name);
@@ -1401,13 +1474,30 @@ selectedBranchKey =
 const resolvedRoute =
   uptownStationData.routeId ||
   downtownStationData.routeId;
+const currentParams =
+  new URLSearchParams(window.location.search);
+
+if (
+  (resolvedRoute && resolvedRoute !== selectedRoute) ||
+  currentParams.get("branch") !== selectedBranchKey
+) {
+  const nextParams = new URLSearchParams(window.location.search);
+
+  if (selectedBranchKey) {
+    nextParams.set("branch", selectedBranchKey);
+  } else {
+    nextParams.delete("branch");
+  }
+
+  if (resolvedRoute) {
+    nextParams.set("route", resolvedRoute);
+  }
+
+  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+}
 
 if (resolvedRoute && resolvedRoute !== selectedRoute) {
   selectedRoute = resolvedRoute;
-
-  const nextParams = new URLSearchParams(window.location.search);
-  nextParams.set("route", selectedRoute);
-  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 }
 
 populateStationRouteButtons(
