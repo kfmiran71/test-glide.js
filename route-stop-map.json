@@ -2644,74 +2644,53 @@
   "5": {
     "N": [
       {
-        "stop_id": "257N",
-        "station_id": "257",
-        "stop_name": "New Lots Av",
-        "lat": "40.666235",
-        "lon": "-73.884079"
+        "stop_id": "247N",
+        "station_id": "247",
+        "stop_name": "Flatbush Av-Brooklyn College",
+        "lat": "40.632836",
+        "lon": "-73.947642"
       },
       {
-        "stop_id": "256N",
-        "station_id": "256",
-        "stop_name": "Van Siclen Av",
-        "lat": "40.665449",
-        "lon": "-73.889395"
+        "stop_id": "246N",
+        "station_id": "246",
+        "stop_name": "Newkirk Av-Little Haiti",
+        "lat": "40.639967",
+        "lon": "-73.948411"
       },
       {
-        "stop_id": "255N",
-        "station_id": "255",
-        "stop_name": "Pennsylvania Av",
-        "lat": "40.664635",
-        "lon": "-73.894895"
+        "stop_id": "245N",
+        "station_id": "245",
+        "stop_name": "Beverly Rd",
+        "lat": "40.645098",
+        "lon": "-73.948959"
       },
       {
-        "stop_id": "254N",
-        "station_id": "254",
-        "stop_name": "Junius St",
-        "lat": "40.663515",
-        "lon": "-73.902447"
+        "stop_id": "244N",
+        "station_id": "244",
+        "stop_name": "Church Av",
+        "lat": "40.650843",
+        "lon": "-73.949575"
       },
       {
-        "stop_id": "253N",
-        "station_id": "253",
-        "stop_name": "Rockaway Av",
-        "lat": "40.662549",
-        "lon": "-73.908946"
+        "stop_id": "243N",
+        "station_id": "243",
+        "stop_name": "Winthrop St",
+        "lat": "40.656652",
+        "lon": "-73.950200"
       },
       {
-        "stop_id": "252N",
-        "station_id": "252",
-        "stop_name": "Saratoga Av",
-        "lat": "40.661453",
-        "lon": "-73.916327"
+        "stop_id": "242N",
+        "station_id": "242",
+        "stop_name": "Sterling St",
+        "lat": "40.662742",
+        "lon": "-73.950850"
       },
       {
-        "stop_id": "251N",
-        "station_id": "251",
-        "stop_name": "Sutter Av-Rutland Rd",
-        "lat": "40.664717",
-        "lon": "-73.922610"
-      },
-      {
-        "stop_id": "250N",
-        "station_id": "250",
-        "stop_name": "Crown Hts-Utica Av",
-        "lat": "40.668897",
-        "lon": "-73.932942"
-      },
-      {
-        "stop_id": "249N",
-        "station_id": "249",
-        "stop_name": "Kingston Av",
-        "lat": "40.669399",
-        "lon": "-73.942161"
-      },
-      {
-        "stop_id": "248N",
-        "station_id": "248",
-        "stop_name": "Nostrand Av",
-        "lat": "40.669847",
-        "lon": "-73.950466"
+        "stop_id": "241N",
+        "station_id": "241",
+        "stop_name": "President St-Medgar Evers College",
+        "lat": "40.667883",
+        "lon": "-73.950683"
       },
       {
         "stop_id": "239N",

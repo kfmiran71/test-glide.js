@@ -13,6 +13,8 @@ const routeStopMapPath = path.resolve("./route-stop-map.json");
 const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
 const platformRouteMapPath = path.resolve("./platform-route-map.json");
 const PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(platformRouteMapPath, "utf-8"));
+const routeBranchMapPath = path.resolve("./route-branches.json");
+const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
   "1", "2", "3", "4", "5", "6", "6X", "7", "7X",
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
@@ -62,6 +64,49 @@ function sortRoutes(routes) {
 
 function getRoutesForPlatform(platformId) {
   return sortRoutes(PLATFORM_ROUTE_MAP[platformId] || []);
+}
+
+function getRouteBranches(routeId, direction) {
+  const routeBranches = ROUTE_BRANCH_MAP[routeId];
+
+  if (!routeBranches) {
+    return [];
+  }
+
+  return routeBranches.order
+    .map(key => routeBranches.branches[key])
+    .filter(branch => branch?.directions?.[direction]?.length)
+    .map(branch => ({
+      key: branch.key,
+      label: branch.label
+    }));
+}
+
+function getBranchStops(routeId, direction, branchKey) {
+  return ROUTE_BRANCH_MAP[routeId]?.branches?.[branchKey]?.directions?.[direction] || [];
+}
+
+function chooseBranchKey(routeId, direction, requestedBranchKey, currentStopId) {
+  const branches = getRouteBranches(routeId, direction);
+
+  if (!branches.length) {
+    return "";
+  }
+
+  const requestedBranch =
+    branches.find(branch => branch.key === requestedBranchKey);
+
+  if (requestedBranch) {
+    return requestedBranch.key;
+  }
+
+  const currentStopBranch =
+    branches.find(branch =>
+      getBranchStops(routeId, direction, branch.key)
+        .some(stop => stop.stop_id === currentStopId)
+    );
+
+  return currentStopBranch?.key || branches[0].key;
 }
 
 function getFeedUrlsForRoutes(routeIds) {
@@ -415,6 +460,7 @@ app.get("/stations", async (req, res) => {
     const routeId = req.query.routeId;
     const direction = req.query.direction;
     const currentStop = req.query.currentStop;
+    const requestedBranchKey = req.query.branchKey || "";
 
     if (!routeId || !direction) {
       return res.status(400).json({
@@ -422,14 +468,22 @@ app.get("/stations", async (req, res) => {
       });
     }
 
-    const routeStops =
-      ROUTE_STOP_MAP[routeId]?.[direction] || [];
-
     const currentStationId =
       currentStop ? currentStop.replace(/[NS]$/, "") : "";
 
     const currentStopId =
       currentStationId ? `${currentStationId}${direction}` : "";
+
+    const branchKey =
+      chooseBranchKey(routeId, direction, requestedBranchKey, currentStopId);
+
+    const branches =
+      getRouteBranches(routeId, direction);
+
+    const routeStops =
+      branchKey
+        ? getBranchStops(routeId, direction, branchKey)
+        : ROUTE_STOP_MAP[routeId]?.[direction] || [];
 
     const currentStopIndex =
       routeStops.findIndex(stop => stop.stop_id === currentStopId);
@@ -446,6 +500,8 @@ app.get("/stations", async (req, res) => {
     }));
 
     res.json({
+      branchKey,
+      branches,
       routes: platformRoutes,
       stations: stops
     });

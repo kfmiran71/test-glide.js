@@ -170,6 +170,31 @@
       outline-offset: 2px;
     }
 
+    .station-branch-switcher {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .station-branch-button {
+      min-height: 22px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 999px;
+      padding: 0 7px;
+      background: rgba(248, 250, 252, 0.96);
+      color: #111827;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .station-branch-button.is-active {
+      background: #111827;
+      color: #ffffff;
+    }
+
     .station-select {
       flex: 1;
       min-width: 0;
@@ -562,6 +587,7 @@ const resultsEl = document.getElementById("results");
 let selectedPlatformStop = stop && /[NS]$/.test(stop) ? stop : "";
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
+let selectedBranchKey = params.get("branch") || "";
 
 function getDirectionStops(baseStop) {
 
@@ -591,6 +617,10 @@ async function fetchStations(direction, currentStop) {
     query.set("routeId", selectedRoute);
   }
 
+  if (selectedBranchKey) {
+    query.set("branchKey", selectedBranchKey);
+  }
+
   const res =
     await fetch(`/stations?${query.toString()}`);
 
@@ -598,6 +628,8 @@ async function fetchStations(direction, currentStop) {
     await res.json();
 
   return {
+    branchKey: data.branchKey || "",
+    branches: data.branches || [],
     routes: data.routes || [],
     stations: data.stations || []
   };
@@ -635,9 +667,55 @@ function populateStationRouteButtons(id, routes) {
 
     button.addEventListener("click", () => {
       selectedRoute = routeId;
+      selectedBranchKey = "";
 
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.set("route", selectedRoute);
+      nextParams.delete("branch");
+      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+      loadArrivals();
+    });
+
+    switcher.appendChild(button);
+  });
+
+}
+
+function populateStationBranchButtons(id, branches, activeBranchKey) {
+
+  const switcher =
+    document.getElementById(id);
+
+  if (!switcher) {
+    return;
+  }
+
+  switcher.replaceChildren();
+
+  branches.forEach(branch => {
+    const button =
+      document.createElement("button");
+
+    button.className =
+      `station-branch-button${branch.key === activeBranchKey ? " is-active" : ""}`;
+
+    button.type =
+      "button";
+
+    button.dataset.branchKey =
+      branch.key;
+
+    button.textContent =
+      branch.label;
+
+    button.setAttribute("aria-label", `${branch.label} branch station list`);
+
+    button.addEventListener("click", () => {
+      selectedBranchKey = branch.key;
+
+      const nextParams = new URLSearchParams(window.location.search);
+      nextParams.set("branch", selectedBranchKey);
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
       loadArrivals();
@@ -960,6 +1038,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
 
   <div class="station-select-wrap">
     <div class="station-route-switcher" id="uptownRouteSwitcher"></div>
+    <div class="station-branch-switcher" id="uptownBranchSwitcher"></div>
     <select class="station-select" id="uptownSelect"></select>
   </div>
 
@@ -967,6 +1046,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
 
   <div class="station-select-wrap">
     <div class="station-route-switcher" id="downtownRouteSwitcher"></div>
+    <div class="station-branch-switcher" id="downtownBranchSwitcher"></div>
     <select class="station-select" id="downtownSelect"></select>
   </div>
 
@@ -984,10 +1064,12 @@ function attachTransferHandlers() {
       selectedPlatformStop = button.dataset.stopId;
       selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
       selectedRoute = button.dataset.routeId;
+      selectedBranchKey = "";
 
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.set("stop", selectedPlatformStop);
       nextParams.set("route", selectedRoute);
+      nextParams.delete("branch");
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
       loadArrivals();
@@ -1037,6 +1119,13 @@ const uptownStationData =
 const downtownStationData =
   await fetchStations("S", downtownStop);
 
+const resolvedBranchKey =
+  uptownStationData.branchKey ||
+  downtownStationData.branchKey;
+
+selectedBranchKey =
+  resolvedBranchKey;
+
 populateStationRouteButtons(
   "uptownRouteSwitcher",
   uptownStationData.routes
@@ -1045,6 +1134,18 @@ populateStationRouteButtons(
 populateStationRouteButtons(
   "downtownRouteSwitcher",
   downtownStationData.routes
+);
+
+populateStationBranchButtons(
+  "uptownBranchSwitcher",
+  uptownStationData.branches,
+  uptownStationData.branchKey
+);
+
+populateStationBranchButtons(
+  "downtownBranchSwitcher",
+  downtownStationData.branches,
+  downtownStationData.branchKey
 );
 
 populateStationSelect(

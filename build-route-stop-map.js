@@ -11,6 +11,16 @@ const GTFS_FILES = {
 const ARCHIVE_PATH = "Archive.zip";
 const OUTPUT_PATH = "route-stop-map.json";
 const PLATFORM_ROUTE_OUTPUT_PATH = "platform-route-map.json";
+const REPRESENTATIVE_TERMINALS = {
+  "5|N": {
+    first: "247N",
+    last: "501N"
+  },
+  "5|S": {
+    first: "501S",
+    last: "247S"
+  }
+};
 
 function readGtfsFile(fileName) {
   if (fs.existsSync(fileName)) {
@@ -167,14 +177,36 @@ for (const row of parseCsv(readGtfsFile(GTFS_FILES.stopTimes))) {
 
 const representativeTrips = new Map();
 
+function matchesRepresentativeTerminals(trip) {
+  const terminals = REPRESENTATIVE_TERMINALS[`${trip.routeId}|${trip.direction}`];
+
+  if (!terminals) {
+    return true;
+  }
+
+  const orderedStops = [...trip.stops.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([stopId]) => stopId);
+
+  return (
+    orderedStops[0] === terminals.first &&
+    orderedStops[orderedStops.length - 1] === terminals.last
+  );
+}
+
 for (const trip of tripStops.values()) {
   const key = `${trip.routeId}|${trip.direction}`;
   const current = representativeTrips.get(key);
+  const preferred = matchesRepresentativeTerminals(trip);
+  const currentPreferred = current ? matchesRepresentativeTerminals(current) : false;
 
   if (
     !current ||
+    (preferred && !currentPreferred) ||
+    (preferred === currentPreferred && (
     trip.stops.size > current.stops.size ||
     (trip.stops.size === current.stops.size && trip.tripId < current.tripId)
+    ))
   ) {
     representativeTrips.set(key, trip);
   }

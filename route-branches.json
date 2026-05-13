@@ -1,0 +1,2732 @@
+{
+  "5": {
+    "branches": {
+      "5-EASTCHESTER": {
+        "label": "Eastchester",
+        "key": "5-EASTCHESTER",
+        "directions": {
+          "N": [
+            {
+              "stop_id": "247N",
+              "station_id": "247",
+              "stop_name": "Flatbush Av-Brooklyn College",
+              "lat": "40.632836",
+              "lon": "-73.947642"
+            },
+            {
+              "stop_id": "246N",
+              "station_id": "246",
+              "stop_name": "Newkirk Av-Little Haiti",
+              "lat": "40.639967",
+              "lon": "-73.94841099999999"
+            },
+            {
+              "stop_id": "245N",
+              "station_id": "245",
+              "stop_name": "Beverly Rd",
+              "lat": "40.645098",
+              "lon": "-73.948959"
+            },
+            {
+              "stop_id": "244N",
+              "station_id": "244",
+              "stop_name": "Church Av",
+              "lat": "40.650843",
+              "lon": "-73.949575"
+            },
+            {
+              "stop_id": "243N",
+              "station_id": "243",
+              "stop_name": "Winthrop St",
+              "lat": "40.656652",
+              "lon": "-73.9502"
+            },
+            {
+              "stop_id": "242N",
+              "station_id": "242",
+              "stop_name": "Sterling St",
+              "lat": "40.662742",
+              "lon": "-73.95085"
+            },
+            {
+              "stop_id": "241N",
+              "station_id": "241",
+              "stop_name": "President St-Medgar Evers College",
+              "lat": "40.667883",
+              "lon": "-73.950683"
+            },
+            {
+              "stop_id": "239N",
+              "station_id": "239",
+              "stop_name": "Franklin Av-Medgar Evers College",
+              "lat": "40.670682",
+              "lon": "-73.95813099999999"
+            },
+            {
+              "stop_id": "235N",
+              "station_id": "235",
+              "stop_name": "Atlantic Av-Barclays Ctr",
+              "lat": "40.684359",
+              "lon": "-73.977666"
+            },
+            {
+              "stop_id": "234N",
+              "station_id": "234",
+              "stop_name": "Nevins St",
+              "lat": "40.688246",
+              "lon": "-73.980492"
+            },
+            {
+              "stop_id": "423N",
+              "station_id": "423",
+              "stop_name": "Borough Hall",
+              "lat": "40.692404",
+              "lon": "-73.990151"
+            },
+            {
+              "stop_id": "420N",
+              "station_id": "420",
+              "stop_name": "Bowling Green",
+              "lat": "40.704817",
+              "lon": "-74.014065"
+            },
+            {
+              "stop_id": "419N",
+              "station_id": "419",
+              "stop_name": "Wall St",
+              "lat": "40.707557",
+              "lon": "-74.01186199999999"
+            },
+            {
+              "stop_id": "418N",
+              "station_id": "418",
+              "stop_name": "Fulton St",
+              "lat": "40.710368",
+              "lon": "-74.00950899999999"
+            },
+            {
+              "stop_id": "640N",
+              "station_id": "640",
+              "stop_name": "Brooklyn Bridge-City Hall",
+              "lat": "40.713065",
+              "lon": "-74.004131"
+            },
+            {
+              "stop_id": "635N",
+              "station_id": "635",
+              "stop_name": "14 St-Union Sq",
+              "lat": "40.734673",
+              "lon": "-73.989951"
+            },
+            {
+              "stop_id": "631N",
+              "station_id": "631",
+              "stop_name": "Grand Central-42 St",
+              "lat": "40.751776",
+              "lon": "-73.976848"
+            },
+            {
+              "stop_id": "629N",
+              "station_id": "629",
+              "stop_name": "59 St",
+              "lat": "40.762526",
+              "lon": "-73.967967"
+            },
+            {
+              "stop_id": "626N",
+              "station_id": "626",
+              "stop_name": "86 St",
+              "lat": "40.779492",
+              "lon": "-73.955589"
+            },
+            {
+              "stop_id": "621N",
+              "station_id": "621",
+              "stop_name": "125 St",
+              "lat": "40.804138",
+              "lon": "-73.937594"
+            },
+            {
+              "stop_id": "416N",
+              "station_id": "416",
+              "stop_name": "138 St-Grand Concourse",
+              "lat": "40.813224",
+              "lon": "-73.929849"
+            },
+            {
+              "stop_id": "222N",
+              "station_id": "222",
+              "stop_name": "149 St-Grand Concourse",
+              "lat": "40.81841",
+              "lon": "-73.92671799999999"
+            },
+            {
+              "stop_id": "221N",
+              "station_id": "221",
+              "stop_name": "3 Av-149 St",
+              "lat": "40.816109",
+              "lon": "-73.91775699999999"
+            },
+            {
+              "stop_id": "220N",
+              "station_id": "220",
+              "stop_name": "Jackson Av",
+              "lat": "40.81649",
+              "lon": "-73.90780700000001"
+            },
+            {
+              "stop_id": "219N",
+              "station_id": "219",
+              "stop_name": "Prospect Av",
+              "lat": "40.819585",
+              "lon": "-73.90177"
+            },
+            {
+              "stop_id": "218N",
+              "station_id": "218",
+              "stop_name": "Intervale Av",
+              "lat": "40.822181",
+              "lon": "-73.896736"
+            },
+            {
+              "stop_id": "217N",
+              "station_id": "217",
+              "stop_name": "Simpson St",
+              "lat": "40.824073",
+              "lon": "-73.893064"
+            },
+            {
+              "stop_id": "216N",
+              "station_id": "216",
+              "stop_name": "Freeman St",
+              "lat": "40.829993",
+              "lon": "-73.891865"
+            },
+            {
+              "stop_id": "215N",
+              "station_id": "215",
+              "stop_name": "174 St",
+              "lat": "40.837288",
+              "lon": "-73.88773399999999"
+            },
+            {
+              "stop_id": "214N",
+              "station_id": "214",
+              "stop_name": "West Farms Sq-E Tremont Av",
+              "lat": "40.840295",
+              "lon": "-73.880049"
+            },
+            {
+              "stop_id": "213N",
+              "station_id": "213",
+              "stop_name": "E 180 St",
+              "lat": "40.841894",
+              "lon": "-73.87348799999999"
+            },
+            {
+              "stop_id": "505N",
+              "station_id": "505",
+              "stop_name": "Morris Park",
+              "lat": "40.854364",
+              "lon": "-73.860495"
+            },
+            {
+              "stop_id": "504N",
+              "station_id": "504",
+              "stop_name": "Pelham Pkwy",
+              "lat": "40.858985",
+              "lon": "-73.85535900000001"
+            },
+            {
+              "stop_id": "503N",
+              "station_id": "503",
+              "stop_name": "Gun Hill Rd",
+              "lat": "40.869526",
+              "lon": "-73.846384"
+            },
+            {
+              "stop_id": "502N",
+              "station_id": "502",
+              "stop_name": "Baychester Av",
+              "lat": "40.878663",
+              "lon": "-73.83859099999999"
+            },
+            {
+              "stop_id": "501N",
+              "station_id": "501",
+              "stop_name": "Eastchester-Dyre Av",
+              "lat": "40.8883",
+              "lon": "-73.830834"
+            }
+          ],
+          "S": [
+            {
+              "stop_id": "501S",
+              "station_id": "501",
+              "stop_name": "Eastchester-Dyre Av",
+              "lat": "40.8883",
+              "lon": "-73.830834"
+            },
+            {
+              "stop_id": "502S",
+              "station_id": "502",
+              "stop_name": "Baychester Av",
+              "lat": "40.878663",
+              "lon": "-73.83859099999999"
+            },
+            {
+              "stop_id": "503S",
+              "station_id": "503",
+              "stop_name": "Gun Hill Rd",
+              "lat": "40.869526",
+              "lon": "-73.846384"
+            },
+            {
+              "stop_id": "504S",
+              "station_id": "504",
+              "stop_name": "Pelham Pkwy",
+              "lat": "40.858985",
+              "lon": "-73.85535900000001"
+            },
+            {
+              "stop_id": "505S",
+              "station_id": "505",
+              "stop_name": "Morris Park",
+              "lat": "40.854364",
+              "lon": "-73.860495"
+            },
+            {
+              "stop_id": "213S",
+              "station_id": "213",
+              "stop_name": "E 180 St",
+              "lat": "40.841894",
+              "lon": "-73.87348799999999"
+            },
+            {
+              "stop_id": "214S",
+              "station_id": "214",
+              "stop_name": "West Farms Sq-E Tremont Av",
+              "lat": "40.840295",
+              "lon": "-73.880049"
+            },
+            {
+              "stop_id": "215S",
+              "station_id": "215",
+              "stop_name": "174 St",
+              "lat": "40.837288",
+              "lon": "-73.88773399999999"
+            },
+            {
+              "stop_id": "216S",
+              "station_id": "216",
+              "stop_name": "Freeman St",
+              "lat": "40.829993",
+              "lon": "-73.891865"
+            },
+            {
+              "stop_id": "217S",
+              "station_id": "217",
+              "stop_name": "Simpson St",
+              "lat": "40.824073",
+              "lon": "-73.893064"
+            },
+            {
+              "stop_id": "218S",
+              "station_id": "218",
+              "stop_name": "Intervale Av",
+              "lat": "40.822181",
+              "lon": "-73.896736"
+            },
+            {
+              "stop_id": "219S",
+              "station_id": "219",
+              "stop_name": "Prospect Av",
+              "lat": "40.819585",
+              "lon": "-73.90177"
+            },
+            {
+              "stop_id": "220S",
+              "station_id": "220",
+              "stop_name": "Jackson Av",
+              "lat": "40.81649",
+              "lon": "-73.90780700000001"
+            },
+            {
+              "stop_id": "221S",
+              "station_id": "221",
+              "stop_name": "3 Av-149 St",
+              "lat": "40.816109",
+              "lon": "-73.91775699999999"
+            },
+            {
+              "stop_id": "222S",
+              "station_id": "222",
+              "stop_name": "149 St-Grand Concourse",
+              "lat": "40.81841",
+              "lon": "-73.92671799999999"
+            },
+            {
+              "stop_id": "416S",
+              "station_id": "416",
+              "stop_name": "138 St-Grand Concourse",
+              "lat": "40.813224",
+              "lon": "-73.929849"
+            },
+            {
+              "stop_id": "621S",
+              "station_id": "621",
+              "stop_name": "125 St",
+              "lat": "40.804138",
+              "lon": "-73.937594"
+            },
+            {
+              "stop_id": "626S",
+              "station_id": "626",
+              "stop_name": "86 St",
+              "lat": "40.779492",
+              "lon": "-73.955589"
+            },
+            {
+              "stop_id": "629S",
+              "station_id": "629",
+              "stop_name": "59 St",
+              "lat": "40.762526",
+              "lon": "-73.967967"
+            },
+            {
+              "stop_id": "631S",
+              "station_id": "631",
+              "stop_name": "Grand Central-42 St",
+              "lat": "40.751776",
+              "lon": "-73.976848"
+            },
+            {
+              "stop_id": "635S",
+              "station_id": "635",
+              "stop_name": "14 St-Union Sq",
+              "lat": "40.734673",
+              "lon": "-73.989951"
+            },
+            {
+              "stop_id": "640S",
+              "station_id": "640",
+              "stop_name": "Brooklyn Bridge-City Hall",
+              "lat": "40.713065",
+              "lon": "-74.004131"
+            },
+            {
+              "stop_id": "418S",
+              "station_id": "418",
+              "stop_name": "Fulton St",
+              "lat": "40.710368",
+              "lon": "-74.00950899999999"
+            },
+            {
+              "stop_id": "419S",
+              "station_id": "419",
+              "stop_name": "Wall St",
+              "lat": "40.707557",
+              "lon": "-74.01186199999999"
+            },
+            {
+              "stop_id": "420S",
+              "station_id": "420",
+              "stop_name": "Bowling Green",
+              "lat": "40.704817",
+              "lon": "-74.014065"
+            },
+            {
+              "stop_id": "423S",
+              "station_id": "423",
+              "stop_name": "Borough Hall",
+              "lat": "40.692404",
+              "lon": "-73.990151"
+            },
+            {
+              "stop_id": "234S",
+              "station_id": "234",
+              "stop_name": "Nevins St",
+              "lat": "40.688246",
+              "lon": "-73.980492"
+            },
+            {
+              "stop_id": "235S",
+              "station_id": "235",
+              "stop_name": "Atlantic Av-Barclays Ctr",
+              "lat": "40.684359",
+              "lon": "-73.977666"
+            },
+            {
+              "stop_id": "239S",
+              "station_id": "239",
+              "stop_name": "Franklin Av-Medgar Evers College",
+              "lat": "40.670682",
+              "lon": "-73.95813099999999"
+            },
+            {
+              "stop_id": "241S",
+              "station_id": "241",
+              "stop_name": "President St-Medgar Evers College",
+              "lat": "40.667883",
+              "lon": "-73.950683"
+            },
+            {
+              "stop_id": "242S",
+              "station_id": "242",
+              "stop_name": "Sterling St",
+              "lat": "40.662742",
+              "lon": "-73.95085"
+            },
+            {
+              "stop_id": "243S",
+              "station_id": "243",
+              "stop_name": "Winthrop St",
+              "lat": "40.656652",
+              "lon": "-73.9502"
+            },
+            {
+              "stop_id": "244S",
+              "station_id": "244",
+              "stop_name": "Church Av",
+              "lat": "40.650843",
+              "lon": "-73.949575"
+            },
+            {
+              "stop_id": "245S",
+              "station_id": "245",
+              "stop_name": "Beverly Rd",
+              "lat": "40.645098",
+              "lon": "-73.948959"
+            },
+            {
+              "stop_id": "246S",
+              "station_id": "246",
+              "stop_name": "Newkirk Av-Little Haiti",
+              "lat": "40.639967",
+              "lon": "-73.94841099999999"
+            },
+            {
+              "stop_id": "247S",
+              "station_id": "247",
+              "stop_name": "Flatbush Av-Brooklyn College",
+              "lat": "40.632836",
+              "lon": "-73.947642"
+            }
+          ]
+        }
+      },
+      "5-NEREID": {
+        "label": "Nereid",
+        "key": "5-NEREID",
+        "directions": {
+          "N": [
+            {
+              "stop_id": "247N",
+              "station_id": "247",
+              "stop_name": "Flatbush Av-Brooklyn College",
+              "lat": "40.632836",
+              "lon": "-73.947642"
+            },
+            {
+              "stop_id": "246N",
+              "station_id": "246",
+              "stop_name": "Newkirk Av-Little Haiti",
+              "lat": "40.639967",
+              "lon": "-73.94841099999999"
+            },
+            {
+              "stop_id": "245N",
+              "station_id": "245",
+              "stop_name": "Beverly Rd",
+              "lat": "40.645098",
+              "lon": "-73.948959"
+            },
+            {
+              "stop_id": "244N",
+              "station_id": "244",
+              "stop_name": "Church Av",
+              "lat": "40.650843",
+              "lon": "-73.949575"
+            },
+            {
+              "stop_id": "243N",
+              "station_id": "243",
+              "stop_name": "Winthrop St",
+              "lat": "40.656652",
+              "lon": "-73.9502"
+            },
+            {
+              "stop_id": "242N",
+              "station_id": "242",
+              "stop_name": "Sterling St",
+              "lat": "40.662742",
+              "lon": "-73.95085"
+            },
+            {
+              "stop_id": "241N",
+              "station_id": "241",
+              "stop_name": "President St-Medgar Evers College",
+              "lat": "40.667883",
+              "lon": "-73.950683"
+            },
+            {
+              "stop_id": "239N",
+              "station_id": "239",
+              "stop_name": "Franklin Av-Medgar Evers College",
+              "lat": "40.670682",
+              "lon": "-73.95813099999999"
+            },
+            {
+              "stop_id": "235N",
+              "station_id": "235",
+              "stop_name": "Atlantic Av-Barclays Ctr",
+              "lat": "40.684359",
+              "lon": "-73.977666"
+            },
+            {
+              "stop_id": "234N",
+              "station_id": "234",
+              "stop_name": "Nevins St",
+              "lat": "40.688246",
+              "lon": "-73.980492"
+            },
+            {
+              "stop_id": "423N",
+              "station_id": "423",
+              "stop_name": "Borough Hall",
+              "lat": "40.692404",
+              "lon": "-73.990151"
+            },
+            {
+              "stop_id": "420N",
+              "station_id": "420",
+              "stop_name": "Bowling Green",
+              "lat": "40.704817",
+              "lon": "-74.014065"
+            },
+            {
+              "stop_id": "419N",
+              "station_id": "419",
+              "stop_name": "Wall St",
+              "lat": "40.707557",
+              "lon": "-74.01186199999999"
+            },
+            {
+              "stop_id": "418N",
+              "station_id": "418",
+              "stop_name": "Fulton St",
+              "lat": "40.710368",
+              "lon": "-74.00950899999999"
+            },
+            {
+              "stop_id": "640N",
+              "station_id": "640",
+              "stop_name": "Brooklyn Bridge-City Hall",
+              "lat": "40.713065",
+              "lon": "-74.004131"
+            },
+            {
+              "stop_id": "635N",
+              "station_id": "635",
+              "stop_name": "14 St-Union Sq",
+              "lat": "40.734673",
+              "lon": "-73.989951"
+            },
+            {
+              "stop_id": "631N",
+              "station_id": "631",
+              "stop_name": "Grand Central-42 St",
+              "lat": "40.751776",
+              "lon": "-73.976848"
+            },
+            {
+              "stop_id": "629N",
+              "station_id": "629",
+              "stop_name": "59 St",
+              "lat": "40.762526",
+              "lon": "-73.967967"
+            },
+            {
+              "stop_id": "626N",
+              "station_id": "626",
+              "stop_name": "86 St",
+              "lat": "40.779492",
+              "lon": "-73.955589"
+            },
+            {
+              "stop_id": "621N",
+              "station_id": "621",
+              "stop_name": "125 St",
+              "lat": "40.804138",
+              "lon": "-73.937594"
+            },
+            {
+              "stop_id": "416N",
+              "station_id": "416",
+              "stop_name": "138 St-Grand Concourse",
+              "lat": "40.813224",
+              "lon": "-73.929849"
+            },
+            {
+              "stop_id": "222N",
+              "station_id": "222",
+              "stop_name": "149 St-Grand Concourse",
+              "lat": "40.81841",
+              "lon": "-73.92671799999999"
+            },
+            {
+              "stop_id": "221N",
+              "station_id": "221",
+              "stop_name": "3 Av-149 St",
+              "lat": "40.816109",
+              "lon": "-73.91775699999999"
+            },
+            {
+              "stop_id": "220N",
+              "station_id": "220",
+              "stop_name": "Jackson Av",
+              "lat": "40.81649",
+              "lon": "-73.90780700000001"
+            },
+            {
+              "stop_id": "219N",
+              "station_id": "219",
+              "stop_name": "Prospect Av",
+              "lat": "40.819585",
+              "lon": "-73.90177"
+            },
+            {
+              "stop_id": "218N",
+              "station_id": "218",
+              "stop_name": "Intervale Av",
+              "lat": "40.822181",
+              "lon": "-73.896736"
+            },
+            {
+              "stop_id": "217N",
+              "station_id": "217",
+              "stop_name": "Simpson St",
+              "lat": "40.824073",
+              "lon": "-73.893064"
+            },
+            {
+              "stop_id": "216N",
+              "station_id": "216",
+              "stop_name": "Freeman St",
+              "lat": "40.829993",
+              "lon": "-73.891865"
+            },
+            {
+              "stop_id": "215N",
+              "station_id": "215",
+              "stop_name": "174 St",
+              "lat": "40.837288",
+              "lon": "-73.88773399999999"
+            },
+            {
+              "stop_id": "214N",
+              "station_id": "214",
+              "stop_name": "West Farms Sq-E Tremont Av",
+              "lat": "40.840295",
+              "lon": "-73.880049"
+            },
+            {
+              "stop_id": "213N",
+              "station_id": "213",
+              "stop_name": "E 180 St",
+              "lat": "40.841894",
+              "lon": "-73.87348799999999"
+            },
+            {
+              "stop_id": "212N",
+              "station_id": "212",
+              "stop_name": "Bronx Park East",
+              "lat": "40.848828",
+              "lon": "-73.86845700000001"
+            },
+            {
+              "stop_id": "211N",
+              "station_id": "211",
+              "stop_name": "Pelham Pkwy",
+              "lat": "40.857192",
+              "lon": "-73.867615"
+            },
+            {
+              "stop_id": "210N",
+              "station_id": "210",
+              "stop_name": "Allerton Av",
+              "lat": "40.865462",
+              "lon": "-73.867352"
+            },
+            {
+              "stop_id": "209N",
+              "station_id": "209",
+              "stop_name": "Burke Av",
+              "lat": "40.871356",
+              "lon": "-73.867164"
+            },
+            {
+              "stop_id": "208N",
+              "station_id": "208",
+              "stop_name": "Gun Hill Rd",
+              "lat": "40.87785",
+              "lon": "-73.86625600000001"
+            },
+            {
+              "stop_id": "207N",
+              "station_id": "207",
+              "stop_name": "219 St",
+              "lat": "40.883895",
+              "lon": "-73.862633"
+            },
+            {
+              "stop_id": "206N",
+              "station_id": "206",
+              "stop_name": "225 St",
+              "lat": "40.888022",
+              "lon": "-73.86034100000001"
+            },
+            {
+              "stop_id": "205N",
+              "station_id": "205",
+              "stop_name": "233 St",
+              "lat": "40.893193",
+              "lon": "-73.857473"
+            },
+            {
+              "stop_id": "204N",
+              "station_id": "204",
+              "stop_name": "Nereid Av",
+              "lat": "40.898379",
+              "lon": "-73.854376"
+            }
+          ],
+          "S": [
+            {
+              "stop_id": "204S",
+              "station_id": "204",
+              "stop_name": "Nereid Av",
+              "lat": "40.898379",
+              "lon": "-73.854376"
+            },
+            {
+              "stop_id": "205S",
+              "station_id": "205",
+              "stop_name": "233 St",
+              "lat": "40.893193",
+              "lon": "-73.857473"
+            },
+            {
+              "stop_id": "206S",
+              "station_id": "206",
+              "stop_name": "225 St",
+              "lat": "40.888022",
+              "lon": "-73.86034100000001"
+            },
+            {
+              "stop_id": "207S",
+              "station_id": "207",
+              "stop_name": "219 St",
+              "lat": "40.883895",
+              "lon": "-73.862633"
+            },
+            {
+              "stop_id": "208S",
+              "station_id": "208",
+              "stop_name": "Gun Hill Rd",
+              "lat": "40.87785",
+              "lon": "-73.86625600000001"
+            },
+            {
+              "stop_id": "209S",
+              "station_id": "209",
+              "stop_name": "Burke Av",
+              "lat": "40.871356",
+              "lon": "-73.867164"
+            },
+            {
+              "stop_id": "210S",
+              "station_id": "210",
+              "stop_name": "Allerton Av",
+              "lat": "40.865462",
+              "lon": "-73.867352"
+            },
+            {
+              "stop_id": "211S",
+              "station_id": "211",
+              "stop_name": "Pelham Pkwy",
+              "lat": "40.857192",
+              "lon": "-73.867615"
+            },
+            {
+              "stop_id": "212S",
+              "station_id": "212",
+              "stop_name": "Bronx Park East",
+              "lat": "40.848828",
+              "lon": "-73.86845700000001"
+            },
+            {
+              "stop_id": "213S",
+              "station_id": "213",
+              "stop_name": "E 180 St",
+              "lat": "40.841894",
+              "lon": "-73.87348799999999"
+            },
+            {
+              "stop_id": "214S",
+              "station_id": "214",
+              "stop_name": "West Farms Sq-E Tremont Av",
+              "lat": "40.840295",
+              "lon": "-73.880049"
+            },
+            {
+              "stop_id": "215S",
+              "station_id": "215",
+              "stop_name": "174 St",
+              "lat": "40.837288",
+              "lon": "-73.88773399999999"
+            },
+            {
+              "stop_id": "216S",
+              "station_id": "216",
+              "stop_name": "Freeman St",
+              "lat": "40.829993",
+              "lon": "-73.891865"
+            },
+            {
+              "stop_id": "217S",
+              "station_id": "217",
+              "stop_name": "Simpson St",
+              "lat": "40.824073",
+              "lon": "-73.893064"
+            },
+            {
+              "stop_id": "218S",
+              "station_id": "218",
+              "stop_name": "Intervale Av",
+              "lat": "40.822181",
+              "lon": "-73.896736"
+            },
+            {
+              "stop_id": "219S",
+              "station_id": "219",
+              "stop_name": "Prospect Av",
+              "lat": "40.819585",
+              "lon": "-73.90177"
+            },
+            {
+              "stop_id": "220S",
+              "station_id": "220",
+              "stop_name": "Jackson Av",
+              "lat": "40.81649",
+              "lon": "-73.90780700000001"
+            },
+            {
+              "stop_id": "221S",
+              "station_id": "221",
+              "stop_name": "3 Av-149 St",
+              "lat": "40.816109",
+              "lon": "-73.91775699999999"
+            },
+            {
+              "stop_id": "222S",
+              "station_id": "222",
+              "stop_name": "149 St-Grand Concourse",
+              "lat": "40.81841",
+              "lon": "-73.92671799999999"
+            },
+            {
+              "stop_id": "416S",
+              "station_id": "416",
+              "stop_name": "138 St-Grand Concourse",
+              "lat": "40.813224",
+              "lon": "-73.929849"
+            },
+            {
+              "stop_id": "621S",
+              "station_id": "621",
+              "stop_name": "125 St",
+              "lat": "40.804138",
+              "lon": "-73.937594"
+            },
+            {
+              "stop_id": "626S",
+              "station_id": "626",
+              "stop_name": "86 St",
+              "lat": "40.779492",
+              "lon": "-73.955589"
+            },
+            {
+              "stop_id": "629S",
+              "station_id": "629",
+              "stop_name": "59 St",
+              "lat": "40.762526",
+              "lon": "-73.967967"
+            },
+            {
+              "stop_id": "631S",
+              "station_id": "631",
+              "stop_name": "Grand Central-42 St",
+              "lat": "40.751776",
+              "lon": "-73.976848"
+            },
+            {
+              "stop_id": "635S",
+              "station_id": "635",
+              "stop_name": "14 St-Union Sq",
+              "lat": "40.734673",
+              "lon": "-73.989951"
+            },
+            {
+              "stop_id": "640S",
+              "station_id": "640",
+              "stop_name": "Brooklyn Bridge-City Hall",
+              "lat": "40.713065",
+              "lon": "-74.004131"
+            },
+            {
+              "stop_id": "418S",
+              "station_id": "418",
+              "stop_name": "Fulton St",
+              "lat": "40.710368",
+              "lon": "-74.00950899999999"
+            },
+            {
+              "stop_id": "419S",
+              "station_id": "419",
+              "stop_name": "Wall St",
+              "lat": "40.707557",
+              "lon": "-74.01186199999999"
+            },
+            {
+              "stop_id": "420S",
+              "station_id": "420",
+              "stop_name": "Bowling Green",
+              "lat": "40.704817",
+              "lon": "-74.014065"
+            },
+            {
+              "stop_id": "423S",
+              "station_id": "423",
+              "stop_name": "Borough Hall",
+              "lat": "40.692404",
+              "lon": "-73.990151"
+            },
+            {
+              "stop_id": "234S",
+              "station_id": "234",
+              "stop_name": "Nevins St",
+              "lat": "40.688246",
+              "lon": "-73.980492"
+            },
+            {
+              "stop_id": "235S",
+              "station_id": "235",
+              "stop_name": "Atlantic Av-Barclays Ctr",
+              "lat": "40.684359",
+              "lon": "-73.977666"
+            },
+            {
+              "stop_id": "239S",
+              "station_id": "239",
+              "stop_name": "Franklin Av-Medgar Evers College",
+              "lat": "40.670682",
+              "lon": "-73.95813099999999"
+            },
+            {
+              "stop_id": "241S",
+              "station_id": "241",
+              "stop_name": "President St-Medgar Evers College",
+              "lat": "40.667883",
+              "lon": "-73.950683"
+            },
+            {
+              "stop_id": "242S",
+              "station_id": "242",
+              "stop_name": "Sterling St",
+              "lat": "40.662742",
+              "lon": "-73.95085"
+            },
+            {
+              "stop_id": "243S",
+              "station_id": "243",
+              "stop_name": "Winthrop St",
+              "lat": "40.656652",
+              "lon": "-73.9502"
+            },
+            {
+              "stop_id": "244S",
+              "station_id": "244",
+              "stop_name": "Church Av",
+              "lat": "40.650843",
+              "lon": "-73.949575"
+            },
+            {
+              "stop_id": "245S",
+              "station_id": "245",
+              "stop_name": "Beverly Rd",
+              "lat": "40.645098",
+              "lon": "-73.948959"
+            },
+            {
+              "stop_id": "246S",
+              "station_id": "246",
+              "stop_name": "Newkirk Av-Little Haiti",
+              "lat": "40.639967",
+              "lon": "-73.94841099999999"
+            },
+            {
+              "stop_id": "247S",
+              "station_id": "247",
+              "stop_name": "Flatbush Av-Brooklyn College",
+              "lat": "40.632836",
+              "lon": "-73.947642"
+            }
+          ]
+        }
+      }
+    },
+    "order": [
+      "5-EASTCHESTER",
+      "5-NEREID"
+    ]
+  },
+  "A": {
+    "branches": {
+      "A-LEFFERTS": {
+        "label": "Lefferts Blvd",
+        "key": "A-LEFFERTS",
+        "directions": {
+          "N": [
+            {
+              "stop_id": "A65N",
+              "station_id": "A65",
+              "stop_name": "Ozone Park-Lefferts Blvd",
+              "lat": "40.685951",
+              "lon": "-73.82579800000001"
+            },
+            {
+              "stop_id": "A64N",
+              "station_id": "A64",
+              "stop_name": "111 St",
+              "lat": "40.684331",
+              "lon": "-73.83216299999999"
+            },
+            {
+              "stop_id": "A63N",
+              "station_id": "A63",
+              "stop_name": "104 St",
+              "lat": "40.681711",
+              "lon": "-73.837683"
+            },
+            {
+              "stop_id": "A61N",
+              "station_id": "A61",
+              "stop_name": "Rockaway Blvd",
+              "lat": "40.680429",
+              "lon": "-73.843853"
+            },
+            {
+              "stop_id": "A60N",
+              "station_id": "A60",
+              "stop_name": "88 St",
+              "lat": "40.679843",
+              "lon": "-73.85147000000001"
+            },
+            {
+              "stop_id": "A59N",
+              "station_id": "A59",
+              "stop_name": "80 St",
+              "lat": "40.679371",
+              "lon": "-73.858992"
+            },
+            {
+              "stop_id": "A57N",
+              "station_id": "A57",
+              "stop_name": "Grant Av",
+              "lat": "40.677044",
+              "lon": "-73.86505"
+            },
+            {
+              "stop_id": "A55N",
+              "station_id": "A55",
+              "stop_name": "Euclid Av",
+              "lat": "40.675377",
+              "lon": "-73.872106"
+            },
+            {
+              "stop_id": "A54N",
+              "station_id": "A54",
+              "stop_name": "Shepherd Av",
+              "lat": "40.67413",
+              "lon": "-73.88075000000001"
+            },
+            {
+              "stop_id": "A53N",
+              "station_id": "A53",
+              "stop_name": "Van Siclen Av",
+              "lat": "40.67271",
+              "lon": "-73.89035800000001"
+            },
+            {
+              "stop_id": "A52N",
+              "station_id": "A52",
+              "stop_name": "Liberty Av",
+              "lat": "40.674542",
+              "lon": "-73.896548"
+            },
+            {
+              "stop_id": "A51N",
+              "station_id": "A51",
+              "stop_name": "Broadway Junction",
+              "lat": "40.678334",
+              "lon": "-73.905316"
+            },
+            {
+              "stop_id": "A50N",
+              "station_id": "A50",
+              "stop_name": "Rockaway Av",
+              "lat": "40.67834",
+              "lon": "-73.911946"
+            },
+            {
+              "stop_id": "A49N",
+              "station_id": "A49",
+              "stop_name": "Ralph Av",
+              "lat": "40.678822",
+              "lon": "-73.92078600000001"
+            },
+            {
+              "stop_id": "A48N",
+              "station_id": "A48",
+              "stop_name": "Utica Av",
+              "lat": "40.679364",
+              "lon": "-73.930729"
+            },
+            {
+              "stop_id": "A47N",
+              "station_id": "A47",
+              "stop_name": "Kingston-Throop Avs",
+              "lat": "40.679921",
+              "lon": "-73.94085800000001"
+            },
+            {
+              "stop_id": "A46N",
+              "station_id": "A46",
+              "stop_name": "Nostrand Av",
+              "lat": "40.680438",
+              "lon": "-73.95042599999999"
+            },
+            {
+              "stop_id": "A45N",
+              "station_id": "A45",
+              "stop_name": "Franklin Av",
+              "lat": "40.68138",
+              "lon": "-73.95684799999999"
+            },
+            {
+              "stop_id": "A44N",
+              "station_id": "A44",
+              "stop_name": "Clinton-Washington Avs",
+              "lat": "40.683263",
+              "lon": "-73.96583800000001"
+            },
+            {
+              "stop_id": "A43N",
+              "station_id": "A43",
+              "stop_name": "Lafayette Av",
+              "lat": "40.686113",
+              "lon": "-73.973946"
+            },
+            {
+              "stop_id": "A42N",
+              "station_id": "A42",
+              "stop_name": "Hoyt-Schermerhorn Sts",
+              "lat": "40.688484",
+              "lon": "-73.985001"
+            },
+            {
+              "stop_id": "A41N",
+              "station_id": "A41",
+              "stop_name": "Jay St-MetroTech",
+              "lat": "40.692338",
+              "lon": "-73.987342"
+            },
+            {
+              "stop_id": "A40N",
+              "station_id": "A40",
+              "stop_name": "High St",
+              "lat": "40.699337",
+              "lon": "-73.990531"
+            },
+            {
+              "stop_id": "A38N",
+              "station_id": "A38",
+              "stop_name": "Fulton St",
+              "lat": "40.710197",
+              "lon": "-74.00769099999999"
+            },
+            {
+              "stop_id": "A36N",
+              "station_id": "A36",
+              "stop_name": "Chambers St",
+              "lat": "40.714111",
+              "lon": "-74.008585"
+            },
+            {
+              "stop_id": "A34N",
+              "station_id": "A34",
+              "stop_name": "Canal St",
+              "lat": "40.720824",
+              "lon": "-74.005229"
+            },
+            {
+              "stop_id": "A33N",
+              "station_id": "A33",
+              "stop_name": "Spring St",
+              "lat": "40.726227",
+              "lon": "-74.003739"
+            },
+            {
+              "stop_id": "A32N",
+              "station_id": "A32",
+              "stop_name": "W 4 St-Wash Sq",
+              "lat": "40.732338",
+              "lon": "-74.000495"
+            },
+            {
+              "stop_id": "A31N",
+              "station_id": "A31",
+              "stop_name": "14 St",
+              "lat": "40.740893",
+              "lon": "-74.00169"
+            },
+            {
+              "stop_id": "A30N",
+              "station_id": "A30",
+              "stop_name": "23 St",
+              "lat": "40.745906",
+              "lon": "-73.998041"
+            },
+            {
+              "stop_id": "A28N",
+              "station_id": "A28",
+              "stop_name": "34 St-Penn Station",
+              "lat": "40.752287",
+              "lon": "-73.993391"
+            },
+            {
+              "stop_id": "A27N",
+              "station_id": "A27",
+              "stop_name": "42 St-Port Authority Bus Terminal",
+              "lat": "40.757308",
+              "lon": "-73.989735"
+            },
+            {
+              "stop_id": "A25N",
+              "station_id": "A25",
+              "stop_name": "50 St",
+              "lat": "40.762456",
+              "lon": "-73.985984"
+            },
+            {
+              "stop_id": "A24N",
+              "station_id": "A24",
+              "stop_name": "59 St-Columbus Circle",
+              "lat": "40.768296",
+              "lon": "-73.981736"
+            },
+            {
+              "stop_id": "A22N",
+              "station_id": "A22",
+              "stop_name": "72 St",
+              "lat": "40.775594",
+              "lon": "-73.97641"
+            },
+            {
+              "stop_id": "A21N",
+              "station_id": "A21",
+              "stop_name": "81 St-Museum of Natural History",
+              "lat": "40.781433",
+              "lon": "-73.972143"
+            },
+            {
+              "stop_id": "A20N",
+              "station_id": "A20",
+              "stop_name": "86 St",
+              "lat": "40.785868",
+              "lon": "-73.96891599999999"
+            },
+            {
+              "stop_id": "A19N",
+              "station_id": "A19",
+              "stop_name": "96 St",
+              "lat": "40.791642",
+              "lon": "-73.964696"
+            },
+            {
+              "stop_id": "A18N",
+              "station_id": "A18",
+              "stop_name": "103 St",
+              "lat": "40.796092",
+              "lon": "-73.961454"
+            },
+            {
+              "stop_id": "A17N",
+              "station_id": "A17",
+              "stop_name": "Cathedral Pkwy (110 St)",
+              "lat": "40.800603",
+              "lon": "-73.958161"
+            },
+            {
+              "stop_id": "A16N",
+              "station_id": "A16",
+              "stop_name": "116 St",
+              "lat": "40.805085",
+              "lon": "-73.954882"
+            },
+            {
+              "stop_id": "A15N",
+              "station_id": "A15",
+              "stop_name": "125 St",
+              "lat": "40.811109",
+              "lon": "-73.952343"
+            },
+            {
+              "stop_id": "A14N",
+              "station_id": "A14",
+              "stop_name": "135 St",
+              "lat": "40.817894",
+              "lon": "-73.947649"
+            },
+            {
+              "stop_id": "A12N",
+              "station_id": "A12",
+              "stop_name": "145 St",
+              "lat": "40.824783",
+              "lon": "-73.944216"
+            },
+            {
+              "stop_id": "A11N",
+              "station_id": "A11",
+              "stop_name": "155 St",
+              "lat": "40.830518",
+              "lon": "-73.941514"
+            },
+            {
+              "stop_id": "A10N",
+              "station_id": "A10",
+              "stop_name": "163 St-Amsterdam Av",
+              "lat": "40.836013",
+              "lon": "-73.939892"
+            },
+            {
+              "stop_id": "A09N",
+              "station_id": "A09",
+              "stop_name": "168 St",
+              "lat": "40.840719",
+              "lon": "-73.939561"
+            },
+            {
+              "stop_id": "A07N",
+              "station_id": "A07",
+              "stop_name": "175 St",
+              "lat": "40.847391",
+              "lon": "-73.93970400000001"
+            },
+            {
+              "stop_id": "A06N",
+              "station_id": "A06",
+              "stop_name": "181 St",
+              "lat": "40.851695",
+              "lon": "-73.937969"
+            },
+            {
+              "stop_id": "A05N",
+              "station_id": "A05",
+              "stop_name": "190 St",
+              "lat": "40.859022",
+              "lon": "-73.93418"
+            },
+            {
+              "stop_id": "A03N",
+              "station_id": "A03",
+              "stop_name": "Dyckman St",
+              "lat": "40.865491",
+              "lon": "-73.927271"
+            },
+            {
+              "stop_id": "A02N",
+              "station_id": "A02",
+              "stop_name": "Inwood-207 St",
+              "lat": "40.868072",
+              "lon": "-73.919899"
+            }
+          ],
+          "S": [
+            {
+              "stop_id": "A02S",
+              "station_id": "A02",
+              "stop_name": "Inwood-207 St",
+              "lat": "40.868072",
+              "lon": "-73.919899"
+            },
+            {
+              "stop_id": "A03S",
+              "station_id": "A03",
+              "stop_name": "Dyckman St",
+              "lat": "40.865491",
+              "lon": "-73.927271"
+            },
+            {
+              "stop_id": "A05S",
+              "station_id": "A05",
+              "stop_name": "190 St",
+              "lat": "40.859022",
+              "lon": "-73.93418"
+            },
+            {
+              "stop_id": "A06S",
+              "station_id": "A06",
+              "stop_name": "181 St",
+              "lat": "40.851695",
+              "lon": "-73.937969"
+            },
+            {
+              "stop_id": "A07S",
+              "station_id": "A07",
+              "stop_name": "175 St",
+              "lat": "40.847391",
+              "lon": "-73.93970400000001"
+            },
+            {
+              "stop_id": "A09S",
+              "station_id": "A09",
+              "stop_name": "168 St",
+              "lat": "40.840719",
+              "lon": "-73.939561"
+            },
+            {
+              "stop_id": "A10S",
+              "station_id": "A10",
+              "stop_name": "163 St-Amsterdam Av",
+              "lat": "40.836013",
+              "lon": "-73.939892"
+            },
+            {
+              "stop_id": "A11S",
+              "station_id": "A11",
+              "stop_name": "155 St",
+              "lat": "40.830518",
+              "lon": "-73.941514"
+            },
+            {
+              "stop_id": "A12S",
+              "station_id": "A12",
+              "stop_name": "145 St",
+              "lat": "40.824783",
+              "lon": "-73.944216"
+            },
+            {
+              "stop_id": "A14S",
+              "station_id": "A14",
+              "stop_name": "135 St",
+              "lat": "40.817894",
+              "lon": "-73.947649"
+            },
+            {
+              "stop_id": "A15S",
+              "station_id": "A15",
+              "stop_name": "125 St",
+              "lat": "40.811109",
+              "lon": "-73.952343"
+            },
+            {
+              "stop_id": "A16S",
+              "station_id": "A16",
+              "stop_name": "116 St",
+              "lat": "40.805085",
+              "lon": "-73.954882"
+            },
+            {
+              "stop_id": "A17S",
+              "station_id": "A17",
+              "stop_name": "Cathedral Pkwy (110 St)",
+              "lat": "40.800603",
+              "lon": "-73.958161"
+            },
+            {
+              "stop_id": "A18S",
+              "station_id": "A18",
+              "stop_name": "103 St",
+              "lat": "40.796092",
+              "lon": "-73.961454"
+            },
+            {
+              "stop_id": "A19S",
+              "station_id": "A19",
+              "stop_name": "96 St",
+              "lat": "40.791642",
+              "lon": "-73.964696"
+            },
+            {
+              "stop_id": "A20S",
+              "station_id": "A20",
+              "stop_name": "86 St",
+              "lat": "40.785868",
+              "lon": "-73.96891599999999"
+            },
+            {
+              "stop_id": "A21S",
+              "station_id": "A21",
+              "stop_name": "81 St-Museum of Natural History",
+              "lat": "40.781433",
+              "lon": "-73.972143"
+            },
+            {
+              "stop_id": "A22S",
+              "station_id": "A22",
+              "stop_name": "72 St",
+              "lat": "40.775594",
+              "lon": "-73.97641"
+            },
+            {
+              "stop_id": "A24S",
+              "station_id": "A24",
+              "stop_name": "59 St-Columbus Circle",
+              "lat": "40.768296",
+              "lon": "-73.981736"
+            },
+            {
+              "stop_id": "A25S",
+              "station_id": "A25",
+              "stop_name": "50 St",
+              "lat": "40.762456",
+              "lon": "-73.985984"
+            },
+            {
+              "stop_id": "A27S",
+              "station_id": "A27",
+              "stop_name": "42 St-Port Authority Bus Terminal",
+              "lat": "40.757308",
+              "lon": "-73.989735"
+            },
+            {
+              "stop_id": "A28S",
+              "station_id": "A28",
+              "stop_name": "34 St-Penn Station",
+              "lat": "40.752287",
+              "lon": "-73.993391"
+            },
+            {
+              "stop_id": "A30S",
+              "station_id": "A30",
+              "stop_name": "23 St",
+              "lat": "40.745906",
+              "lon": "-73.998041"
+            },
+            {
+              "stop_id": "A31S",
+              "station_id": "A31",
+              "stop_name": "14 St",
+              "lat": "40.740893",
+              "lon": "-74.00169"
+            },
+            {
+              "stop_id": "A32S",
+              "station_id": "A32",
+              "stop_name": "W 4 St-Wash Sq",
+              "lat": "40.732338",
+              "lon": "-74.000495"
+            },
+            {
+              "stop_id": "A33S",
+              "station_id": "A33",
+              "stop_name": "Spring St",
+              "lat": "40.726227",
+              "lon": "-74.003739"
+            },
+            {
+              "stop_id": "A34S",
+              "station_id": "A34",
+              "stop_name": "Canal St",
+              "lat": "40.720824",
+              "lon": "-74.005229"
+            },
+            {
+              "stop_id": "A36S",
+              "station_id": "A36",
+              "stop_name": "Chambers St",
+              "lat": "40.714111",
+              "lon": "-74.008585"
+            },
+            {
+              "stop_id": "A38S",
+              "station_id": "A38",
+              "stop_name": "Fulton St",
+              "lat": "40.710197",
+              "lon": "-74.00769099999999"
+            },
+            {
+              "stop_id": "A40S",
+              "station_id": "A40",
+              "stop_name": "High St",
+              "lat": "40.699337",
+              "lon": "-73.990531"
+            },
+            {
+              "stop_id": "A41S",
+              "station_id": "A41",
+              "stop_name": "Jay St-MetroTech",
+              "lat": "40.692338",
+              "lon": "-73.987342"
+            },
+            {
+              "stop_id": "A42S",
+              "station_id": "A42",
+              "stop_name": "Hoyt-Schermerhorn Sts",
+              "lat": "40.688484",
+              "lon": "-73.985001"
+            },
+            {
+              "stop_id": "A43S",
+              "station_id": "A43",
+              "stop_name": "Lafayette Av",
+              "lat": "40.686113",
+              "lon": "-73.973946"
+            },
+            {
+              "stop_id": "A44S",
+              "station_id": "A44",
+              "stop_name": "Clinton-Washington Avs",
+              "lat": "40.683263",
+              "lon": "-73.96583800000001"
+            },
+            {
+              "stop_id": "A45S",
+              "station_id": "A45",
+              "stop_name": "Franklin Av",
+              "lat": "40.68138",
+              "lon": "-73.95684799999999"
+            },
+            {
+              "stop_id": "A46S",
+              "station_id": "A46",
+              "stop_name": "Nostrand Av",
+              "lat": "40.680438",
+              "lon": "-73.95042599999999"
+            },
+            {
+              "stop_id": "A47S",
+              "station_id": "A47",
+              "stop_name": "Kingston-Throop Avs",
+              "lat": "40.679921",
+              "lon": "-73.94085800000001"
+            },
+            {
+              "stop_id": "A48S",
+              "station_id": "A48",
+              "stop_name": "Utica Av",
+              "lat": "40.679364",
+              "lon": "-73.930729"
+            },
+            {
+              "stop_id": "A49S",
+              "station_id": "A49",
+              "stop_name": "Ralph Av",
+              "lat": "40.678822",
+              "lon": "-73.92078600000001"
+            },
+            {
+              "stop_id": "A50S",
+              "station_id": "A50",
+              "stop_name": "Rockaway Av",
+              "lat": "40.67834",
+              "lon": "-73.911946"
+            },
+            {
+              "stop_id": "A51S",
+              "station_id": "A51",
+              "stop_name": "Broadway Junction",
+              "lat": "40.678334",
+              "lon": "-73.905316"
+            },
+            {
+              "stop_id": "A52S",
+              "station_id": "A52",
+              "stop_name": "Liberty Av",
+              "lat": "40.674542",
+              "lon": "-73.896548"
+            },
+            {
+              "stop_id": "A53S",
+              "station_id": "A53",
+              "stop_name": "Van Siclen Av",
+              "lat": "40.67271",
+              "lon": "-73.89035800000001"
+            },
+            {
+              "stop_id": "A54S",
+              "station_id": "A54",
+              "stop_name": "Shepherd Av",
+              "lat": "40.67413",
+              "lon": "-73.88075000000001"
+            },
+            {
+              "stop_id": "A55S",
+              "station_id": "A55",
+              "stop_name": "Euclid Av",
+              "lat": "40.675377",
+              "lon": "-73.872106"
+            },
+            {
+              "stop_id": "A57S",
+              "station_id": "A57",
+              "stop_name": "Grant Av",
+              "lat": "40.677044",
+              "lon": "-73.86505"
+            },
+            {
+              "stop_id": "A59S",
+              "station_id": "A59",
+              "stop_name": "80 St",
+              "lat": "40.679371",
+              "lon": "-73.858992"
+            },
+            {
+              "stop_id": "A60S",
+              "station_id": "A60",
+              "stop_name": "88 St",
+              "lat": "40.679843",
+              "lon": "-73.85147000000001"
+            },
+            {
+              "stop_id": "A61S",
+              "station_id": "A61",
+              "stop_name": "Rockaway Blvd",
+              "lat": "40.680429",
+              "lon": "-73.843853"
+            },
+            {
+              "stop_id": "A63S",
+              "station_id": "A63",
+              "stop_name": "104 St",
+              "lat": "40.681711",
+              "lon": "-73.837683"
+            },
+            {
+              "stop_id": "A64S",
+              "station_id": "A64",
+              "stop_name": "111 St",
+              "lat": "40.684331",
+              "lon": "-73.83216299999999"
+            },
+            {
+              "stop_id": "A65S",
+              "station_id": "A65",
+              "stop_name": "Ozone Park-Lefferts Blvd",
+              "lat": "40.685951",
+              "lon": "-73.82579800000001"
+            }
+          ]
+        }
+      },
+      "A-FAR ROCKAWAY": {
+        "label": "Far Rockaway",
+        "key": "A-FAR ROCKAWAY",
+        "directions": {
+          "N": [
+            {
+              "stop_id": "H15N",
+              "station_id": "H15",
+              "stop_name": "Rockaway Park-Beach 116 St",
+              "lat": "40.580903",
+              "lon": "-73.83559200000001"
+            },
+            {
+              "stop_id": "H14N",
+              "station_id": "H14",
+              "stop_name": "Beach 105 St",
+              "lat": "40.583209",
+              "lon": "-73.82755899999999"
+            },
+            {
+              "stop_id": "H13N",
+              "station_id": "H13",
+              "stop_name": "Beach 98 St",
+              "lat": "40.585307",
+              "lon": "-73.82055800000001"
+            },
+            {
+              "stop_id": "H12N",
+              "station_id": "H12",
+              "stop_name": "Beach 90 St",
+              "lat": "40.588034",
+              "lon": "-73.813641"
+            },
+            {
+              "stop_id": "H11N",
+              "station_id": "H11",
+              "stop_name": "Far Rockaway-Mott Av",
+              "lat": "40.603995",
+              "lon": "-73.755405"
+            },
+            {
+              "stop_id": "H10N",
+              "station_id": "H10",
+              "stop_name": "Beach 25 St",
+              "lat": "40.600066",
+              "lon": "-73.761353"
+            },
+            {
+              "stop_id": "H09N",
+              "station_id": "H09",
+              "stop_name": "Beach 36 St",
+              "lat": "40.595398",
+              "lon": "-73.768175"
+            },
+            {
+              "stop_id": "H08N",
+              "station_id": "H08",
+              "stop_name": "Beach 44 St",
+              "lat": "40.592943",
+              "lon": "-73.77601300000001"
+            },
+            {
+              "stop_id": "H07N",
+              "station_id": "H07",
+              "stop_name": "Beach 60 St",
+              "lat": "40.592374",
+              "lon": "-73.788522"
+            },
+            {
+              "stop_id": "H06N",
+              "station_id": "H06",
+              "stop_name": "Beach 67 St",
+              "lat": "40.590927",
+              "lon": "-73.796924"
+            },
+            {
+              "stop_id": "H04N",
+              "station_id": "H04",
+              "stop_name": "Broad Channel",
+              "lat": "40.608382",
+              "lon": "-73.81592499999999"
+            },
+            {
+              "stop_id": "H03N",
+              "station_id": "H03",
+              "stop_name": "Howard Beach-JFK Airport",
+              "lat": "40.660476",
+              "lon": "-73.83030100000001"
+            },
+            {
+              "stop_id": "H02N",
+              "station_id": "H02",
+              "stop_name": "Aqueduct-N Conduit Av",
+              "lat": "40.668234",
+              "lon": "-73.834058"
+            },
+            {
+              "stop_id": "H01N",
+              "station_id": "H01",
+              "stop_name": "Aqueduct Racetrack",
+              "lat": "40.672097",
+              "lon": "-73.835919"
+            },
+            {
+              "stop_id": "A61N",
+              "station_id": "A61",
+              "stop_name": "Rockaway Blvd",
+              "lat": "40.680429",
+              "lon": "-73.843853"
+            },
+            {
+              "stop_id": "A60N",
+              "station_id": "A60",
+              "stop_name": "88 St",
+              "lat": "40.679843",
+              "lon": "-73.85147000000001"
+            },
+            {
+              "stop_id": "A59N",
+              "station_id": "A59",
+              "stop_name": "80 St",
+              "lat": "40.679371",
+              "lon": "-73.858992"
+            },
+            {
+              "stop_id": "A57N",
+              "station_id": "A57",
+              "stop_name": "Grant Av",
+              "lat": "40.677044",
+              "lon": "-73.86505"
+            },
+            {
+              "stop_id": "A55N",
+              "station_id": "A55",
+              "stop_name": "Euclid Av",
+              "lat": "40.675377",
+              "lon": "-73.872106"
+            },
+            {
+              "stop_id": "A54N",
+              "station_id": "A54",
+              "stop_name": "Shepherd Av",
+              "lat": "40.67413",
+              "lon": "-73.88075000000001"
+            },
+            {
+              "stop_id": "A53N",
+              "station_id": "A53",
+              "stop_name": "Van Siclen Av",
+              "lat": "40.67271",
+              "lon": "-73.89035800000001"
+            },
+            {
+              "stop_id": "A52N",
+              "station_id": "A52",
+              "stop_name": "Liberty Av",
+              "lat": "40.674542",
+              "lon": "-73.896548"
+            },
+            {
+              "stop_id": "A51N",
+              "station_id": "A51",
+              "stop_name": "Broadway Junction",
+              "lat": "40.678334",
+              "lon": "-73.905316"
+            },
+            {
+              "stop_id": "A50N",
+              "station_id": "A50",
+              "stop_name": "Rockaway Av",
+              "lat": "40.67834",
+              "lon": "-73.911946"
+            },
+            {
+              "stop_id": "A49N",
+              "station_id": "A49",
+              "stop_name": "Ralph Av",
+              "lat": "40.678822",
+              "lon": "-73.92078600000001"
+            },
+            {
+              "stop_id": "A48N",
+              "station_id": "A48",
+              "stop_name": "Utica Av",
+              "lat": "40.679364",
+              "lon": "-73.930729"
+            },
+            {
+              "stop_id": "A47N",
+              "station_id": "A47",
+              "stop_name": "Kingston-Throop Avs",
+              "lat": "40.679921",
+              "lon": "-73.94085800000001"
+            },
+            {
+              "stop_id": "A46N",
+              "station_id": "A46",
+              "stop_name": "Nostrand Av",
+              "lat": "40.680438",
+              "lon": "-73.95042599999999"
+            },
+            {
+              "stop_id": "A45N",
+              "station_id": "A45",
+              "stop_name": "Franklin Av",
+              "lat": "40.68138",
+              "lon": "-73.95684799999999"
+            },
+            {
+              "stop_id": "A44N",
+              "station_id": "A44",
+              "stop_name": "Clinton-Washington Avs",
+              "lat": "40.683263",
+              "lon": "-73.96583800000001"
+            },
+            {
+              "stop_id": "A43N",
+              "station_id": "A43",
+              "stop_name": "Lafayette Av",
+              "lat": "40.686113",
+              "lon": "-73.973946"
+            },
+            {
+              "stop_id": "A42N",
+              "station_id": "A42",
+              "stop_name": "Hoyt-Schermerhorn Sts",
+              "lat": "40.688484",
+              "lon": "-73.985001"
+            },
+            {
+              "stop_id": "A41N",
+              "station_id": "A41",
+              "stop_name": "Jay St-MetroTech",
+              "lat": "40.692338",
+              "lon": "-73.987342"
+            },
+            {
+              "stop_id": "A40N",
+              "station_id": "A40",
+              "stop_name": "High St",
+              "lat": "40.699337",
+              "lon": "-73.990531"
+            },
+            {
+              "stop_id": "A38N",
+              "station_id": "A38",
+              "stop_name": "Fulton St",
+              "lat": "40.710197",
+              "lon": "-74.00769099999999"
+            },
+            {
+              "stop_id": "A36N",
+              "station_id": "A36",
+              "stop_name": "Chambers St",
+              "lat": "40.714111",
+              "lon": "-74.008585"
+            },
+            {
+              "stop_id": "A34N",
+              "station_id": "A34",
+              "stop_name": "Canal St",
+              "lat": "40.720824",
+              "lon": "-74.005229"
+            },
+            {
+              "stop_id": "A33N",
+              "station_id": "A33",
+              "stop_name": "Spring St",
+              "lat": "40.726227",
+              "lon": "-74.003739"
+            },
+            {
+              "stop_id": "A32N",
+              "station_id": "A32",
+              "stop_name": "W 4 St-Wash Sq",
+              "lat": "40.732338",
+              "lon": "-74.000495"
+            },
+            {
+              "stop_id": "A31N",
+              "station_id": "A31",
+              "stop_name": "14 St",
+              "lat": "40.740893",
+              "lon": "-74.00169"
+            },
+            {
+              "stop_id": "A30N",
+              "station_id": "A30",
+              "stop_name": "23 St",
+              "lat": "40.745906",
+              "lon": "-73.998041"
+            },
+            {
+              "stop_id": "A28N",
+              "station_id": "A28",
+              "stop_name": "34 St-Penn Station",
+              "lat": "40.752287",
+              "lon": "-73.993391"
+            },
+            {
+              "stop_id": "A27N",
+              "station_id": "A27",
+              "stop_name": "42 St-Port Authority Bus Terminal",
+              "lat": "40.757308",
+              "lon": "-73.989735"
+            },
+            {
+              "stop_id": "A25N",
+              "station_id": "A25",
+              "stop_name": "50 St",
+              "lat": "40.762456",
+              "lon": "-73.985984"
+            },
+            {
+              "stop_id": "A24N",
+              "station_id": "A24",
+              "stop_name": "59 St-Columbus Circle",
+              "lat": "40.768296",
+              "lon": "-73.981736"
+            },
+            {
+              "stop_id": "A22N",
+              "station_id": "A22",
+              "stop_name": "72 St",
+              "lat": "40.775594",
+              "lon": "-73.97641"
+            },
+            {
+              "stop_id": "A21N",
+              "station_id": "A21",
+              "stop_name": "81 St-Museum of Natural History",
+              "lat": "40.781433",
+              "lon": "-73.972143"
+            },
+            {
+              "stop_id": "A20N",
+              "station_id": "A20",
+              "stop_name": "86 St",
+              "lat": "40.785868",
+              "lon": "-73.96891599999999"
+            },
+            {
+              "stop_id": "A19N",
+              "station_id": "A19",
+              "stop_name": "96 St",
+              "lat": "40.791642",
+              "lon": "-73.964696"
+            },
+            {
+              "stop_id": "A18N",
+              "station_id": "A18",
+              "stop_name": "103 St",
+              "lat": "40.796092",
+              "lon": "-73.961454"
+            },
+            {
+              "stop_id": "A17N",
+              "station_id": "A17",
+              "stop_name": "Cathedral Pkwy (110 St)",
+              "lat": "40.800603",
+              "lon": "-73.958161"
+            },
+            {
+              "stop_id": "A16N",
+              "station_id": "A16",
+              "stop_name": "116 St",
+              "lat": "40.805085",
+              "lon": "-73.954882"
+            },
+            {
+              "stop_id": "A15N",
+              "station_id": "A15",
+              "stop_name": "125 St",
+              "lat": "40.811109",
+              "lon": "-73.952343"
+            },
+            {
+              "stop_id": "A14N",
+              "station_id": "A14",
+              "stop_name": "135 St",
+              "lat": "40.817894",
+              "lon": "-73.947649"
+            },
+            {
+              "stop_id": "A12N",
+              "station_id": "A12",
+              "stop_name": "145 St",
+              "lat": "40.824783",
+              "lon": "-73.944216"
+            },
+            {
+              "stop_id": "A11N",
+              "station_id": "A11",
+              "stop_name": "155 St",
+              "lat": "40.830518",
+              "lon": "-73.941514"
+            },
+            {
+              "stop_id": "A10N",
+              "station_id": "A10",
+              "stop_name": "163 St-Amsterdam Av",
+              "lat": "40.836013",
+              "lon": "-73.939892"
+            },
+            {
+              "stop_id": "A09N",
+              "station_id": "A09",
+              "stop_name": "168 St",
+              "lat": "40.840719",
+              "lon": "-73.939561"
+            },
+            {
+              "stop_id": "A07N",
+              "station_id": "A07",
+              "stop_name": "175 St",
+              "lat": "40.847391",
+              "lon": "-73.93970400000001"
+            },
+            {
+              "stop_id": "A06N",
+              "station_id": "A06",
+              "stop_name": "181 St",
+              "lat": "40.851695",
+              "lon": "-73.937969"
+            },
+            {
+              "stop_id": "A05N",
+              "station_id": "A05",
+              "stop_name": "190 St",
+              "lat": "40.859022",
+              "lon": "-73.93418"
+            },
+            {
+              "stop_id": "A03N",
+              "station_id": "A03",
+              "stop_name": "Dyckman St",
+              "lat": "40.865491",
+              "lon": "-73.927271"
+            },
+            {
+              "stop_id": "A02N",
+              "station_id": "A02",
+              "stop_name": "Inwood-207 St",
+              "lat": "40.868072",
+              "lon": "-73.919899"
+            }
+          ],
+          "S": [
+            {
+              "stop_id": "A02S",
+              "station_id": "A02",
+              "stop_name": "Inwood-207 St",
+              "lat": "40.868072",
+              "lon": "-73.919899"
+            },
+            {
+              "stop_id": "A03S",
+              "station_id": "A03",
+              "stop_name": "Dyckman St",
+              "lat": "40.865491",
+              "lon": "-73.927271"
+            },
+            {
+              "stop_id": "A05S",
+              "station_id": "A05",
+              "stop_name": "190 St",
+              "lat": "40.859022",
+              "lon": "-73.93418"
+            },
+            {
+              "stop_id": "A06S",
+              "station_id": "A06",
+              "stop_name": "181 St",
+              "lat": "40.851695",
+              "lon": "-73.937969"
+            },
+            {
+              "stop_id": "A07S",
+              "station_id": "A07",
+              "stop_name": "175 St",
+              "lat": "40.847391",
+              "lon": "-73.93970400000001"
+            },
+            {
+              "stop_id": "A09S",
+              "station_id": "A09",
+              "stop_name": "168 St",
+              "lat": "40.840719",
+              "lon": "-73.939561"
+            },
+            {
+              "stop_id": "A10S",
+              "station_id": "A10",
+              "stop_name": "163 St-Amsterdam Av",
+              "lat": "40.836013",
+              "lon": "-73.939892"
+            },
+            {
+              "stop_id": "A11S",
+              "station_id": "A11",
+              "stop_name": "155 St",
+              "lat": "40.830518",
+              "lon": "-73.941514"
+            },
+            {
+              "stop_id": "A12S",
+              "station_id": "A12",
+              "stop_name": "145 St",
+              "lat": "40.824783",
+              "lon": "-73.944216"
+            },
+            {
+              "stop_id": "A14S",
+              "station_id": "A14",
+              "stop_name": "135 St",
+              "lat": "40.817894",
+              "lon": "-73.947649"
+            },
+            {
+              "stop_id": "A15S",
+              "station_id": "A15",
+              "stop_name": "125 St",
+              "lat": "40.811109",
+              "lon": "-73.952343"
+            },
+            {
+              "stop_id": "A16S",
+              "station_id": "A16",
+              "stop_name": "116 St",
+              "lat": "40.805085",
+              "lon": "-73.954882"
+            },
+            {
+              "stop_id": "A17S",
+              "station_id": "A17",
+              "stop_name": "Cathedral Pkwy (110 St)",
+              "lat": "40.800603",
+              "lon": "-73.958161"
+            },
+            {
+              "stop_id": "A18S",
+              "station_id": "A18",
+              "stop_name": "103 St",
+              "lat": "40.796092",
+              "lon": "-73.961454"
+            },
+            {
+              "stop_id": "A19S",
+              "station_id": "A19",
+              "stop_name": "96 St",
+              "lat": "40.791642",
+              "lon": "-73.964696"
+            },
+            {
+              "stop_id": "A20S",
+              "station_id": "A20",
+              "stop_name": "86 St",
+              "lat": "40.785868",
+              "lon": "-73.96891599999999"
+            },
+            {
+              "stop_id": "A21S",
+              "station_id": "A21",
+              "stop_name": "81 St-Museum of Natural History",
+              "lat": "40.781433",
+              "lon": "-73.972143"
+            },
+            {
+              "stop_id": "A22S",
+              "station_id": "A22",
+              "stop_name": "72 St",
+              "lat": "40.775594",
+              "lon": "-73.97641"
+            },
+            {
+              "stop_id": "A24S",
+              "station_id": "A24",
+              "stop_name": "59 St-Columbus Circle",
+              "lat": "40.768296",
+              "lon": "-73.981736"
+            },
+            {
+              "stop_id": "A25S",
+              "station_id": "A25",
+              "stop_name": "50 St",
+              "lat": "40.762456",
+              "lon": "-73.985984"
+            },
+            {
+              "stop_id": "A27S",
+              "station_id": "A27",
+              "stop_name": "42 St-Port Authority Bus Terminal",
+              "lat": "40.757308",
+              "lon": "-73.989735"
+            },
+            {
+              "stop_id": "A28S",
+              "station_id": "A28",
+              "stop_name": "34 St-Penn Station",
+              "lat": "40.752287",
+              "lon": "-73.993391"
+            },
+            {
+              "stop_id": "A30S",
+              "station_id": "A30",
+              "stop_name": "23 St",
+              "lat": "40.745906",
+              "lon": "-73.998041"
+            },
+            {
+              "stop_id": "A31S",
+              "station_id": "A31",
+              "stop_name": "14 St",
+              "lat": "40.740893",
+              "lon": "-74.00169"
+            },
+            {
+              "stop_id": "A32S",
+              "station_id": "A32",
+              "stop_name": "W 4 St-Wash Sq",
+              "lat": "40.732338",
+              "lon": "-74.000495"
+            },
+            {
+              "stop_id": "A33S",
+              "station_id": "A33",
+              "stop_name": "Spring St",
+              "lat": "40.726227",
+              "lon": "-74.003739"
+            },
+            {
+              "stop_id": "A34S",
+              "station_id": "A34",
+              "stop_name": "Canal St",
+              "lat": "40.720824",
+              "lon": "-74.005229"
+            },
+            {
+              "stop_id": "A36S",
+              "station_id": "A36",
+              "stop_name": "Chambers St",
+              "lat": "40.714111",
+              "lon": "-74.008585"
+            },
+            {
+              "stop_id": "A38S",
+              "station_id": "A38",
+              "stop_name": "Fulton St",
+              "lat": "40.710197",
+              "lon": "-74.00769099999999"
+            },
+            {
+              "stop_id": "A40S",
+              "station_id": "A40",
+              "stop_name": "High St",
+              "lat": "40.699337",
+              "lon": "-73.990531"
+            },
+            {
+              "stop_id": "A41S",
+              "station_id": "A41",
+              "stop_name": "Jay St-MetroTech",
+              "lat": "40.692338",
+              "lon": "-73.987342"
+            },
+            {
+              "stop_id": "A42S",
+              "station_id": "A42",
+              "stop_name": "Hoyt-Schermerhorn Sts",
+              "lat": "40.688484",
+              "lon": "-73.985001"
+            },
+            {
+              "stop_id": "A43S",
+              "station_id": "A43",
+              "stop_name": "Lafayette Av",
+              "lat": "40.686113",
+              "lon": "-73.973946"
+            },
+            {
+              "stop_id": "A44S",
+              "station_id": "A44",
+              "stop_name": "Clinton-Washington Avs",
+              "lat": "40.683263",
+              "lon": "-73.96583800000001"
+            },
+            {
+              "stop_id": "A45S",
+              "station_id": "A45",
+              "stop_name": "Franklin Av",
+              "lat": "40.68138",
+              "lon": "-73.95684799999999"
+            },
+            {
+              "stop_id": "A46S",
+              "station_id": "A46",
+              "stop_name": "Nostrand Av",
+              "lat": "40.680438",
+              "lon": "-73.95042599999999"
+            },
+            {
+              "stop_id": "A47S",
+              "station_id": "A47",
+              "stop_name": "Kingston-Throop Avs",
+              "lat": "40.679921",
+              "lon": "-73.94085800000001"
+            },
+            {
+              "stop_id": "A48S",
+              "station_id": "A48",
+              "stop_name": "Utica Av",
+              "lat": "40.679364",
+              "lon": "-73.930729"
+            },
+            {
+              "stop_id": "A49S",
+              "station_id": "A49",
+              "stop_name": "Ralph Av",
+              "lat": "40.678822",
+              "lon": "-73.92078600000001"
+            },
+            {
+              "stop_id": "A50S",
+              "station_id": "A50",
+              "stop_name": "Rockaway Av",
+              "lat": "40.67834",
+              "lon": "-73.911946"
+            },
+            {
+              "stop_id": "A51S",
+              "station_id": "A51",
+              "stop_name": "Broadway Junction",
+              "lat": "40.678334",
+              "lon": "-73.905316"
+            },
+            {
+              "stop_id": "A52S",
+              "station_id": "A52",
+              "stop_name": "Liberty Av",
+              "lat": "40.674542",
+              "lon": "-73.896548"
+            },
+            {
+              "stop_id": "A53S",
+              "station_id": "A53",
+              "stop_name": "Van Siclen Av",
+              "lat": "40.67271",
+              "lon": "-73.89035800000001"
+            },
+            {
+              "stop_id": "A54S",
+              "station_id": "A54",
+              "stop_name": "Shepherd Av",
+              "lat": "40.67413",
+              "lon": "-73.88075000000001"
+            },
+            {
+              "stop_id": "A55S",
+              "station_id": "A55",
+              "stop_name": "Euclid Av",
+              "lat": "40.675377",
+              "lon": "-73.872106"
+            },
+            {
+              "stop_id": "A57S",
+              "station_id": "A57",
+              "stop_name": "Grant Av",
+              "lat": "40.677044",
+              "lon": "-73.86505"
+            },
+            {
+              "stop_id": "A59S",
+              "station_id": "A59",
+              "stop_name": "80 St",
+              "lat": "40.679371",
+              "lon": "-73.858992"
+            },
+            {
+              "stop_id": "A60S",
+              "station_id": "A60",
+              "stop_name": "88 St",
+              "lat": "40.679843",
+              "lon": "-73.85147000000001"
+            },
+            {
+              "stop_id": "A61S",
+              "station_id": "A61",
+              "stop_name": "Rockaway Blvd",
+              "lat": "40.680429",
+              "lon": "-73.843853"
+            },
+            {
+              "stop_id": "H01S",
+              "station_id": "H01",
+              "stop_name": "Aqueduct Racetrack",
+              "lat": "40.672097",
+              "lon": "-73.835919"
+            },
+            {
+              "stop_id": "H02S",
+              "station_id": "H02",
+              "stop_name": "Aqueduct-N Conduit Av",
+              "lat": "40.668234",
+              "lon": "-73.834058"
+            },
+            {
+              "stop_id": "H03S",
+              "station_id": "H03",
+              "stop_name": "Howard Beach-JFK Airport",
+              "lat": "40.660476",
+              "lon": "-73.83030100000001"
+            },
+            {
+              "stop_id": "H04S",
+              "station_id": "H04",
+              "stop_name": "Broad Channel",
+              "lat": "40.608382",
+              "lon": "-73.81592499999999"
+            },
+            {
+              "stop_id": "H06S",
+              "station_id": "H06",
+              "stop_name": "Beach 67 St",
+              "lat": "40.590927",
+              "lon": "-73.796924"
+            },
+            {
+              "stop_id": "H07S",
+              "station_id": "H07",
+              "stop_name": "Beach 60 St",
+              "lat": "40.592374",
+              "lon": "-73.788522"
+            },
+            {
+              "stop_id": "H08S",
+              "station_id": "H08",
+              "stop_name": "Beach 44 St",
+              "lat": "40.592943",
+              "lon": "-73.77601300000001"
+            },
+            {
+              "stop_id": "H09S",
+              "station_id": "H09",
+              "stop_name": "Beach 36 St",
+              "lat": "40.595398",
+              "lon": "-73.768175"
+            },
+            {
+              "stop_id": "H10S",
+              "station_id": "H10",
+              "stop_name": "Beach 25 St",
+              "lat": "40.600066",
+              "lon": "-73.761353"
+            },
+            {
+              "stop_id": "H11S",
+              "station_id": "H11",
+              "stop_name": "Far Rockaway-Mott Av",
+              "lat": "40.603995",
+              "lon": "-73.755405"
+            },
+            {
+              "stop_id": "H12S",
+              "station_id": "H12",
+              "stop_name": "Beach 90 St",
+              "lat": "40.588034",
+              "lon": "-73.813641"
+            },
+            {
+              "stop_id": "H13S",
+              "station_id": "H13",
+              "stop_name": "Beach 98 St",
+              "lat": "40.585307",
+              "lon": "-73.82055800000001"
+            },
+            {
+              "stop_id": "H14S",
+              "station_id": "H14",
+              "stop_name": "Beach 105 St",
+              "lat": "40.583209",
+              "lon": "-73.82755899999999"
+            },
+            {
+              "stop_id": "H15S",
+              "station_id": "H15",
+              "stop_name": "Rockaway Park-Beach 116 St",
+              "lat": "40.580903",
+              "lon": "-73.83559200000001"
+            }
+          ]
+        }
+      }
+    },
+    "order": [
+      "A-FAR ROCKAWAY",
+      "A-LEFFERTS"
+    ]
+  }
+}
