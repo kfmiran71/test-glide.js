@@ -86,6 +86,30 @@ function getBranchStops(routeId, direction, branchKey) {
   return ROUTE_BRANCH_MAP[routeId]?.branches?.[branchKey]?.directions?.[direction] || [];
 }
 
+function getStationName(stopId) {
+  if (!stopId) {
+    return "";
+  }
+
+  if (Array.isArray(STATION_MAP)) {
+    const match =
+      STATION_MAP.find(station => station.stop_id === stopId) ||
+      STATION_MAP.find(station => station.stop_id === stopId.replace(/[NS]$/, ""));
+
+    return match?.name || "";
+  }
+
+  const match =
+    STATION_MAP[stopId] ||
+    STATION_MAP[stopId.replace(/[NS]$/, "")];
+
+  if (!match) {
+    return "";
+  }
+
+  return typeof match === "string" ? match : match.name;
+}
+
 function chooseBranchKey(routeId, direction, requestedBranchKey, currentStopId) {
   const branches = getRouteBranches(routeId, direction);
 
@@ -513,6 +537,13 @@ app.get("/stations", async (req, res) => {
     res.json({
       branchKey,
       branches,
+      currentStation: currentStopId
+        ? {
+            stopId: currentStopId,
+            name: getStationName(currentStopId),
+            inList: currentStopIndex >= 0
+          }
+        : null,
       routeId: effectiveRouteId,
       routes: platformRoutes,
       stations: stops

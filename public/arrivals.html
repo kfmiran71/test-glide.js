@@ -128,6 +128,7 @@
     }
 
     .station-select-wrap {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -219,6 +220,11 @@
       height: 40px;
       display: flex;
       align-items: center;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      text-align: left;
+      cursor: pointer;
     }
 
     .station-select-label {
@@ -234,24 +240,51 @@
     }
 
     .station-select {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border: 0;
-      background: transparent;
-      color: #111827;
-      font-size: 15px;
-      font-weight: 600;
-      padding: 0 14px 0 0;
-      outline: none;
-      opacity: 0;
-      appearance: none;
-      -webkit-appearance: none;
+      display: none;
     }
 
-    .station-select option {
-      color: black;
+    .station-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: none;
+      max-height: min(58vh, 420px);
+      overflow-y: auto;
+      border: 1px solid rgba(15, 23, 42, 0.14);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+      padding: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .station-select-wrap.is-open .station-menu {
+      display: grid;
+      gap: 2px;
+    }
+
+    .station-menu-option {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      min-height: 34px;
+      border: 0;
+      border-radius: 8px;
+      padding: 7px 10px;
+      background: transparent;
+      color: #111827;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .station-menu-option.is-active {
+      background: #2563eb;
+      color: #ffffff;
     }
 
     .direction-card {
@@ -647,7 +680,68 @@ const resultsEl = document.getElementById("results");
 let selectedPlatformStop = stop && /[NS]$/.test(stop) ? stop : "";
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
+let routeWasProvided = Boolean(route);
 let selectedBranchKey = firstParam(["branch", "branchKey"]) || "";
+
+function routeHasBranches(routeId) {
+
+  return routeId === "5" || routeId === "A";
+
+}
+
+function firstDisplayedRoute(uptownGroups, downtownGroups) {
+
+  return uptownGroups[0]?.route || downtownGroups[0]?.route || "";
+
+}
+
+function selectIdFromSwitcherId(id) {
+
+  return id
+    .replace("RouteSwitcher", "Select")
+    .replace("BranchSwitcher", "Select");
+
+}
+
+function openStationSelect(id) {
+
+  const shell =
+    document.querySelector(`[data-select-id="${id}"]`);
+
+  if (!shell) {
+    return;
+  }
+
+  toggleStationMenu(shell, true);
+
+}
+
+function closeStationMenus(exceptShell = null) {
+
+  document.querySelectorAll(".station-select-wrap.is-open").forEach(wrap => {
+    if (!exceptShell || !wrap.contains(exceptShell)) {
+      wrap.classList.remove("is-open");
+    }
+  });
+
+}
+
+function toggleStationMenu(shell, forceOpen = null) {
+
+  const wrap =
+    shell.closest(".station-select-wrap");
+
+  if (!wrap) {
+    return;
+  }
+
+  const shouldOpen =
+    forceOpen === null ? !wrap.classList.contains("is-open") : forceOpen;
+
+  closeStationMenus(shell);
+  wrap.classList.toggle("is-open", shouldOpen);
+
+}
 
 function getDirectionStops(baseStop) {
 
@@ -690,6 +784,7 @@ async function fetchStations(direction, currentStop) {
   return {
     branchKey: data.branchKey || "",
     branches: data.branches || [],
+    currentStation: data.currentStation || null,
     routeId: data.routeId || selectedRoute,
     routes: data.routes || [],
     stations: data.stations || []
@@ -728,14 +823,21 @@ function populateStationRouteButtons(id, routes) {
 
     button.addEventListener("click", () => {
       selectedRoute = routeId;
+      routeWasProvided = true;
       selectedBranchKey = "";
+      const nextSelectId =
+        routeHasBranches(routeId) ? "" : selectIdFromSwitcherId(id);
 
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.set("route", selectedRoute);
       nextParams.delete("branch");
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
-      loadArrivals();
+      loadArrivals().then(() => {
+        if (nextSelectId) {
+          openStationSelect(nextSelectId);
+        }
+      });
     });
 
     switcher.appendChild(button);
@@ -774,12 +876,14 @@ function populateStationBranchButtons(id, branches, activeBranchKey) {
 
     button.addEventListener("click", () => {
       selectedBranchKey = branch.key;
+      const nextSelectId =
+        selectIdFromSwitcherId(id);
 
       const nextParams = new URLSearchParams(window.location.search);
       nextParams.set("branch", selectedBranchKey);
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
-      loadArrivals();
+      loadArrivals().then(() => openStationSelect(nextSelectId));
     });
 
     switcher.appendChild(button);
@@ -800,18 +904,23 @@ function branchShortLabel(branch) {
 
 }
 
-function populateStationSelect(id, stations, selectedStop) {
+function populateStationSelect(id, stations, selectedStop, currentStation) {
 
   const select =
     document.getElementById(id);
   const label =
     document.getElementById(`${id}Label`);
+  const shell =
+    document.querySelector(`[data-select-id="${id}"]`);
+  const menu =
+    document.getElementById(`${id}Menu`);
 
   if (!select) {
     return;
   }
 
   select.replaceChildren();
+  menu?.replaceChildren();
 
   stations.forEach(station => {
 
@@ -830,33 +939,89 @@ function populateStationSelect(id, stations, selectedStop) {
 
     select.appendChild(option);
 
+    if (menu) {
+      const item =
+        document.createElement("button");
+
+      item.type =
+        "button";
+
+      item.className =
+        `station-menu-option${station.stopId === selectedStop ? " is-active" : ""}`;
+
+      item.dataset.stopId =
+        station.stopId;
+
+      item.textContent =
+        station.name;
+
+      item.addEventListener("click", () => {
+        selectStationFromPicker(id, station.stopId, station.name);
+      });
+
+      menu.appendChild(item);
+    }
+
   });
 
+  const selectedStation =
+    stations.find(station => station.stopId === selectedStop);
   const selectedOption =
-    select.options[select.selectedIndex];
+    selectedStation ? select.options[select.selectedIndex] : null;
+  const fallbackName =
+    currentStation?.name || selectedStation?.name || stations[0]?.name || "";
 
   if (label) {
     label.textContent =
-      selectedOption?.textContent || stations[0]?.name || "";
+      selectedOption?.textContent || fallbackName;
   }
 
+  shell?.addEventListener("click", () => {
+    toggleStationMenu(shell);
+  });
+
   select.addEventListener("change", () => {
-    selectedPlatformStop = select.value;
-    selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
+    const selectedOption =
+      select.options[select.selectedIndex];
 
-    if (label) {
-      label.textContent =
-        select.options[select.selectedIndex]?.textContent || "";
-    }
-
-    const nextParams = new URLSearchParams(window.location.search);
-    nextParams.set("stop", selectedPlatformStop);
-    window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
-
-    loadArrivals();
+    selectStationFromPicker(id, select.value, selectedOption?.textContent || "");
   });
 
 }
+
+function selectStationFromPicker(id, stopId, stationName) {
+
+  selectedPlatformStop = stopId;
+  selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
+
+  const label =
+    document.getElementById(`${id}Label`);
+
+  if (label) {
+    label.textContent =
+      stationName;
+  }
+
+  const nextParams = new URLSearchParams(window.location.search);
+  nextParams.set("stop", selectedPlatformStop);
+  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+  closeStationMenus();
+  loadArrivals();
+
+}
+
+document.addEventListener("click", event => {
+  if (!event.target.closest(".station-select-wrap")) {
+    closeStationMenus();
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    closeStationMenus();
+  }
+});
 async function fetchDirection(platformId) {
 
   const query = new URLSearchParams({ stop: platformId });
@@ -1128,10 +1293,11 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
   <div class="station-picker">
     <div class="station-select-wrap">
       <div class="station-route-switcher" id="uptownRouteSwitcher"></div>
-      <div class="station-select-shell">
+      <button class="station-select-shell" type="button" data-select-id="uptownSelect" aria-haspopup="listbox" aria-label="Open uptown station list">
         <span class="station-select-label" id="uptownSelectLabel"></span>
-        <select class="station-select" id="uptownSelect" aria-label="Uptown station"></select>
-      </div>
+      </button>
+      <select class="station-select" id="uptownSelect" aria-label="Uptown station"></select>
+      <div class="station-menu" id="uptownSelectMenu" role="listbox" aria-label="Uptown station list"></div>
     </div>
     <div class="station-branch-switcher" id="uptownBranchSwitcher"></div>
   </div>
@@ -1141,10 +1307,11 @@ function renderShell(uptownGroups, downtownGroups, transferGroups) {
   <div class="station-picker">
     <div class="station-select-wrap">
       <div class="station-route-switcher" id="downtownRouteSwitcher"></div>
-      <div class="station-select-shell">
+      <button class="station-select-shell" type="button" data-select-id="downtownSelect" aria-haspopup="listbox" aria-label="Open downtown station list">
         <span class="station-select-label" id="downtownSelectLabel"></span>
-        <select class="station-select" id="downtownSelect" aria-label="Downtown station"></select>
-      </div>
+      </button>
+      <select class="station-select" id="downtownSelect" aria-label="Downtown station"></select>
+      <div class="station-menu" id="downtownSelectMenu" role="listbox" aria-label="Downtown station list"></div>
     </div>
     <div class="station-branch-switcher" id="downtownBranchSwitcher"></div>
   </div>
@@ -1163,6 +1330,7 @@ function attachTransferHandlers() {
       selectedPlatformStop = button.dataset.stopId;
       selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
       selectedRoute = button.dataset.routeId;
+      routeWasProvided = true;
       selectedBranchKey = "";
 
       const nextParams = new URLSearchParams(window.location.search);
@@ -1210,6 +1378,11 @@ async function loadArrivals() {
 
     const groupedDowntown =
       groupArrivals(downtownArrivals);
+
+    if (!routeWasProvided && !selectedRoute) {
+      selectedRoute =
+        firstDisplayedRoute(groupedUptown, groupedDowntown);
+    }
 
     resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups);
 const uptownStationData =
@@ -1262,13 +1435,15 @@ populateStationBranchButtons(
 populateStationSelect(
   "uptownSelect",
   uptownStationData.stations,
-  uptownStop
+  uptownStop,
+  uptownStationData.currentStation
 );
 
 populateStationSelect(
   "downtownSelect",
   downtownStationData.stations,
-  downtownStop
+  downtownStop,
+  downtownStationData.currentStation
 );
 
 attachTransferHandlers();
