@@ -484,6 +484,34 @@
       line-height: 1.25;
     }
 
+    .alert-route-bullets {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      vertical-align: -3px;
+    }
+
+    .alert-route-bullet {
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--route-color, #6b7280);
+      color: var(--route-text, #ffffff);
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .alert-route-bullet .route-badge-secondary {
+      right: 3px;
+      bottom: 2px;
+      font-size: 4px;
+    }
+
     .alert-item-meta,
     .alert-item-body {
       color: #475569;
@@ -1458,6 +1486,61 @@ function formatTimes(times) {
 
 }
 
+function renderAlertRouteBullet(route) {
+
+  return `
+    <span
+      class="alert-route-bullet"
+      style="--route-color: ${routeColor(route)}; --route-text: ${routeTextColor(route)};"
+      aria-label="${escapeHtml(route)} train"
+    >${renderRouteBadgeContent(route)}</span>
+  `;
+
+}
+
+function renderAlertRouteBullets(routes) {
+
+  const uniqueRoutes =
+    [...new Set((routes || []).filter(Boolean))];
+
+  if (!uniqueRoutes.length) {
+    return "";
+  }
+
+  return `
+    <span class="alert-route-bullets">
+      ${uniqueRoutes.map(route => renderAlertRouteBullet(route)).join("")}
+    </span>
+  `;
+
+}
+
+function renderAlertText(text) {
+
+  const routePattern =
+    /\[([A-Z0-9]+)\]/g;
+  let cursor =
+    0;
+  let html =
+    "";
+  let match;
+
+  while ((match = routePattern.exec(text || ""))) {
+    html +=
+      escapeHtml(text.slice(cursor, match.index));
+    html +=
+      renderAlertRouteBullet(match[1]);
+    cursor =
+      match.index + match[0].length;
+  }
+
+  html +=
+    escapeHtml((text || "").slice(cursor));
+
+  return html;
+
+}
+
 function renderTransferBlocks(direction, transferGroups) {
 
   const groups =
@@ -1555,11 +1638,12 @@ function renderAlertPanel(direction, alertData) {
       <p class="alert-feed-label">${escapeHtml(title)}</p>
       ${displayAlerts.map(alert => `
         <div class="alert-item">
-          <div class="alert-item-title">${escapeHtml(alert.header || "Service alert")}</div>
+          <div class="alert-item-title">${renderAlertText(alert.header || "Service alert")}</div>
           <div class="alert-item-meta">
-            ${escapeHtml([alert.effect, alert.cause, alert.severity, alert.routes?.join(" ")].filter(Boolean).join(" • "))}
+            ${escapeHtml([alert.effect, alert.cause, alert.severity].filter(Boolean).join(" • "))}
+            ${renderAlertRouteBullets(alert.routes)}
           </div>
-          ${alert.description ? `<div class="alert-item-body">${escapeHtml(alert.description).slice(0, 360)}</div>` : ""}
+          ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 360))}</div>` : ""}
         </div>
       `).join("")}
     </div>
