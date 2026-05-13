@@ -1273,7 +1273,7 @@ function renderTransferBlocks(direction, transferGroups) {
     <div class="transfer-blocks" aria-label="Transfer platforms">
       ${groups.map(group => {
         const routeId = group.routes[0];
-        const label = `${group.routes.join(", ")} transfer platform`;
+        const label = `${group.routes.join(", ")} transfer platform at ${group.stationName || "this station"}`;
 
         return `
           <button
@@ -1281,6 +1281,7 @@ function renderTransferBlocks(direction, transferGroups) {
             type="button"
             data-stop-id="${escapeHtml(group.stopId)}"
             data-route-id="${escapeHtml(routeId)}"
+            data-station-name="${escapeHtml(group.stationName || "")}"
             aria-label="${escapeHtml(label)}"
           >
             ${group.routes.map(transferRoute => `

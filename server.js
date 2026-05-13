@@ -286,7 +286,8 @@ function getTransferGroups(stationId) {
           routes: new Set()
         };
 
-        group.routes.add(routeId);
+        getRoutesForPlatform(stop.stop_id)
+          .forEach(platformRoute => group.routes.add(platformRoute));
         groups.set(key, group);
       }
     }
@@ -297,6 +298,7 @@ function getTransferGroups(stationId) {
       ...group,
       routes: sortRoutes(group.routes)
     }))
+    .filter(group => group.routes.length)
     .sort((a, b) => {
       if (a.direction !== b.direction) {
         return a.direction.localeCompare(b.direction);
