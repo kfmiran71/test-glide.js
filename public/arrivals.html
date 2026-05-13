@@ -128,6 +128,42 @@
       gap: 42px;
     }
 
+    .selected-station-hero {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      min-height: 150px;
+      padding: 30px 18px 28px;
+      background: #ffffff;
+    }
+
+    .selected-station-hero .route-bullet {
+      width: 74px;
+      height: 74px;
+      flex: 0 0 auto;
+      font-size: 42px;
+      letter-spacing: -0.05em;
+      box-shadow:
+        inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+        0 8px 18px rgba(15, 23, 42, 0.10);
+    }
+
+    .selected-station-hero .route-badge-secondary {
+      right: 10px;
+      bottom: 9px;
+      font-size: 14px;
+    }
+
+    .selected-station-title {
+      min-width: 0;
+      color: #09090b;
+      font-size: 33px;
+      font-weight: 820;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      overflow-wrap: anywhere;
+    }
+
     .station-select-wrap {
       position: relative;
       z-index: 1;
@@ -671,6 +707,22 @@ transform: translateY(-6px);
         padding: 0;
       }
 
+      .selected-station-hero {
+        gap: 18px;
+        min-height: 136px;
+        padding: 24px 14px 24px;
+      }
+
+      .selected-station-hero .route-bullet {
+        width: 64px;
+        height: 64px;
+        font-size: 36px;
+      }
+
+      .selected-station-title {
+        font-size: 29px;
+      }
+
       .title {
         font-size: 20px;
       }
@@ -1146,6 +1198,33 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
 
 }
 
+function populateSelectedStationHero(stationData) {
+
+  const routeEl =
+    document.getElementById("selectedStationHeroRoute");
+  const titleEl =
+    document.getElementById("selectedStationHeroTitle");
+
+  if (!routeEl || !titleEl) {
+    return;
+  }
+
+  const heroRoute =
+    selectedRoute || stationData?.routeId || stationData?.routes?.[0] || "";
+  const heroStation =
+    stationData?.currentStation?.name || stationData?.stations?.[0]?.name || "";
+
+  routeEl.style.setProperty("--route-color", routeColor(heroRoute));
+  routeEl.style.setProperty("--route-text", routeTextColor(heroRoute));
+  routeEl.innerHTML =
+    renderRouteBadgeContent(heroRoute);
+  routeEl.setAttribute("aria-label", `${heroRoute || "Selected"} route`);
+
+  titleEl.textContent =
+    heroStation || "Selected station";
+
+}
+
 function selectStationFromPicker(id, stopId, stationName) {
 
   selectedStopBase = stopId.replace(/N$|S$/, "");
@@ -1533,6 +1612,14 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
       </div>
       <div class="status-pill"><span class="live-dot"></span> ${updatedAt}</div>
     </div>
+  <section class="selected-station-hero" aria-label="Selected station">
+    <span
+      class="route-bullet"
+      id="selectedStationHeroRoute"
+      aria-hidden="true"
+    ></span>
+    <span class="selected-station-title" id="selectedStationHeroTitle"></span>
+  </section>
   <div class="direction-stack">
 
   <div class="station-picker">
@@ -1690,6 +1777,10 @@ if (
 if (resolvedRoute && resolvedRoute !== selectedRoute) {
   selectedRoute = resolvedRoute;
 }
+
+populateSelectedStationHero(
+  uptownStationData.currentStation ? uptownStationData : downtownStationData
+);
 
 populateStationRouteButtons(
   "uptownRouteSwitcher",
