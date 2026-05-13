@@ -715,7 +715,6 @@ function firstParam(names) {
 const stop = firstParam(["stop", "stopId", "platformId", "stationId"]);
 const route = firstParam(["route", "routeId", "line", "train"]);
 const resultsEl = document.getElementById("results");
-let selectedPlatformStop = stop && /[NS]$/.test(stop) ? stop : "";
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
 let routeWasProvided = Boolean(route);
@@ -1064,8 +1063,7 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
 
 function selectStationFromPicker(id, stopId, stationName) {
 
-  selectedPlatformStop = stopId;
-  selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
+  selectedStopBase = stopId.replace(/N$|S$/, "");
 
   const label =
     document.getElementById(`${id}Label`);
@@ -1076,7 +1074,7 @@ function selectStationFromPicker(id, stopId, stationName) {
   }
 
   const nextParams = new URLSearchParams(window.location.search);
-  nextParams.set("stop", selectedPlatformStop);
+  nextParams.set("stop", selectedStopBase);
   window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
 
   closeStationMenus();
@@ -1400,14 +1398,13 @@ function attachTransferHandlers() {
 
   document.querySelectorAll(".transfer-block").forEach(button => {
     button.addEventListener("click", () => {
-      selectedPlatformStop = button.dataset.stopId;
-      selectedStopBase = selectedPlatformStop.replace(/N$|S$/, "");
+      selectedStopBase = button.dataset.stopId.replace(/N$|S$/, "");
       selectedRoute = button.dataset.routeId;
       routeWasProvided = true;
       selectedBranchKey = "";
 
       const nextParams = new URLSearchParams(window.location.search);
-      nextParams.set("stop", selectedPlatformStop);
+      nextParams.set("stop", selectedStopBase);
       nextParams.set("route", selectedRoute);
       nextParams.delete("branch");
       window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
@@ -1434,15 +1431,9 @@ async function loadArrivals() {
       downtownStop
     } = getDirectionStops(selectedStopBase);
 
-    const shouldFetchUptown =
-      !selectedPlatformStop || selectedPlatformStop.endsWith("N");
-
-    const shouldFetchDowntown =
-      !selectedPlatformStop || selectedPlatformStop.endsWith("S");
-
     const [uptownArrivals, downtownArrivals, transferGroups] = await Promise.all([
-      shouldFetchUptown ? fetchDirection(uptownStop) : Promise.resolve([]),
-      shouldFetchDowntown ? fetchDirection(downtownStop) : Promise.resolve([]),
+      fetchDirection(uptownStop),
+      fetchDirection(downtownStop),
       fetchTransfers(uptownStop)
     ]);
 
@@ -1479,9 +1470,11 @@ const currentParams =
 
 if (
   (resolvedRoute && resolvedRoute !== selectedRoute) ||
+  currentParams.get("stop") !== selectedStopBase ||
   currentParams.get("branch") !== selectedBranchKey
 ) {
   const nextParams = new URLSearchParams(window.location.search);
+  nextParams.set("stop", selectedStopBase);
 
   if (selectedBranchKey) {
     nextParams.set("branch", selectedBranchKey);
