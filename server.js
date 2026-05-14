@@ -506,9 +506,33 @@ function alertMatches(alert, routeIds, stopIds) {
   });
 }
 
-function summarizeAlert(entity) {
+function alertTimestamp(alert, feedTimestampSeconds) {
+  const activeStarts =
+    (alert.activePeriod || [])
+      .map(period => toSeconds(period.start))
+      .filter(Boolean)
+      .sort((a, b) => a - b);
+  const timestampSeconds =
+    activeStarts[0] || feedTimestampSeconds || 0;
+
+  if (!timestampSeconds) {
+    return {
+      timestamp: "",
+      label: ""
+    };
+  }
+
+  return {
+    timestamp: new Date(timestampSeconds * 1000).toISOString(),
+    label: activeStarts[0] ? "MTA since" : "MTA updated"
+  };
+}
+
+function summarizeAlert(entity, feedTimestampSeconds = 0) {
   const alert =
     entity.alert;
+  const timeInfo =
+    alertTimestamp(alert, feedTimestampSeconds);
   const routes =
     sortRoutes([
       ...new Set(
@@ -532,6 +556,8 @@ function summarizeAlert(entity) {
     effect,
     severity,
     routes,
+    timestamp: timeInfo.timestamp,
+    timestampLabel: timeInfo.label,
     header: translatedText(alert.headerText),
     description: translatedText(alert.descriptionText)
   };
@@ -777,6 +803,7 @@ app.get("/clear-arrivals", async (req, res) => {
 app.get("/service-alerts", async (req, res) => {
 
   try {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
 
     const stopId =
       req.query.stopId || "";
@@ -813,6 +840,8 @@ app.get("/service-alerts", async (req, res) => {
       GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
         new Uint8Array(buffer)
       );
+    const feedTimestampSeconds =
+      toSeconds(feed.header?.timestamp);
     const nowSeconds =
       Math.floor(Date.now() / 1000);
     const alerts =
@@ -820,14 +849,14 @@ app.get("/service-alerts", async (req, res) => {
         .filter(entity => entity.alert)
         .filter(entity => isActiveAlert(entity.alert, nowSeconds))
         .filter(entity => alertMatches(entity.alert, routeIds, stopIds))
-        .map(summarizeAlert)
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
         .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
         .slice(0, 12);
     const feedSample =
       feed.entity
         .filter(entity => entity.alert)
         .filter(entity => isActiveAlert(entity.alert, nowSeconds))
-        .map(summarizeAlert)
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
         .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
         .slice(0, 20);
 
