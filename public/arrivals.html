@@ -541,6 +541,86 @@
       line-height: 1.35;
     }
 
+    .route-alerts-footer {
+      display: grid;
+      gap: 10px;
+      border: 2px solid var(--surface-outline);
+      border-radius: var(--radius-xl);
+      background: var(--app-green);
+      padding: 12px 14px;
+      color: #ffffff;
+      box-shadow:
+        0 0 0 1px rgba(33, 65, 74, 0.14),
+        var(--shadow);
+    }
+
+    .route-alerts-footer.is-hidden {
+      display: none;
+    }
+
+    .route-alerts-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .route-alerts-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .route-alerts-label {
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .route-alert-route-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .route-alert-route-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      min-height: 24px;
+      border: 0;
+      border-radius: 999px;
+      padding: 3px;
+      background: rgba(248, 250, 252, 0.96);
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.70),
+        0 4px 12px rgba(15, 23, 42, 0.14);
+    }
+
+    .route-alert-route-button {
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--route-color, #6b7280);
+      color: var(--route-text, #ffffff);
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .route-alert-route-button .route-badge-secondary {
+      right: 3px;
+      bottom: 2px;
+      font-size: 4px;
+    }
+
     .arrival-list {
       display: grid;
       gap: 7px;
@@ -1367,6 +1447,47 @@ async function fetchServiceAlerts(direction, stopId) {
 
 }
 
+async function fetchRouteAlerts(routeId) {
+
+  if (!routeId) {
+    return {
+      alerts: [],
+      routeLinks: [],
+      routes: [],
+      error: ""
+    };
+  }
+
+  const query =
+    new URLSearchParams({
+      routeId
+    });
+  const res =
+    await fetch(`/route-alerts?${query.toString()}`, {
+      cache: "no-store"
+    });
+  const data =
+    await res.json();
+
+  if (!res.ok) {
+    return {
+      alerts: [],
+      routeLinks: [],
+      routes: [],
+      error: data.error || "Route alerts unavailable"
+    };
+  }
+
+  return {
+    alerts: data.alerts || [],
+    alertGroups: data.alertGroups || [],
+    routeLinks: data.routeLinks || [],
+    routes: data.routes || [],
+    error: ""
+  };
+
+}
+
 function groupArrivals(arrivals) {
 
   const grouped = {};
@@ -1701,6 +1822,75 @@ function renderAlertPanel(direction, alertData) {
 
 }
 
+function renderRouteAlertsFooter(routeAlertData) {
+
+  const routeLinks =
+    routeAlertData?.routeLinks || [];
+  const alerts =
+    routeAlertData?.alerts || [];
+
+  if (!routeLinks.length) {
+    return "";
+  }
+
+  const alertGroups =
+    routeAlertData?.alertGroups?.length
+      ? routeAlertData.alertGroups
+      : routeLinks.map(link => ({
+          routes: [link.route],
+          stop: link.stop,
+          route: link.route
+        }));
+
+  return `
+    <section class="route-alerts-footer" aria-label="Route alerts">
+      ${alerts.length ? `
+        <div class="route-alerts-list">
+          ${alerts.map(alert => `
+            <div class="alert-item">
+              <div class="alert-item-title">${renderAlertText(alert.header || "Route alert")}</div>
+              <div class="alert-item-meta">
+                ${escapeHtml([
+                  alert.timestampLabel && formatAlertTimestamp(alert.timestamp)
+                    ? `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`
+                    : "",
+                  alert.effect,
+                  alert.cause,
+                  alert.severity
+                ].filter(Boolean).join(" • "))}
+                ${renderAlertRouteBullets(alert.routes)}
+              </div>
+              ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 260))}</div>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      <div class="route-alerts-row">
+        <div class="route-alerts-label">Routes with alerts</div>
+        <div class="route-alert-route-list">
+          ${alertGroups.map(group => `
+            <button
+              class="route-alert-route-group"
+              type="button"
+              data-route-id="${escapeHtml(group.route || group.routes?.[0] || "")}"
+              data-stop-id="${escapeHtml(group.stop || "")}"
+              aria-label="${escapeHtml((group.routes || []).join(", "))} route alerts"
+            >
+              ${(group.routes || []).map(route => `
+                <span
+                  class="route-alert-route-button"
+                  style="--route-color:${routeColor(route)}; --route-text:${routeTextColor(route)};"
+                >${renderRouteBadgeContent(route)}</span>
+              `).join("")}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </section>
+  `;
+
+}
+
 function renderDirection(title, direction, groups, transferGroups, alertData) {
 
   const count = groups.reduce((total, group) => total + group.times.length, 0);
@@ -1733,7 +1923,7 @@ function renderDirection(title, direction, groups, transferGroups, alertData) {
 
 }
 
-function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirection) {
+function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirection, routeAlertData) {
 
   const updatedAt = new Date().toLocaleTimeString([], {
     hour: "numeric",
@@ -1786,6 +1976,8 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
 
   ${renderDirection("Downtown", "S", downtownGroups, transferGroups, alertsByDirection.S)}
 
+  ${renderRouteAlertsFooter(routeAlertData)}
+
 </div>
   `;
 
@@ -1836,6 +2028,36 @@ function attachAlertHandlers() {
 
 }
 
+function attachRouteAlertHandlers() {
+
+  document.querySelectorAll(".route-alert-route-group").forEach(button => {
+    button.addEventListener("click", () => {
+      selectedRoute =
+        button.dataset.routeId || selectedRoute;
+      selectedStopBase =
+        button.dataset.stopId || selectedStopBase;
+      routeWasProvided =
+        true;
+      selectedBranchKey =
+        "";
+
+      const nextParams =
+        new URLSearchParams(window.location.search);
+      nextParams.set("route", selectedRoute);
+
+      if (selectedStopBase) {
+        nextParams.set("stop", selectedStopBase);
+      }
+
+      nextParams.delete("branch");
+      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+      loadArrivals();
+    });
+  });
+
+}
+
 async function loadArrivals() {
 
   try {
@@ -1876,7 +2098,10 @@ async function loadArrivals() {
         firstDisplayedRoute(groupedUptown, groupedDowntown);
     }
 
-    resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts);
+    const routeAlertData =
+      await fetchRouteAlerts(selectedRoute);
+
+    resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts, routeAlertData);
 const uptownStationData =
   await fetchStations("N", uptownStop);
 
@@ -1963,6 +2188,7 @@ populateStationSelect(
 
 attachTransferHandlers();
 attachAlertHandlers();
+attachRouteAlertHandlers();
   }
 
   catch(err) {

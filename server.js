@@ -117,6 +117,13 @@ function sortRoutes(routes) {
   });
 }
 
+function routeRank(routeId) {
+  const rank =
+    ROUTE_ORDER.indexOf(routeId);
+
+  return rank === -1 ? ROUTE_ORDER.length : rank;
+}
+
 function normalizeText(value) {
   return String(value || "").trim();
 }
@@ -533,6 +540,14 @@ function summarizeAlert(entity, feedTimestampSeconds = 0) {
     entity.alert;
   const timeInfo =
     alertTimestamp(alert, feedTimestampSeconds);
+  const stopIds =
+    [
+      ...new Set(
+        (alert.informedEntity || [])
+          .map(item => item.stopId)
+          .filter(Boolean)
+      )
+    ];
   const routes =
     sortRoutes([
       ...new Set(
@@ -556,6 +571,7 @@ function summarizeAlert(entity, feedTimestampSeconds = 0) {
     effect,
     severity,
     routes,
+    stopIds,
     timestamp: timeInfo.timestamp,
     timestampLabel: timeInfo.label,
     header: translatedText(alert.headerText),
@@ -764,6 +780,57 @@ function getTransferGroups(stationId) {
     });
 }
 
+function originStopForAlert(alert, routeId) {
+  const informedStop =
+    (alert.stopIds || []).find(Boolean);
+
+  if (informedStop) {
+    return informedStop.replace(/[NS]$/, "");
+  }
+
+  const routeStops =
+    ROUTE_STOP_MAP[routeId];
+
+  return routeStops?.N?.[0]?.station_id ||
+    routeStops?.S?.[0]?.station_id ||
+    "";
+}
+
+function alertsForRoute(alerts, routeId) {
+  return alerts.filter(alert => alert.routes.includes(routeId));
+}
+
+function activeAlertRoutes(alerts) {
+  return sortRoutes([
+    ...new Set(
+      alerts.flatMap(alert => alert.routes)
+        .filter(routeId => !HIDDEN_PICKER_ROUTES.has(routeId))
+    )
+  ]);
+}
+
+function routeIdsInAlertText(alert) {
+  const header =
+    alert.header || "";
+  const shouldUseHeaderRoutes =
+    /\breplaces?\b|\binstead of\b|\bruns? .* via\b|\breroutes?\b/i.test(header) &&
+    !/^take\b/i.test(header.trim());
+  const routeMatches =
+    shouldUseHeaderRoutes
+      ? [...header.matchAll(/\[([A-Z0-9]+)\]/g)]
+      .map(match => match[1])
+      .filter(routeId => ROUTE_ORDER.includes(routeId) || routeId === "S")
+      .filter(routeId => !HIDDEN_PICKER_ROUTES.has(routeId))
+      : [];
+
+  return sortRoutes([
+    ...new Set([
+      ...alert.routes,
+      ...routeMatches
+    ])
+  ]);
+}
+
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
   res.send("Server is running");
@@ -876,6 +943,117 @@ app.get("/service-alerts", async (req, res) => {
       error: err.message
     });
 
+  }
+
+});
+app.get("/route-alerts", async (req, res) => {
+
+  try {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+
+    const routeId =
+      req.query.routeId || "";
+    const mtaRes =
+      await fetch(ALERT_FEED_URL, {
+        headers: {
+          "x-api-key": process.env.MTA_API_KEY
+        }
+      });
+
+    if (!mtaRes.ok) {
+      return res.status(mtaRes.status).json({
+        error: `MTA alerts request failed with ${mtaRes.status}`
+      });
+    }
+
+    const buffer =
+      await mtaRes.arrayBuffer();
+    const feed =
+      GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(buffer)
+      );
+    const feedTimestampSeconds =
+      toSeconds(feed.header?.timestamp);
+    const nowSeconds =
+      Math.floor(Date.now() / 1000);
+    const activeAlerts =
+      feed.entity
+        .filter(entity => entity.alert)
+        .filter(entity => isActiveAlert(entity.alert, nowSeconds))
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
+        .filter(alert =>
+          (alert.header || alert.description) &&
+          alert.routes.some(activeRoute => !HIDDEN_PICKER_ROUTES.has(activeRoute))
+        );
+    const routes =
+      activeAlertRoutes(activeAlerts);
+    const routeAlerts =
+      routeId ? alertsForRoute(activeAlerts, routeId).slice(0, 4) : [];
+    const routeLinks =
+      routes.map(activeRoute => {
+        const alert =
+          activeAlerts.find(item => item.routes.includes(activeRoute));
+
+        return {
+          route: activeRoute,
+          stop: originStopForAlert(alert, activeRoute)
+        };
+      });
+    const alertGroups =
+      activeAlerts
+        .map(alert => {
+          const alertRoutes =
+            routeIdsInAlertText(alert);
+          const route =
+            alert.routes[0] || alertRoutes[0] || "";
+
+          return {
+            id: alert.id,
+            routes: alertRoutes,
+            route,
+            stop: originStopForAlert(alert, route)
+          };
+        })
+        .filter(group => group.route)
+        .filter((group, index, groups) => {
+          const key =
+            group.routes.join("|");
+
+          return groups.findIndex(candidate =>
+            candidate.routes.join("|") === key
+          ) === index;
+        })
+        .sort((a, b) => {
+          const routeA =
+            routeRank(a.routes[0] || a.route);
+          const routeB =
+            routeRank(b.routes[0] || b.route);
+
+          if (routeA !== routeB) {
+            return routeA - routeB;
+          }
+
+          if (a.routes.length !== b.routes.length) {
+            return a.routes.length - b.routes.length;
+          }
+
+          return (a.stop || "").localeCompare(b.stop || "");
+        });
+
+    res.json({
+      routeId,
+      count: routeAlerts.length,
+      alerts: routeAlerts,
+      routes,
+      routeLinks,
+      alertGroups
+    });
+  }
+
+  catch(err) {
+    res.status(500).json({
+      error: err.message
+    });
   }
 
 });
