@@ -27,11 +27,13 @@
 
     html,
     body {
-      height: 100%;
+      min-height: 100%;
       margin: 0;
       background: #ffffff;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       width: 100%;
+      -webkit-overflow-scrolling: touch;
     }
 
     body {
@@ -43,21 +45,27 @@
 
     .embed-shell {
       position: relative;
-      height: 100vh;
       min-height: 260px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      min-height: max(260px, 100vh);
+      min-height: max(260px, 100dvh);
       width: 100%;
       margin: 0;
-      padding: 0;
+      padding: 0 0 calc(112px + env(safe-area-inset-bottom, 0px));
       background: #ffffff;
       border-radius: 0;
-      overflow: hidden;
+      overflow: visible;
     }
 
+    /*
+      Glide embeds this file in an iOS iframe. Let the iframe document be the
+      only scroll surface; nested overflow containers can trap top/bottom scroll.
+    */
     .arrivals-panel {
-      height: 100%;
-      overflow-y: auto;
-      overscroll-behavior-y: auto;
-      -webkit-overflow-scrolling: touch;
+      min-height: 100%;
+      overflow: visible;
+      overscroll-behavior-y: contain;
       padding: 2px 2px 14px;
       scrollbar-width: thin;
       scrollbar-color: rgba(15, 23, 42, 0.22) transparent;
@@ -205,10 +213,10 @@
     }
 
     .station-back-button--bottom {
-      position: fixed;
-      right: 14px;
-      bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+      position: relative;
       z-index: 95;
+      justify-self: end;
+      margin: 0 14px 0 auto;
       min-height: 34px;
       padding: 6px 12px;
       box-shadow:
@@ -1184,6 +1192,37 @@ function navigateToSelection(selection) {
 
 }
 
+function currentScrollTop() {
+
+  return window.scrollY ||
+    document.documentElement.scrollTop ||
+    document.body.scrollTop ||
+    0;
+
+}
+
+function maxDocumentScrollTop() {
+
+  const scrollHeight =
+    Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight
+    );
+  const viewportHeight =
+    window.innerHeight || document.documentElement.clientHeight || 0;
+
+  return Math.max(0, scrollHeight - viewportHeight);
+
+}
+
+function restoreDocumentScrollTop(scrollTop) {
+
+  window.requestAnimationFrame(() => {
+    window.scrollTo(0, Math.min(scrollTop, maxDocumentScrollTop()));
+  });
+
+}
+
 function routeHasBranches(routeId) {
 
   return routeId === "5" || routeId === "A";
@@ -1611,7 +1650,7 @@ function setupPullToRefresh() {
   }
 
   resultsEl.addEventListener("touchstart", event => {
-    if (resultsEl.scrollTop > 0 || isPullRefreshing) {
+    if (currentScrollTop() > 0 || isPullRefreshing) {
       return;
     }
 
@@ -2407,19 +2446,13 @@ async function loadArrivals(options = {}) {
     const preserveScroll =
       options.preserveScroll === true;
     const previousScrollTop =
-      preserveScroll ? resultsEl.scrollTop : 0;
+      preserveScroll ? currentScrollTop() : 0;
     const restoreScroll = () => {
       if (!preserveScroll) {
         return;
       }
 
-      window.requestAnimationFrame(() => {
-        const maxScroll =
-          Math.max(0, resultsEl.scrollHeight - resultsEl.clientHeight);
-
-        resultsEl.scrollTop =
-          Math.min(previousScrollTop, maxScroll);
-      });
+      restoreDocumentScrollTop(previousScrollTop);
     };
 
     if (!selectedStopBase) {
