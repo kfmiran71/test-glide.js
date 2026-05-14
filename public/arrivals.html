@@ -2153,7 +2153,6 @@ function renderAlertPanel(direction, alertData) {
               alert.cause,
               alert.severity
             ].filter(Boolean).join(" • "))}
-            ${renderAlertRouteBullets(alert.routes)}
           </div>
           ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 360))}</div>` : ""}
         </div>
@@ -2199,7 +2198,6 @@ function renderRouteAlertsFooter(routeAlertData) {
                   alert.cause,
                   alert.severity
                 ].filter(Boolean).join(" • "))}
-                ${renderAlertRouteBullets(alert.routes)}
               </div>
               ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 260))}</div>` : ""}
             </div>
