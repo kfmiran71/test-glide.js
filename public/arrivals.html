@@ -1630,12 +1630,10 @@ function renderAlertPanel(direction, alertData) {
 
   const alerts =
     alertData?.alerts || [];
-  const feedSample =
-    alertData?.feedSample || [];
   const displayAlerts =
-    alerts.length ? alerts : feedSample.slice(0, 5);
+    alerts;
   const title =
-    alerts.length ? "Matched service alerts" : "MTA alert feed sample";
+    "Matched service alerts";
 
   if (alertData?.error) {
     return `
