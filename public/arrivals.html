@@ -56,7 +56,7 @@
     .arrivals-panel {
       height: 100%;
       overflow-y: auto;
-      overscroll-behavior: contain;
+      overscroll-behavior-y: auto;
       -webkit-overflow-scrolling: touch;
       padding: 2px 2px 14px;
       scrollbar-width: thin;
@@ -1494,14 +1494,10 @@ function setupPullToRefresh() {
       return;
     }
 
-    if (resultsEl.scrollTop <= 0) {
-      event.preventDefault();
-    }
-
     setPullRefreshIndicator(
       pullDistance >= PULL_REFRESH_THRESHOLD ? "ready" : "pulling"
     );
-  }, { passive: false });
+  }, { passive: true });
 
   resultsEl.addEventListener("touchend", async () => {
     if (!isPullTracking) {
@@ -2220,14 +2216,32 @@ function attachRouteAlertHandlers() {
 
 }
 
-async function loadArrivals() {
+async function loadArrivals(options = {}) {
 
   try {
+    const preserveScroll =
+      options.preserveScroll === true;
+    const previousScrollTop =
+      preserveScroll ? resultsEl.scrollTop : 0;
+    const restoreScroll = () => {
+      if (!preserveScroll) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        const maxScroll =
+          Math.max(0, resultsEl.scrollHeight - resultsEl.clientHeight);
+
+        resultsEl.scrollTop =
+          Math.min(previousScrollTop, maxScroll);
+      });
+    };
 
     if (!selectedStopBase) {
       resultsEl.innerHTML = `
         <div class="message-card">Add a stop query parameter to show arrivals.</div>
       `;
+      restoreScroll();
       return;
     }
 
@@ -2351,6 +2365,7 @@ populateStationSelect(
 attachTransferHandlers();
 attachAlertHandlers();
 attachRouteAlertHandlers();
+restoreScroll();
   }
 
   catch(err) {
@@ -2367,7 +2382,11 @@ setupPullToRefresh();
 
 loadArrivals();
 
-setInterval(loadArrivals, 15000);
+setInterval(() => {
+  if (!isPullTracking && !isPullRefreshing) {
+    loadArrivals({ preserveScroll: true });
+  }
+}, 15000);
 </script>
 </body>
 </html>
