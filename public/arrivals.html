@@ -1084,6 +1084,21 @@ let latestAlerts = {
   N: { alerts: [], feedSample: [], error: "" },
   S: { alerts: [], feedSample: [], error: "" }
 };
+let loadInFlight = false;
+let queuedLoadOptions = null;
+let loadSequence = 0;
+let hasRenderedArrivals = false;
+let lastSuccessfulSelectionKey = "";
+
+function selectionKey() {
+
+  return [
+    selectedStopBase || "",
+    selectedRoute || "",
+    selectedBranchKey || ""
+  ].join("|");
+
+}
 
 function setPullRefreshIndicator(state) {
 
@@ -2440,9 +2455,28 @@ function attachRouteAlertHandlers() {
 
 async function loadArrivals(options = {}) {
 
+  const preserveScroll =
+    options.preserveScroll === true;
+
+  if (loadInFlight) {
+    queuedLoadOptions =
+      preserveScroll ? { preserveScroll: true } : {};
+
+    if (!preserveScroll) {
+      loadSequence++;
+    }
+
+    return;
+  }
+
+  loadInFlight =
+    true;
+  const loadId =
+    ++loadSequence;
+  const startingSelectionKey =
+    selectionKey();
+
   try {
-    const preserveScroll =
-      options.preserveScroll === true;
     const previousScrollTop =
       preserveScroll ? currentScrollTop() : 0;
     const restoreScroll = () => {
@@ -2461,6 +2495,8 @@ async function loadArrivals(options = {}) {
       return;
     }
 
+    // Realtime refresh stabilization for Glide/iOS: keep the last good board
+    // visible while the next complete payload is fetched in the background.
     const {
       uptownStop,
       downtownStop
@@ -2474,31 +2510,43 @@ async function loadArrivals(options = {}) {
       fetchServiceAlerts("S", downtownStop)
     ]);
 
-    latestAlerts = {
-      N: uptownAlerts,
-      S: downtownAlerts
-    };
-
     const groupedUptown =
       groupArrivals(uptownArrivals);
 
     const groupedDowntown =
       groupArrivals(downtownArrivals);
 
+    if (loadId !== loadSequence) {
+      restoreScroll();
+      return;
+    }
+
+    if (
+      preserveScroll &&
+      hasRenderedArrivals &&
+      startingSelectionKey === lastSuccessfulSelectionKey &&
+      !groupedUptown.length &&
+      !groupedDowntown.length
+    ) {
+      restoreScroll();
+      return;
+    }
+
     if (!routeWasProvided && !selectedRoute) {
       selectedRoute =
         firstDisplayedRoute(groupedUptown, groupedDowntown);
     }
 
-    const routeAlertData =
-      await fetchRouteAlerts(selectedRoute);
+const [uptownStationData, downtownStationData] =
+  await Promise.all([
+    fetchStations("N", uptownStop),
+    fetchStations("S", downtownStop)
+  ]);
 
-    resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts, routeAlertData);
-const uptownStationData =
-  await fetchStations("N", uptownStop);
-
-const downtownStationData =
-  await fetchStations("S", downtownStop);
+if (loadId !== loadSequence) {
+  restoreScroll();
+  return;
+}
 
 const resolvedBranchKey =
   uptownStationData.branchKey ||
@@ -2537,6 +2585,21 @@ if (
 if (resolvedRoute && resolvedRoute !== selectedRoute) {
   selectedRoute = resolvedRoute;
 }
+
+const routeAlertData =
+  await fetchRouteAlerts(selectedRoute);
+
+if (loadId !== loadSequence) {
+  restoreScroll();
+  return;
+}
+
+latestAlerts = {
+  N: uptownAlerts,
+  S: downtownAlerts
+};
+
+resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts, routeAlertData);
 
 populateSelectedStationHero(
   uptownStationData.currentStation ? uptownStationData : downtownStationData
@@ -2582,15 +2645,35 @@ attachTransferHandlers();
 attachStationBackHandler();
 attachAlertHandlers();
 attachRouteAlertHandlers();
+hasRenderedArrivals =
+  true;
+lastSuccessfulSelectionKey =
+  selectionKey();
 restoreScroll();
   }
 
   catch(err) {
 
-    resultsEl.innerHTML = `
-      <div class="message-card">Error loading arrivals. Please try again in a moment.</div>
-    `;
+    if (!hasRenderedArrivals) {
+      resultsEl.innerHTML = `
+        <div class="message-card">Error loading arrivals. Please try again in a moment.</div>
+      `;
+    } else {
+      console.warn("Keeping previous arrivals after refresh failed.", err);
+    }
 
+  }
+  finally {
+    loadInFlight =
+      false;
+
+    if (queuedLoadOptions) {
+      const nextOptions =
+        queuedLoadOptions;
+      queuedLoadOptions =
+        null;
+      loadArrivals(nextOptions);
+    }
   }
 
 }
