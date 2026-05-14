@@ -32,6 +32,45 @@ const FEED_URLS = {
 };
 const ALERT_FEED_URL =
   "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts";
+const GLIDE_API_URL =
+  "https://api.glideapp.io/api/function/mutateTables";
+const GLIDE_APP_ID =
+  process.env.GLIDE_APP_ID || "TYenWzXz52pcp3wCTXG6";
+const GLIDE_API_TOKEN =
+  process.env.GLIDE_API_TOKEN || "d25737fc-2ba6-4dfa-bcc1-0b1150680e14";
+const LIVE_UPDATES_TABLE =
+  process.env.GLIDE_LIVE_UPDATES_TABLE || "Live Updates";
+const TUNNEL_TALK_TABLE =
+  process.env.GLIDE_TUNNEL_TALK_TABLE || "Tunnel Talk";
+const LIVE_UPDATE_COLUMNS = {
+  route: process.env.GLIDE_LIVE_UPDATES_ROUTE_COLUMN || "route",
+  stationId: process.env.GLIDE_LIVE_UPDATES_STATION_ID_COLUMN || "station_id",
+  direction: process.env.GLIDE_LIVE_UPDATES_DIRECTION_COLUMN || "direction",
+  alertType: process.env.GLIDE_LIVE_UPDATES_ALERT_TYPE_COLUMN || "alert_type",
+  message: process.env.GLIDE_LIVE_UPDATES_MESSAGE_COLUMN || "message",
+  userEmail: process.env.GLIDE_LIVE_UPDATES_USER_EMAIL_COLUMN || "user_email",
+  timestamp: process.env.GLIDE_LIVE_UPDATES_TIMESTAMP_COLUMN || "timestamp",
+  clusterId: process.env.GLIDE_LIVE_UPDATES_CLUSTER_ID_COLUMN || "cluster_id",
+  status: process.env.GLIDE_LIVE_UPDATES_STATUS_COLUMN || "status",
+  source: process.env.GLIDE_LIVE_UPDATES_SOURCE_COLUMN || "source"
+};
+const TUNNEL_TALK_COLUMNS = {
+  route: process.env.GLIDE_TUNNEL_TALK_ROUTE_COLUMN || "route",
+  stationId: process.env.GLIDE_TUNNEL_TALK_STATION_ID_COLUMN || "station_id",
+  direction: process.env.GLIDE_TUNNEL_TALK_DIRECTION_COLUMN || "direction",
+  alertType: process.env.GLIDE_TUNNEL_TALK_ALERT_TYPE_COLUMN || "alert_type",
+  message: process.env.GLIDE_TUNNEL_TALK_MESSAGE_COLUMN || "message",
+  userEmail: process.env.GLIDE_TUNNEL_TALK_USER_EMAIL_COLUMN || "user_email",
+  timestamp: process.env.GLIDE_TUNNEL_TALK_TIMESTAMP_COLUMN || "timestamp",
+  clusterId: process.env.GLIDE_TUNNEL_TALK_CLUSTER_ID_COLUMN || "cluster_id",
+  status: process.env.GLIDE_TUNNEL_TALK_STATUS_COLUMN || "status",
+  source: process.env.GLIDE_TUNNEL_TALK_SOURCE_COLUMN || "source"
+};
+const CLUSTER_WINDOW_MS =
+  Number(process.env.ALERT_CLUSTER_WINDOW_MINUTES || 20) * 60 * 1000;
+const CLUSTER_MAX_AGE_MS =
+  Number(process.env.ALERT_CLUSTER_MAX_AGE_MINUTES || 120) * 60 * 1000;
+const alertsClusters = new Map();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -46,6 +85,19 @@ app.use((req, res, next) => {
     "Content-Type"
   );
   next();
+});
+app.use(express.json({
+  limit: "64kb"
+}));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && "body" in err) {
+    return res.status(400).json({
+      ok: false,
+      error: "Malformed JSON payload"
+    });
+  }
+
+  next(err);
 });
 const PORT = process.env.PORT || 3000;
 
@@ -63,6 +115,309 @@ function sortRoutes(routes) {
 
     return a.localeCompare(b);
   });
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeRouteId(value) {
+  return normalizeText(value).toUpperCase();
+}
+
+function normalizeDirection(value) {
+  const direction =
+    normalizeText(value).toUpperCase();
+
+  if (["N", "NORTH", "NORTHBOUND", "UPTOWN"].includes(direction)) {
+    return "N";
+  }
+
+  if (["S", "SOUTH", "SOUTHBOUND", "DOWNTOWN"].includes(direction)) {
+    return "S";
+  }
+
+  return direction;
+}
+
+function parseAlertTimestamp(value) {
+  if (!value) {
+    return new Date();
+  }
+
+  const parsed =
+    new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeAlertPayload(payload) {
+  const timestamp =
+    parseAlertTimestamp(payload.timestamp);
+
+  if (!timestamp) {
+    return {
+      error: "timestamp must be a valid date"
+    };
+  }
+
+  return {
+    alert: {
+      route: normalizeRouteId(payload.route),
+      station_id: normalizeText(payload.station_id || payload.stationId),
+      direction: normalizeDirection(payload.direction),
+      alert_type: normalizeText(payload.alert_type || payload.alertType).toLowerCase(),
+      message: normalizeText(payload.message),
+      user_email: normalizeText(payload.user_email || payload.userEmail).toLowerCase(),
+      timestamp: timestamp.toISOString()
+    }
+  };
+}
+
+function validateAlertPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return ["Request body must be a JSON object"];
+  }
+
+  const {
+    error,
+    alert
+  } = normalizeAlertPayload(payload);
+
+  if (error) {
+    return [error];
+  }
+
+  const errors = [];
+  const hasTimestamp =
+    Boolean(normalizeText(payload.timestamp));
+
+  [
+    ["route", alert.route],
+    ["station_id", alert.station_id],
+    ["direction", alert.direction],
+    ["alert_type", alert.alert_type],
+    ["message", alert.message],
+    ["user_email", alert.user_email],
+    ["timestamp", hasTimestamp ? alert.timestamp : ""]
+  ].forEach(([field, value]) => {
+    if (!value) {
+      errors.push(`${field} is required`);
+    }
+  });
+
+  if (alert.message && alert.message.length < 6) {
+    errors.push("message is too short");
+  }
+
+  if (alert.message && alert.message.length > 600) {
+    errors.push("message is too long");
+  }
+
+  if (alert.user_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(alert.user_email)) {
+    errors.push("user_email must be a valid email address");
+  }
+
+  if (alert.route && !new Set([...ROUTE_ORDER, "S"]).has(alert.route)) {
+    errors.push("route is not a recognized subway route");
+  }
+
+  if (alert.direction && !["N", "S"].includes(alert.direction)) {
+    errors.push("direction must be N/S, uptown/downtown, or northbound/southbound");
+  }
+
+  return errors;
+}
+
+function alertClusterKey(alert) {
+  return [
+    alert.route,
+    alert.station_id.replace(/[NS]$/, ""),
+    alert.direction,
+    alert.alert_type
+  ].join("|");
+}
+
+function messageTokens(message) {
+  return new Set(
+    normalizeText(message)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(token => token.length > 2)
+  );
+}
+
+function messageSimilarity(a, b) {
+  const tokensA =
+    messageTokens(a);
+  const tokensB =
+    messageTokens(b);
+
+  if (!tokensA.size || !tokensB.size) {
+    return 0;
+  }
+
+  const shared =
+    [...tokensA].filter(token => tokensB.has(token)).length;
+  const total =
+    new Set([...tokensA, ...tokensB]).size;
+
+  return shared / total;
+}
+
+function rotateAlertClusters(nowMs = Date.now()) {
+  for (const [clusterId, cluster] of alertsClusters.entries()) {
+    if (nowMs - cluster.lastSeenMs > CLUSTER_MAX_AGE_MS) {
+      alertsClusters.delete(clusterId);
+    }
+  }
+}
+
+function findMatchingCluster(alert, nowMs = Date.now()) {
+  rotateAlertClusters(nowMs);
+
+  const key =
+    alertClusterKey(alert);
+
+  return [...alertsClusters.values()].find(cluster =>
+    cluster.key === key &&
+    nowMs - cluster.lastSeenMs <= CLUSTER_WINDOW_MS &&
+    messageSimilarity(cluster.message, alert.message) >= 0.34
+  );
+}
+
+function isTunnelTalkAlert(alert) {
+  const tunnelTypes =
+    new Set(["chat", "comment", "question", "general", "other", "tunnel_talk", "tunnel-talk"]);
+  const serviceWords =
+    /\b(delay|delays|reroute|rerouted|stuck|skipping|police|ems|fire|smoke|sick|crowd|closed|bypass|incident|service|suspended)\b/i;
+
+  return tunnelTypes.has(alert.alert_type) || !serviceWords.test(alert.message);
+}
+
+function determineAlertAction(alert) {
+  const nowMs =
+    Date.now();
+  const matchingCluster =
+    findMatchingCluster(alert, nowMs);
+
+  if (isTunnelTalkAlert(alert)) {
+    const cluster =
+      matchingCluster || createAlertCluster(alert, nowMs, "tunnel-talk");
+
+    return {
+      action: "divert_to_tunnel_talk",
+      cluster,
+      duplicate: Boolean(matchingCluster)
+    };
+  }
+
+  if (matchingCluster) {
+    matchingCluster.lastSeenMs =
+      nowMs;
+    matchingCluster.count += 1;
+    matchingCluster.message =
+      alert.message;
+
+    return {
+      action: "attach_to_existing_cluster",
+      cluster: matchingCluster,
+      duplicate: true
+    };
+  }
+
+  return {
+    action: "create_new_live_update",
+    cluster: createAlertCluster(alert, nowMs, "live-update"),
+    duplicate: false
+  };
+}
+
+function createAlertCluster(alert, nowMs, destination) {
+  const cluster = {
+    id: `rider-${nowMs}-${Math.random().toString(36).slice(2, 8)}`,
+    key: alertClusterKey(alert),
+    route: alert.route,
+    station_id: alert.station_id,
+    direction: alert.direction,
+    alert_type: alert.alert_type,
+    message: alert.message,
+    destination,
+    count: 1,
+    createdMs: nowMs,
+    lastSeenMs: nowMs
+  };
+
+  alertsClusters.set(cluster.id, cluster);
+
+  return cluster;
+}
+
+function columnValuesFromAlert(alert, cluster, status, columns) {
+  const values = {};
+  const source =
+    "rider";
+
+  [
+    ["route", alert.route],
+    ["stationId", alert.station_id],
+    ["direction", alert.direction],
+    ["alertType", alert.alert_type],
+    ["message", alert.message],
+    ["userEmail", alert.user_email],
+    ["timestamp", alert.timestamp],
+    ["clusterId", cluster.id],
+    ["status", status],
+    ["source", source]
+  ].forEach(([key, value]) => {
+    if (columns[key]) {
+      values[columns[key]] = value;
+    }
+  });
+
+  return values;
+}
+
+async function mutateGlideTable(tableName, columnValues) {
+  if (!tableName) {
+    return {
+      skipped: true,
+      reason: "Glide table name is not configured"
+    };
+  }
+
+  const response =
+    await fetch(GLIDE_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GLIDE_API_TOKEN}`
+      },
+      body: JSON.stringify({
+        appID: GLIDE_APP_ID,
+        mutations: [
+          {
+            kind: "add-row-to-table",
+            tableName,
+            columnValues
+          }
+        ]
+      })
+    });
+
+  const text =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Glide mutateTables failed with ${response.status}: ${text}`);
+  }
+
+  return {
+    status: response.status,
+    ok: response.ok,
+    response: text
+  };
 }
 
 function getRoutesForPlatform(platformId) {
@@ -492,6 +847,71 @@ app.get("/service-alerts", async (req, res) => {
       error: err.message
     });
 
+  }
+
+});
+app.post("/process-alert", async (req, res) => {
+
+  try {
+    const validationErrors =
+      validateAlertPayload(req.body);
+
+    if (validationErrors.length) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid alert payload",
+        details: validationErrors
+      });
+    }
+
+    const {
+      alert
+    } = normalizeAlertPayload(req.body);
+    const decision =
+      determineAlertAction(alert);
+    const isTunnelTalk =
+      decision.action === "divert_to_tunnel_talk";
+    const tableName =
+      isTunnelTalk ? TUNNEL_TALK_TABLE : LIVE_UPDATES_TABLE;
+    const columns =
+      isTunnelTalk ? TUNNEL_TALK_COLUMNS : LIVE_UPDATE_COLUMNS;
+    const status =
+      decision.action === "attach_to_existing_cluster" ? "attached" :
+      decision.action === "divert_to_tunnel_talk" ? "diverted" :
+      "new";
+    const columnValues =
+      columnValuesFromAlert(alert, decision.cluster, status, columns);
+    const glideResult =
+      await mutateGlideTable(tableName, columnValues);
+
+    if (glideResult.skipped) {
+      return res.status(503).json({
+        ok: false,
+        error: glideResult.reason,
+        action: decision.action,
+        cluster_id: decision.cluster.id
+      });
+    }
+
+    res.json({
+      ok: true,
+      action: decision.action,
+      duplicate: decision.duplicate,
+      cluster_id: decision.cluster.id,
+      cluster_count: decision.cluster.count,
+      destination: isTunnelTalk ? "tunnel_talk" : "live_updates",
+      glide: {
+        status: glideResult.status,
+        ok: glideResult.ok
+      }
+    });
+  }
+
+  catch(err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
   }
 
 });
