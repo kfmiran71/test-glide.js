@@ -170,6 +170,7 @@
     }
 
     .selected-station-hero {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: flex-start;
@@ -177,6 +178,31 @@
       min-height: 118px;
       padding: 12px 18px 20px 0;
       background: #ffffff;
+    }
+
+    .station-back-button {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 28px;
+      border: 1px solid rgba(33, 65, 74, 0.24);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: rgba(248, 250, 252, 0.96);
+      color: var(--app-green);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      cursor: pointer;
+    }
+
+    .station-back-button.is-hidden {
+      display: none;
     }
 
     .selected-station-hero .route-bullet {
@@ -204,6 +230,7 @@
       line-height: 1.08;
       letter-spacing: 0;
       overflow-wrap: anywhere;
+      padding-right: 74px;
     }
 
     .station-select-wrap {
@@ -604,10 +631,8 @@
     }
 
     .route-alerts-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      display: grid;
+      gap: 8px;
     }
 
     .route-alerts-label {
@@ -620,7 +645,7 @@
     .route-alert-route-list {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      justify-content: flex-start;
       gap: 6px;
     }
 
@@ -1024,6 +1049,7 @@ let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
 let routeWasProvided = Boolean(route);
 let selectedBranchKey = firstParam(["branch", "branchKey"]) || "";
+let previousSelection = null;
 let pullStartY = 0;
 let pullDistance = 0;
 let isPullTracking = false;
@@ -1056,6 +1082,88 @@ function setPullRefreshIndicator(state) {
 
   pullRefreshIndicator.textContent =
     labels[state] || labels.idle;
+
+}
+
+function currentSelection() {
+
+  return {
+    branch: selectedBranchKey || "",
+    route: selectedRoute || "",
+    stop: selectedStopBase || ""
+  };
+
+}
+
+function sameSelection(a, b) {
+
+  return Boolean(a && b) &&
+    a.branch === b.branch &&
+    a.route === b.route &&
+    a.stop === b.stop;
+
+}
+
+function rememberCurrentSelection() {
+
+  const snapshot =
+    currentSelection();
+
+  if (!snapshot.stop) {
+    return;
+  }
+
+  if (!sameSelection(snapshot, previousSelection)) {
+    previousSelection =
+      snapshot;
+  }
+
+}
+
+function applySelectionToUrl() {
+
+  const nextParams =
+    new URLSearchParams(window.location.search);
+
+  if (selectedStopBase) {
+    nextParams.set("stop", selectedStopBase);
+  }
+
+  if (selectedRoute) {
+    nextParams.set("route", selectedRoute);
+  } else {
+    nextParams.delete("route");
+  }
+
+  if (selectedBranchKey) {
+    nextParams.set("branch", selectedBranchKey);
+  } else {
+    nextParams.delete("branch");
+  }
+
+  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+
+}
+
+function navigateToSelection(selection) {
+
+  if (!selection?.stop) {
+    return;
+  }
+
+  previousSelection =
+    null;
+  selectedStopBase =
+    selection.stop;
+  selectedRoute =
+    selection.route || "";
+  routeWasProvided =
+    Boolean(selectedRoute);
+  selectedBranchKey =
+    selection.branch || "";
+
+  applySelectionToUrl();
+  loadArrivals();
 
 }
 
@@ -1198,16 +1306,23 @@ function populateStationRouteButtons(id, routes) {
     button.innerHTML = renderRouteBadgeContent(routeId);
 
     button.addEventListener("click", () => {
-      selectedRoute = routeId;
-      routeWasProvided = true;
-      selectedBranchKey = "";
       const nextSelectId =
         routeHasBranches(routeId) ? "" : selectIdFromSwitcherId(id);
 
-      const nextParams = new URLSearchParams(window.location.search);
-      nextParams.set("route", selectedRoute);
-      nextParams.delete("branch");
-      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+      if (routeId === selectedRoute) {
+        if (nextSelectId) {
+          openStationSelect(nextSelectId);
+        }
+
+        return;
+      }
+
+      rememberCurrentSelection();
+      selectedRoute = routeId;
+      routeWasProvided = true;
+      selectedBranchKey = "";
+
+      applySelectionToUrl();
 
       loadArrivals().then(() => {
         if (nextSelectId) {
@@ -1251,13 +1366,18 @@ function populateStationBranchButtons(id, branches, activeBranchKey) {
     button.setAttribute("aria-label", `${branch.label} branch station list`);
 
     button.addEventListener("click", () => {
-      selectedBranchKey = branch.key;
       const nextSelectId =
         selectIdFromSwitcherId(id);
 
-      const nextParams = new URLSearchParams(window.location.search);
-      nextParams.set("branch", selectedBranchKey);
-      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+      if (branch.key === selectedBranchKey) {
+        openStationSelect(nextSelectId);
+        return;
+      }
+
+      rememberCurrentSelection();
+      selectedBranchKey = branch.key;
+
+      applySelectionToUrl();
 
       loadArrivals().then(() => openStationSelect(nextSelectId));
     });
@@ -1429,7 +1549,16 @@ function populateSelectedStationHero(stationData) {
 
 function selectStationFromPicker(id, stopId, stationName) {
 
-  selectedStopBase = stopId.replace(/N$|S$/, "");
+  const nextStopBase =
+    stopId.replace(/N$|S$/, "");
+
+  if (nextStopBase === selectedStopBase) {
+    closeStationMenus();
+    return;
+  }
+
+  rememberCurrentSelection();
+  selectedStopBase = nextStopBase;
 
   const label =
     document.getElementById(`${id}Label`);
@@ -1439,9 +1568,7 @@ function selectStationFromPicker(id, stopId, stationName) {
       stationName;
   }
 
-  const nextParams = new URLSearchParams(window.location.search);
-  nextParams.set("stop", selectedStopBase);
-  window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+  applySelectionToUrl();
 
   closeStationMenus();
   loadArrivals();
@@ -2024,7 +2151,7 @@ function renderRouteAlertsFooter(routeAlertData) {
         </div>
       ` : ""}
       <div class="route-alerts-row">
-        <div class="route-alerts-label">Routes with alerts</div>
+        <div class="route-alerts-label">Routes with alerts:</div>
         <div class="route-alert-route-list">
           ${alertGroups.map(group => `
             <button
@@ -2097,6 +2224,12 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
       <div class="status-pill"><span class="live-dot"></span> ${updatedAt}</div>
     </div>
   <section class="selected-station-hero" aria-label="Selected station">
+    <button
+      class="station-back-button${previousSelection ? "" : " is-hidden"}"
+      type="button"
+      id="stationBackButton"
+      aria-label="Return to previous station"
+    >← Back</button>
     <span
       class="route-bullet"
       id="selectedStationHeroRoute"
@@ -2145,19 +2278,47 @@ function attachTransferHandlers() {
 
   document.querySelectorAll(".transfer-block").forEach(button => {
     button.addEventListener("click", () => {
-      selectedStopBase = button.dataset.stopId.replace(/N$|S$/, "");
-      selectedRoute = button.dataset.routeId;
+      const nextStop =
+        button.dataset.stopId.replace(/N$|S$/, "");
+      const nextRoute =
+        button.dataset.routeId || "";
+
+      if (sameSelection(currentSelection(), {
+        branch: "",
+        route: nextRoute,
+        stop: nextStop
+      })) {
+        return;
+      }
+
+      rememberCurrentSelection();
+      selectedStopBase = nextStop;
+      selectedRoute = nextRoute;
       routeWasProvided = true;
       selectedBranchKey = "";
 
-      const nextParams = new URLSearchParams(window.location.search);
-      nextParams.set("stop", selectedStopBase);
-      nextParams.set("route", selectedRoute);
-      nextParams.delete("branch");
-      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+      applySelectionToUrl();
 
       loadArrivals();
     });
+  });
+
+}
+
+function attachStationBackHandler() {
+
+  const button =
+    document.getElementById("stationBackButton");
+
+  if (!button) {
+    return;
+  }
+
+  button.addEventListener("click", () => {
+    const target =
+      previousSelection;
+
+    navigateToSelection(target);
   });
 
 }
@@ -2190,25 +2351,30 @@ function attachRouteAlertHandlers() {
 
   document.querySelectorAll(".route-alert-route-group").forEach(button => {
     button.addEventListener("click", () => {
-      selectedRoute =
+      const nextRoute =
         button.dataset.routeId || selectedRoute;
-      selectedStopBase =
+      const nextStop =
         button.dataset.stopId || selectedStopBase;
+
+      if (sameSelection(currentSelection(), {
+        branch: "",
+        route: nextRoute,
+        stop: nextStop
+      })) {
+        return;
+      }
+
+      rememberCurrentSelection();
+      selectedRoute =
+        nextRoute;
+      selectedStopBase =
+        nextStop;
       routeWasProvided =
         true;
       selectedBranchKey =
         "";
 
-      const nextParams =
-        new URLSearchParams(window.location.search);
-      nextParams.set("route", selectedRoute);
-
-      if (selectedStopBase) {
-        nextParams.set("stop", selectedStopBase);
-      }
-
-      nextParams.delete("branch");
-      window.history.replaceState(null, "", `${window.location.pathname}?${nextParams.toString()}`);
+      applySelectionToUrl();
 
       loadArrivals();
     });
@@ -2363,6 +2529,7 @@ populateStationSelect(
 );
 
 attachTransferHandlers();
+attachStationBackHandler();
 attachAlertHandlers();
 attachRouteAlertHandlers();
 restoreScroll();
