@@ -599,6 +599,48 @@ function getBranchStops(routeId, direction, branchKey) {
   return ROUTE_BRANCH_MAP[routeId]?.branches?.[branchKey]?.directions?.[direction] || [];
 }
 
+function boroughForStop(stop) {
+  const lat =
+    Number(stop?.lat);
+  const lon =
+    Number(stop?.lon);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return "";
+  }
+
+  if (lat >= 40.79 && lon >= -73.91) {
+    return "Bronx";
+  }
+
+  if (lon >= -73.86) {
+    return "Queens";
+  }
+
+  if (lat < 40.70) {
+    return "Brooklyn";
+  }
+
+  if (lon >= -73.946 && lat < 40.79) {
+    return "Queens";
+  }
+
+  if (lat >= 40.68) {
+    return "Manhattan";
+  }
+
+  return "";
+}
+
+function boundLabelForRouteStops(routeStops) {
+  const terminal =
+    routeStops?.[routeStops.length - 1];
+  const borough =
+    boroughForStop(terminal);
+
+  return borough ? `${borough}-bound` : "";
+}
+
 function getStationName(stopId) {
   if (!stopId) {
     return "";
@@ -1349,10 +1391,13 @@ app.get("/stations", async (req, res) => {
 
     const visibleStops =
       currentStopIndex >= 0 ? routeStops.slice(currentStopIndex) : routeStops;
+    const boundLabel =
+      boundLabelForRouteStops(routeStops);
 
     const stops = visibleStops.map(stop => ({
       stopId: stop.stop_id,
       name: stop.stop_name,
+      boundLabel,
       routes: getRoutesForPlatform(stop.stop_id)
     }));
 
@@ -1363,6 +1408,7 @@ app.get("/stations", async (req, res) => {
         ? {
             stopId: currentStopId,
             name: getStationName(currentStopId),
+            boundLabel,
             routes: getRoutesForPlatform(currentStopId),
             inList: currentStopIndex >= 0
           }

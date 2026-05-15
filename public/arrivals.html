@@ -457,6 +457,15 @@
       white-space: nowrap;
     }
 
+    .station-bound-label {
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .station-menu-option.is-active .station-bound-label {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
     .direction-card {
       border: 2px solid var(--surface-outline);
       border-radius: var(--radius-xl);
@@ -1471,6 +1480,32 @@ function branchShortLabel(branch) {
 
 }
 
+function stationDisplayLabel(station) {
+
+  const name =
+    station?.name || "";
+  const boundLabel =
+    station?.boundLabel || "";
+
+  return boundLabel ? `${name} / ${boundLabel}` : name;
+
+}
+
+function renderStationDisplayLabel(station) {
+
+  const name =
+    station?.name || "";
+  const boundLabel =
+    station?.boundLabel || "";
+
+  if (!boundLabel) {
+    return escapeHtml(name);
+  }
+
+  return `${escapeHtml(name)} <span class="station-bound-label">/ ${escapeHtml(boundLabel)}</span>`;
+
+}
+
 function populateStationSelect(id, stations, selectedStop, currentStation) {
 
   const select =
@@ -1498,7 +1533,7 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
       station.stopId;
 
     option.textContent =
-      station.name;
+      stationDisplayLabel(station);
 
     if (station.stopId === selectedStop) {
       option.selected = true;
@@ -1548,8 +1583,8 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
       stationName.className =
         "station-menu-name";
 
-      stationName.textContent =
-        station.name;
+      stationName.innerHTML =
+        renderStationDisplayLabel(station);
 
       if (routes.length) {
         item.appendChild(routeWrap);
@@ -1570,12 +1605,16 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
     stations.find(station => station.stopId === selectedStop);
   const selectedOption =
     selectedStation ? select.options[select.selectedIndex] : null;
-  const fallbackName =
-    currentStation?.name || selectedStation?.name || stations[0]?.name || "";
+  const fallbackStation =
+    currentStation ||
+    selectedStation ||
+    stations[0];
 
   if (label) {
-    label.textContent =
-      selectedOption?.textContent || fallbackName;
+    label.innerHTML =
+      fallbackStation
+        ? renderStationDisplayLabel(fallbackStation)
+        : escapeHtml(selectedOption?.textContent || "");
   }
 
   shell?.addEventListener("click", () => {
@@ -1585,8 +1624,14 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
   select.addEventListener("change", () => {
     const selectedOption =
       select.options[select.selectedIndex];
+    const selectedStation =
+      stations.find(station => station.stopId === select.value);
 
-    selectStationFromPicker(id, select.value, selectedOption?.textContent || "");
+    selectStationFromPicker(
+      id,
+      select.value,
+      selectedStation?.name || selectedOption?.textContent || ""
+    );
   });
 
 }
