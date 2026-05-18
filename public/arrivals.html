@@ -766,9 +766,37 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 6px;
+      max-width: 124px;
+    }
+
+    .arrival-actions {
+      display: grid;
+      justify-items: end;
+      align-items: center;
+      gap: 8px;
       justify-self: end;
       align-self: center;
-      max-width: 124px;
+      min-width: 74px;
+      max-width: 132px;
+    }
+
+    .directions-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      border: 1px solid rgba(33, 65, 74, 0.18);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: rgba(248, 250, 252, 0.96);
+      color: var(--app-green);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+      cursor: pointer;
+      white-space: nowrap;
     }
 
     .transfer-block {
@@ -995,6 +1023,17 @@ transform: translateY(-6px);
 
       .transfer-blocks {
         max-width: 86px;
+      }
+
+      .arrival-actions {
+        min-width: 64px;
+        max-width: 96px;
+      }
+
+      .directions-button {
+        min-height: 26px;
+        padding: 4px 7px;
+        font-size: 10px;
       }
 
       .route-mini {
@@ -1807,6 +1846,9 @@ function groupArrivals(arrivals) {
     if (!grouped[arrival.route]) {
       grouped[arrival.route] = {
         route: arrival.route,
+        lat: arrival.lat,
+        lon: arrival.lon,
+        platformId: arrival.platformId,
         station: arrival.station,
         times: []
       };
@@ -1816,6 +1858,18 @@ function groupArrivals(arrivals) {
 
     if (!grouped[arrival.route].station && arrival.station) {
       grouped[arrival.route].station = arrival.station;
+    }
+
+    if (!grouped[arrival.route].lat && arrival.lat) {
+      grouped[arrival.route].lat = arrival.lat;
+    }
+
+    if (!grouped[arrival.route].lon && arrival.lon) {
+      grouped[arrival.route].lon = arrival.lon;
+    }
+
+    if (!grouped[arrival.route].platformId && arrival.platformId) {
+      grouped[arrival.route].platformId = arrival.platformId;
     }
 
   });
@@ -2055,11 +2109,31 @@ function renderTransferBlocks(direction, transferGroups) {
 
 }
 
+function directionsUrlForArrival(group) {
+
+  const lat =
+    Number(group.lat);
+  const lon =
+    Number(group.lon);
+
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lon}`)}&travelmode=transit`;
+  }
+
+  const query =
+    `${group.station || "subway station"} NYC subway`;
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+
+}
+
 function renderArrival(group, title, transferBlocks) {
 
   const safeRoute = group.route || "?";
   const displayRoute = escapeHtml(safeRoute);
   const station = escapeHtml(group.station || `${title.toLowerCase()} platform`);
+  const directionsUrl =
+    escapeHtml(directionsUrlForArrival(group));
 
   return `
     <article class="arrival-card">
@@ -2075,7 +2149,15 @@ function renderArrival(group, title, transferBlocks) {
     ${formatTimes(group.times)}
   </div>
 </div>
-${transferBlocks}
+<div class="arrival-actions">
+  ${transferBlocks}
+  <button
+    class="directions-button"
+    type="button"
+    data-directions-url="${directionsUrl}"
+    aria-label="Get directions to ${station}"
+  >Directions</button>
+</div>
     </article>
   `;
 
@@ -2330,6 +2412,21 @@ function attachTransferHandlers() {
       applySelectionToUrl();
 
       loadArrivals();
+    });
+  });
+
+}
+
+function attachDirectionsHandlers() {
+
+  document.querySelectorAll(".directions-button").forEach(button => {
+    button.addEventListener("click", () => {
+      const url =
+        button.dataset.directionsUrl;
+
+      if (url) {
+        window.open(url, "_blank", "noopener");
+      }
     });
   });
 
@@ -2600,6 +2697,7 @@ if (openStationSelectId) {
 }
 
 attachTransferHandlers();
+attachDirectionsHandlers();
 attachStationBackHandler();
 attachAlertHandlers();
 attachRouteAlertHandlers();

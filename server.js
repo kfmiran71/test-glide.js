@@ -11,6 +11,14 @@ const stationsPath = path.resolve("./stations.json");
 const STATION_MAP = JSON.parse(fs.readFileSync(stationsPath, "utf-8"));
 const routeStopMapPath = path.resolve("./route-stop-map.json");
 const ROUTE_STOP_MAP = JSON.parse(fs.readFileSync(routeStopMapPath, "utf-8"));
+const STOP_DETAIL_MAP = new Map();
+for (const routeStops of Object.values(ROUTE_STOP_MAP)) {
+  for (const direction of ["N", "S"]) {
+    for (const stop of routeStops[direction] || []) {
+      STOP_DETAIL_MAP.set(stop.stop_id, stop);
+    }
+  }
+}
 const officialPlatformRouteMapPath = path.resolve("./official-platform-route-map.json");
 const OFFICIAL_PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(officialPlatformRouteMapPath, "utf-8"));
 const routeBranchMapPath = path.resolve("./route-branches.json");
@@ -1221,6 +1229,8 @@ const direction =
   directionCode === "N" ? "Northbound" :
   directionCode === "S" ? "Southbound" :
   directionCode;
+const stopDetails =
+  STOP_DETAIL_MAP.get(stopId);
 
 let stationName = stationCode;
 
@@ -1239,6 +1249,8 @@ else if (STATION_MAP[stopId]) {
   route: entity.tripUpdate.trip.routeId,
   time: minutes.toString(),
   station: stationName,
+  lat: stopDetails?.lat || "",
+  lon: stopDetails?.lon || "",
   direction: direction
 });
     }
@@ -1268,6 +1280,8 @@ limitedArrivals.forEach((a, i) => {
     time: a.time,
     station: a.station,
     stationType: typeof a.station,
+    lat: a.lat,
+    lon: a.lon,
     direction: a.direction
   });
 });
