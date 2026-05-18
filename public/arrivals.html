@@ -1399,7 +1399,7 @@ function populateStationRouteButtons(id, routes) {
     button.style.setProperty("--route-color", routeColor(routeId));
     button.style.setProperty("--route-text", routeTextColor(routeId));
     button.setAttribute("aria-label", `${routeId} station list`);
-    button.innerHTML = renderRouteBadgeContent(routeId);
+    button.innerHTML = renderRouteBadgeContent(routeId, { compact: true });
 
     button.addEventListener("click", () => {
       const nextSelectId =
@@ -1588,7 +1588,7 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
         routeBadge.style.setProperty("--route-color", routeColor(routeId));
         routeBadge.style.setProperty("--route-text", routeTextColor(routeId));
         routeBadge.innerHTML =
-          renderRouteBadgeContent(routeId);
+          renderRouteBadgeContent(routeId, { compact: true });
 
         routeWrap.appendChild(routeBadge);
       });
@@ -1916,7 +1916,10 @@ function routeColor(route) {
     "W": "#FCCC0A",
     "S": "#808183",
     "FS": "#808183",
-    "GS": "#808183"
+    "GS": "#808183",
+    "H": "#808183",
+    "SF": "#808183",
+    "SR": "#808183"
   };
 
   return colors[route] || "#475569";
@@ -1929,19 +1932,21 @@ function routeTextColor(route) {
 
 }
 
-function routeBadgeParts(route) {
+function routeBadgeParts(route, options = {}) {
 
-  if (route === "GS") {
+  const compact =
+    options.compact === true;
+  const shuttleSecondary = {
+    FS: "F",
+    H: "H",
+    SF: "F",
+    SR: "R"
+  };
+
+  if (route === "S" || route === "GS" || shuttleSecondary[route]) {
     return {
       primary: "S",
-      secondary: ""
-    };
-  }
-
-  if (route === "FS") {
-    return {
-      primary: "S",
-      secondary: "F"
+      secondary: compact ? "" : shuttleSecondary[route] || ""
     };
   }
 
@@ -1952,12 +1957,12 @@ function routeBadgeParts(route) {
 
 }
 
-function renderRouteBadgeContent(route) {
+function renderRouteBadgeContent(route, options = {}) {
 
   const {
     primary,
     secondary
-  } = routeBadgeParts(route);
+  } = routeBadgeParts(route, options);
 
   return `
     <span class="route-badge-primary">${escapeHtml(primary)}</span>
@@ -2001,7 +2006,7 @@ function renderAlertRouteBullet(route) {
       class="alert-route-bullet"
       style="--route-color: ${routeColor(route)}; --route-text: ${routeTextColor(route)};"
       aria-label="${escapeHtml(route)} train"
-    >${renderRouteBadgeContent(route)}</span>
+    >${renderRouteBadgeContent(route, { compact: true })}</span>
   `;
 
 }
@@ -2099,7 +2104,7 @@ function renderTransferBlocks(direction, transferGroups) {
               <span
                 class="route-mini"
                 style="--route-color:${routeColor(transferRoute)}; --route-text:${routeTextColor(transferRoute)};"
-              >${renderRouteBadgeContent(transferRoute)}</span>
+              >${renderRouteBadgeContent(transferRoute, { compact: true })}</span>
             `).join("")}
           </button>
         `;
@@ -2270,7 +2275,7 @@ function renderRouteAlertsFooter(routeAlertData) {
                 <span
                   class="route-alert-route-button"
                   style="--route-color:${routeColor(route)}; --route-text:${routeTextColor(route)};"
-                >${renderRouteBadgeContent(route)}</span>
+                >${renderRouteBadgeContent(route, { compact: true })}</span>
               `).join("")}
             </button>
           `).join("")}

@@ -26,7 +26,7 @@ const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8")
 const ROUTE_ORDER = [
   "1", "2", "3", "4", "5", "6", "6X", "7", "7X",
   "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
-  "GS", "J", "Z", "L", "M", "N", "Q", "R", "W"
+  "GS", "H", "J", "Z", "L", "M", "N", "Q", "R", "W"
 ];
 const HIDDEN_PICKER_ROUTES = new Set(["6X", "7X", "FX", "SI", "SIR"]);
 const FEED_URLS = {
@@ -709,7 +709,7 @@ function getFeedUrlsForRoutes(routeIds) {
       feeds.add(FEED_URLS.numbered);
     }
 
-    else if (["A","C","E"].includes(routeId)) {
+    else if (["A","C","E","H"].includes(routeId)) {
       feeds.add(FEED_URLS.ace);
     }
 
