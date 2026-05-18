@@ -1115,6 +1115,7 @@ let queuedLoadOptions = null;
 let loadSequence = 0;
 let hasRenderedArrivals = false;
 let lastSuccessfulSelectionKey = "";
+let openStationSelectId = "";
 
 function selectionKey() {
 
@@ -1305,6 +1306,11 @@ function closeStationMenus(exceptShell = null) {
     }
   });
 
+  if (!exceptShell) {
+    openStationSelectId =
+      "";
+  }
+
 }
 
 function toggleStationMenu(shell, forceOpen = null) {
@@ -1321,6 +1327,14 @@ function toggleStationMenu(shell, forceOpen = null) {
 
   closeStationMenus(shell);
   wrap.classList.toggle("is-open", shouldOpen);
+  openStationSelectId =
+    shouldOpen ? shell.dataset.selectId || "" : "";
+
+}
+
+function isStationMenuOpen() {
+
+  return Boolean(openStationSelectId);
 
 }
 
@@ -1609,7 +1623,8 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
 
       item.appendChild(stationName);
 
-      item.addEventListener("click", () => {
+      item.addEventListener("click", event => {
+        event.stopPropagation();
         selectStationFromPicker(id, station.stopId, station.name);
       });
 
@@ -1634,8 +1649,9 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
         : escapeHtml(selectedOption?.textContent || "");
   }
 
-  shell?.addEventListener("click", () => {
-    toggleStationMenu(shell);
+  shell?.addEventListener("click", event => {
+    event.stopPropagation();
+    toggleStationMenu(shell, true);
   });
 
   select.addEventListener("change", () => {
@@ -1707,12 +1723,6 @@ function selectStationFromPicker(id, stopId, stationName) {
   loadArrivals();
 
 }
-
-document.addEventListener("click", event => {
-  if (!event.target.closest(".station-select-wrap")) {
-    closeStationMenus();
-  }
-});
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") {
@@ -2703,6 +2713,10 @@ populateStationSelect(
   downtownStationData.currentStation
 );
 
+if (openStationSelectId) {
+  openStationSelect(openStationSelectId);
+}
+
 attachTransferHandlers();
 attachStationBackHandler();
 attachAlertHandlers();
@@ -2745,7 +2759,7 @@ setupPullToRefresh();
 loadArrivals();
 
 setInterval(() => {
-  if (!isPullTracking && !isPullRefreshing) {
+  if (!isPullTracking && !isPullRefreshing && !isStationMenuOpen()) {
     loadArrivals({ preserveScroll: true });
   }
 }, 15000);
