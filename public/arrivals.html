@@ -71,45 +71,6 @@
       scrollbar-color: rgba(15, 23, 42, 0.22) transparent;
     }
 
-    .pull-refresh-indicator {
-      position: absolute;
-      top: 8px;
-      left: 50%;
-      z-index: 90;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 30px;
-      border: 1px solid rgba(255, 255, 255, 0.72);
-      border-radius: 999px;
-      padding: 6px 12px;
-      background: rgba(248, 250, 252, 0.96);
-      color: var(--app-green);
-      font-size: 12px;
-      font-weight: 800;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
-      opacity: 0;
-      pointer-events: none;
-      transform: translate(-50%, -46px);
-      transition:
-        opacity 160ms ease,
-        transform 160ms ease,
-        background 160ms ease,
-        color 160ms ease;
-      white-space: nowrap;
-    }
-
-    .pull-refresh-indicator.is-visible {
-      opacity: 1;
-      transform: translate(-50%, 0);
-    }
-
-    .pull-refresh-indicator.is-ready,
-    .pull-refresh-indicator.is-refreshing {
-      background: var(--app-green);
-      color: #ffffff;
-    }
-
     .arrivals-panel::-webkit-scrollbar {
       width: 4px;
     }
@@ -1041,7 +1002,6 @@ transform: translateY(-6px);
 </head>
 <body>
   <main class="embed-shell" aria-label="Realtime subway arrivals">
-    <div id="pullRefreshIndicator" class="pull-refresh-indicator" aria-hidden="true">Pull to refresh</div>
     <section id="results" class="arrivals-panel" aria-live="polite">
       <div class="top-bar">
         <div>
@@ -1095,17 +1055,11 @@ function firstParam(names) {
 const stop = firstParam(["stop", "stopId", "platformId", "stationId"]);
 const route = firstParam(["route", "routeId", "line", "train"]);
 const resultsEl = document.getElementById("results");
-const pullRefreshIndicator = document.getElementById("pullRefreshIndicator");
 let selectedStopBase = stop ? stop.replace(/N$|S$/, "") : "";
 let selectedRoute = route || "";
 let routeWasProvided = Boolean(route);
 let selectedBranchKey = firstParam(["branch", "branchKey"]) || "";
 let previousSelection = null;
-let pullStartY = 0;
-let pullDistance = 0;
-let isPullTracking = false;
-let isPullRefreshing = false;
-const PULL_REFRESH_THRESHOLD = 72;
 let latestAlerts = {
   N: { alerts: [], feedSample: [], error: "" },
   S: { alerts: [], feedSample: [], error: "" }
@@ -1124,31 +1078,6 @@ function selectionKey() {
     selectedRoute || "",
     selectedBranchKey || ""
   ].join("|");
-
-}
-
-function setPullRefreshIndicator(state) {
-
-  if (!pullRefreshIndicator) {
-    return;
-  }
-
-  pullRefreshIndicator.classList.toggle(
-    "is-visible",
-    state === "pulling" || state === "ready" || state === "refreshing"
-  );
-  pullRefreshIndicator.classList.toggle("is-ready", state === "ready");
-  pullRefreshIndicator.classList.toggle("is-refreshing", state === "refreshing");
-
-  const labels = {
-    idle: "Pull to refresh",
-    pulling: "Pull to refresh",
-    ready: "Release to refresh",
-    refreshing: "Refreshing..."
-  };
-
-  pullRefreshIndicator.textContent =
-    labels[state] || labels.idle;
 
 }
 
@@ -1729,91 +1658,6 @@ document.addEventListener("keydown", event => {
     closeStationMenus();
   }
 });
-
-function setupPullToRefresh() {
-
-  if (!resultsEl) {
-    return;
-  }
-
-  resultsEl.addEventListener("touchstart", event => {
-    if (currentScrollTop() > 0 || isPullRefreshing) {
-      return;
-    }
-
-    pullStartY =
-      event.touches[0]?.clientY || 0;
-    pullDistance =
-      0;
-    isPullTracking =
-      true;
-  }, { passive: true });
-
-  resultsEl.addEventListener("touchmove", event => {
-    if (!isPullTracking || isPullRefreshing) {
-      return;
-    }
-
-    const currentY =
-      event.touches[0]?.clientY || 0;
-    pullDistance =
-      Math.max(0, currentY - pullStartY);
-
-    if (pullDistance <= 0) {
-      setPullRefreshIndicator("idle");
-      return;
-    }
-
-    setPullRefreshIndicator(
-      pullDistance >= PULL_REFRESH_THRESHOLD ? "ready" : "pulling"
-    );
-  }, { passive: true });
-
-  resultsEl.addEventListener("touchend", async () => {
-    if (!isPullTracking) {
-      return;
-    }
-
-    const shouldRefresh =
-      pullDistance >= PULL_REFRESH_THRESHOLD;
-
-    isPullTracking =
-      false;
-    pullDistance =
-      0;
-
-    if (!shouldRefresh || isPullRefreshing) {
-      setPullRefreshIndicator("idle");
-      return;
-    }
-
-    isPullRefreshing =
-      true;
-    setPullRefreshIndicator("refreshing");
-
-    try {
-      await loadArrivals();
-    } finally {
-      window.setTimeout(() => {
-        isPullRefreshing =
-          false;
-        setPullRefreshIndicator("idle");
-      }, 350);
-    }
-  });
-
-  resultsEl.addEventListener("touchcancel", () => {
-    isPullTracking =
-      false;
-    pullDistance =
-      0;
-
-    if (!isPullRefreshing) {
-      setPullRefreshIndicator("idle");
-    }
-  });
-
-}
 
 async function fetchDirection(platformId) {
 
@@ -2754,12 +2598,10 @@ restoreScroll();
 
 }
 
-setupPullToRefresh();
-
 loadArrivals();
 
 setInterval(() => {
-  if (!isPullTracking && !isPullRefreshing && !isStationMenuOpen()) {
+  if (!isStationMenuOpen()) {
     loadArrivals({ preserveScroll: true });
   }
 }, 15000);
