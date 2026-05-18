@@ -444,6 +444,23 @@
       color: rgba(255, 255, 255, 0.82);
     }
 
+    .station-menu-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 34px;
+      margin-top: 5px;
+      border: 1px solid rgba(33, 65, 74, 0.18);
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.96);
+      color: var(--app-green);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
     .direction-card {
       border: 2px solid var(--surface-outline);
       border-radius: var(--radius-xl);
@@ -1561,6 +1578,27 @@ function populateStationSelect(id, stations, selectedStop, currentStation) {
     }
 
   });
+
+  if (menu) {
+    const closeButton =
+      document.createElement("button");
+
+    closeButton.type =
+      "button";
+
+    closeButton.className =
+      "station-menu-close";
+
+    closeButton.textContent =
+      "Close station list";
+
+    closeButton.addEventListener("click", event => {
+      event.stopPropagation();
+      closeStationMenus();
+    });
+
+    menu.appendChild(closeButton);
+  }
 
   const selectedStation =
     stations.find(station => station.stopId === selectedStop);
