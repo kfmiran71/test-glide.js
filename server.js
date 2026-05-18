@@ -25,8 +25,8 @@ const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
   "1", "2", "3", "4", "5", "6", "6X", "7", "7X",
-  "A", "B", "C", "D", "E", "F", "FX", "FS", "G",
-  "GS", "H", "J", "Z", "L", "M", "N", "Q", "R", "W"
+  "A", "B", "C", "D", "E", "F", "FX", "FS", "SF", "G",
+  "GS", "H", "SR", "J", "Z", "L", "M", "N", "Q", "R", "W"
 ];
 const HIDDEN_PICKER_ROUTES = new Set(["6X", "7X", "FX", "SI", "SIR"]);
 const FEED_URLS = {
@@ -705,11 +705,11 @@ function getFeedUrlsForRoutes(routeIds) {
   }
 
   routeIds.forEach(routeId => {
-    if (["1","2","3","4","5","6","6X","7","7X","GS","FS"].includes(routeId)) {
+    if (["1","2","3","4","5","6","6X","7","7X","GS","FS","SF"].includes(routeId)) {
       feeds.add(FEED_URLS.numbered);
     }
 
-    else if (["A","C","E","H"].includes(routeId)) {
+    else if (["A","C","E","H","SR"].includes(routeId)) {
       feeds.add(FEED_URLS.ace);
     }
 
