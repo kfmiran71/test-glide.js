@@ -65,10 +65,11 @@
     .arrivals-panel {
       min-height: 100%;
       overflow: visible;
-      overscroll-behavior-y: contain;
+      overscroll-behavior-y: auto;
       padding: 2px 2px 14px;
       scrollbar-width: thin;
       scrollbar-color: rgba(15, 23, 42, 0.22) transparent;
+      touch-action: pan-y;
     }
 
     .arrivals-panel::-webkit-scrollbar {
@@ -1092,6 +1093,22 @@ let loadSequence = 0;
 let hasRenderedArrivals = false;
 let lastSuccessfulSelectionKey = "";
 let openStationSelectId = "";
+let activeTouchCount = 0;
+let lastTouchScrollAt = 0;
+const touchScrollQuietMs = 900;
+
+function markTouchScrollActive() {
+
+  lastTouchScrollAt =
+    Date.now();
+
+}
+
+function isTouchScrollActive() {
+
+  return activeTouchCount > 0 || Date.now() - lastTouchScrollAt < touchScrollQuietMs;
+
+}
 
 function selectionKey() {
 
@@ -1210,8 +1227,14 @@ function maxDocumentScrollTop() {
 
 function restoreDocumentScrollTop(scrollTop) {
 
+  if (isTouchScrollActive()) {
+    return;
+  }
+
   window.requestAnimationFrame(() => {
-    window.scrollTo(0, Math.min(scrollTop, maxDocumentScrollTop()));
+    if (!isTouchScrollActive()) {
+      window.scrollTo(0, Math.min(scrollTop, maxDocumentScrollTop()));
+    }
   });
 
 }
@@ -2679,10 +2702,31 @@ restoreScroll();
 
 }
 
+window.addEventListener("touchstart", () => {
+  activeTouchCount += 1;
+  markTouchScrollActive();
+}, { passive: true });
+
+window.addEventListener("touchmove", markTouchScrollActive, { passive: true });
+
+window.addEventListener("touchend", () => {
+  activeTouchCount =
+    Math.max(0, activeTouchCount - 1);
+  markTouchScrollActive();
+}, { passive: true });
+
+window.addEventListener("touchcancel", () => {
+  activeTouchCount =
+    0;
+  markTouchScrollActive();
+}, { passive: true });
+
 loadArrivals();
 
 setInterval(() => {
-  if (!isStationMenuOpen()) {
+  // Glide/iOS scroll stability: avoid background refresh scroll restoration while
+  // the user's finger is actively driving the iframe scroll surface.
+  if (!isStationMenuOpen() && !isTouchScrollActive()) {
     loadArrivals({ preserveScroll: true });
   }
 }, 15000);
