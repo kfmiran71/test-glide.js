@@ -854,6 +854,28 @@
   padding-top: -6px;
   gap: 10px;
 }
+
+.time-primary {
+  display: inline-block;
+}
+
+.time-primary.is-approaching {
+  color: #dc2626;
+  font-weight: 750;
+  animation: approachingPulse 1.15s ease-in-out infinite;
+}
+
+@keyframes approachingPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.68;
+    transform: scale(1.04);
+  }
+}
       
 transform: translateY(-6px);      
       
@@ -1978,13 +2000,19 @@ function formatTimes(times) {
 
   const [first, ...nextTimes] = times;
   const next = nextTimes.slice(0, 2);
+  const firstMinutes =
+    Number(first);
+  const isApproaching =
+    Number.isFinite(firstMinutes) && firstMinutes <= 1;
+  const primaryTime =
+    new Date(Date.now() + firstMinutes * 60000).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit"
+    });
 
   return `
     <span class="time-cluster">
-      ${new Date(Date.now() + first * 60000).toLocaleTimeString([], {
-  hour: "numeric",
-  minute: "2-digit"
-})}
+      <span class="time-primary${isApproaching ? " is-approaching" : ""}" aria-label="${isApproaching ? "Approaching train" : "Next train"}">${primaryTime}</span>
       ${next.length ? `<span class="time-secondary">• ${next.join(" • ")}</span>` : ""}
     </span>
   `;
