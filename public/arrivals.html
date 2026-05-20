@@ -151,45 +151,6 @@
       background: #ffffff;
     }
 
-    .station-back-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      min-height: 28px;
-      border: 1px solid rgba(33, 65, 74, 0.24);
-      border-radius: 999px;
-      padding: 4px 10px;
-      background: rgba(248, 250, 252, 0.96);
-      color: var(--app-green);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-      cursor: pointer;
-    }
-
-    .station-back-button--top {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-    }
-
-    .station-back-button--bottom {
-      position: relative;
-      z-index: 95;
-      justify-self: end;
-      margin: 0 14px 0 auto;
-      min-height: 34px;
-      padding: 6px 12px;
-      box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.68),
-        0 10px 26px rgba(15, 23, 42, 0.18);
-    }
-
-    .station-back-button.is-hidden {
-      display: none;
-    }
 
     .selected-station-hero .route-bullet {
       width: 78px;
@@ -2339,13 +2300,6 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
       <div class="status-pill"><span class="live-dot"></span> ${updatedAt}</div>
     </div>
   <section class="selected-station-hero" aria-label="Selected station">
-    <button
-      class="station-back-button station-back-button--top${previousSelection ? "" : " is-hidden"}"
-      type="button"
-      id="stationBackButton"
-      data-station-back-button
-      aria-label="Return to previous station"
-    >← Back</button>
     <span
       class="route-bullet"
       id="selectedStationHeroRoute"
@@ -2386,12 +2340,6 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
   ${renderRouteAlertsFooter(routeAlertData)}
 
 </div>
-  <button
-    class="station-back-button station-back-button--bottom${previousSelection ? "" : " is-hidden"}"
-    type="button"
-    data-station-back-button
-    aria-label="Return to previous station"
-  >← Back</button>
   `;
 
 }
@@ -2442,18 +2390,6 @@ function attachDirectionsHandlers() {
 
 }
 
-function attachStationBackHandler() {
-
-  document.querySelectorAll("[data-station-back-button]").forEach(button => {
-    button.addEventListener("click", () => {
-    const target =
-      previousSelection;
-
-    navigateToSelection(target);
-  });
-  });
-
-}
 
 function attachAlertHandlers() {
 
@@ -2708,7 +2644,6 @@ if (openStationSelectId) {
 
 attachTransferHandlers();
 attachDirectionsHandlers();
-attachStationBackHandler();
 attachAlertHandlers();
 attachRouteAlertHandlers();
 hasRenderedArrivals =
