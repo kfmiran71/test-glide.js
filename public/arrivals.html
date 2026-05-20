@@ -2017,6 +2017,76 @@ function renderAlertRouteBullets(routes) {
 
 }
 
+function alertKey(alert) {
+
+  return alert?.id || [
+    alert?.header || "",
+    alert?.description || "",
+    alert?.timestamp || ""
+  ].join("|");
+
+}
+
+function alertAppliesToRoute(alert, routeId) {
+
+  if (!routeId) {
+    return true;
+  }
+
+  const routes =
+    alert?.routes || [];
+
+  if (routes.includes(routeId)) {
+    return true;
+  }
+
+  const safeRouteId =
+    String(routeId).replace(/[^A-Za-z0-9]/g, "");
+  const routePattern =
+    new RegExp("\\[" + safeRouteId + "\\]");
+
+  return routePattern.test(alert?.header || "") ||
+    routePattern.test(alert?.description || "");
+
+}
+
+function mergeAlerts(...alertLists) {
+
+  const seen =
+    new Set();
+  const merged =
+    [];
+
+  alertLists.flat().filter(Boolean).forEach(alert => {
+    const key =
+      alertKey(alert);
+
+    if (!key || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    merged.push(alert);
+  });
+
+  return merged;
+
+}
+
+function routeAlertsWithPlatformFallback(routeAlertData, platformAlertData, routeId) {
+
+  const platformAlerts =
+    platformAlertData
+      .flatMap(data => data?.alerts || [])
+      .filter(alert => alertAppliesToRoute(alert, routeId));
+
+  return {
+    ...(routeAlertData || {}),
+    alerts: mergeAlerts(routeAlertData?.alerts || [], platformAlerts).slice(0, 4)
+  };
+
+}
+
 function renderAlertText(text) {
 
   const routePattern =
@@ -2214,10 +2284,6 @@ function renderRouteAlertsFooter(routeAlertData) {
   const alerts =
     routeAlertData?.alerts || [];
 
-  if (!routeLinks.length) {
-    return "";
-  }
-
   const alertGroups =
     routeAlertData?.alertGroups?.length
       ? routeAlertData.alertGroups
@@ -2226,6 +2292,10 @@ function renderRouteAlertsFooter(routeAlertData) {
           stop: link.stop,
           route: link.route
         }));
+
+  if (!alerts.length && !alertGroups.length) {
+    return "";
+  }
 
   return `
     <section class="route-alerts-footer" aria-label="Route alerts">
@@ -2606,7 +2676,7 @@ if (resolvedRoute && resolvedRoute !== selectedRoute) {
   selectedRoute = resolvedRoute;
 }
 
-const routeAlertData =
+const routeAlertDataRaw =
   await fetchRouteAlerts(selectedRoute);
 
 if (loadId !== loadSequence) {
@@ -2618,6 +2688,9 @@ latestAlerts = {
   N: uptownAlerts,
   S: downtownAlerts
 };
+
+const routeAlertData =
+  routeAlertsWithPlatformFallback(routeAlertDataRaw, [uptownAlerts, downtownAlerts], selectedRoute);
 
 resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts, routeAlertData);
 
