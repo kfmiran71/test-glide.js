@@ -146,9 +146,9 @@
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      gap: 24px;
+      gap: 18px;
       min-height: 118px;
-      padding: 12px 18px 20px 0;
+      padding: 12px 10px 20px 0;
       background: #ffffff;
     }
 
@@ -174,13 +174,16 @@
 
     .selected-station-title {
       min-width: 0;
+      flex: 1 1 auto;
       color: #09090b;
-      font-size: 31px;
+      font-size: clamp(28px, 8.2vw, 34px);
       font-weight: 690;
       line-height: 1.08;
       letter-spacing: 0;
-      overflow-wrap: anywhere;
-      padding-right: 74px;
+      overflow-wrap: normal;
+      word-break: normal;
+      hyphens: none;
+      text-wrap: balance;
       transform: translateY(-12px);
     }
 
@@ -927,9 +930,9 @@ transform: translateY(-6px);
       }
 
       .selected-station-hero {
-        gap: 20px;
+        gap: 14px;
         min-height: 110px;
-        padding: 10px 14px 18px 0;
+        padding: 10px 8px 18px 0;
       }
 
       .selected-station-hero .route-bullet {
@@ -939,7 +942,7 @@ transform: translateY(-6px);
       }
 
       .selected-station-title {
-        font-size: 28px;
+        font-size: 27px;
       }
 
       .title {
