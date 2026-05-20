@@ -673,6 +673,30 @@ function getStationName(stopId) {
   return typeof match === "string" ? match : match.name;
 }
 
+function destinationNameForTripUpdate(tripUpdate, currentStopId) {
+  const updates =
+    tripUpdate?.stopTimeUpdate || [];
+  const destinationStopId =
+    [...updates]
+      .reverse()
+      .find(update => update.stopId)?.stopId || "";
+
+  if (destinationStopId && destinationStopId !== currentStopId) {
+    return getStationName(destinationStopId);
+  }
+
+  const routeId =
+    tripUpdate?.trip?.routeId || "";
+  const direction =
+    currentStopId?.endsWith("N") ? "N" :
+    currentStopId?.endsWith("S") ? "S" :
+    "";
+  const terminal =
+    ROUTE_STOP_MAP[routeId]?.[direction]?.at(-1);
+
+  return terminal?.stop_name || getStationName(destinationStopId || currentStopId);
+}
+
 function chooseBranchKey(routeId, direction, requestedBranchKey, currentStopId) {
   const branches = getRouteBranches(routeId, direction);
 
@@ -1204,6 +1228,9 @@ for (const url of feeds) {
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue;
 
+  const tripDestinationName =
+    destinationNameForTripUpdate(entity.tripUpdate, targetPlatform);
+
   for (const stopTimeUpdate of entity.tripUpdate.stopTimeUpdate || []) {
 
   const stopId = stopTimeUpdate.stopId;
@@ -1232,17 +1259,8 @@ const direction =
 const stopDetails =
   STOP_DETAIL_MAP.get(stopId);
 
-let stationName = stationCode;
-
-if (Array.isArray(STATION_MAP)) {
-  const match = STATION_MAP.find(s => s.stop_id === stopId);
-  if (match) stationName = match.name;
-}
-
-else if (STATION_MAP[stopId]) {
-  const val = STATION_MAP[stopId];
-  stationName = typeof val === "string" ? val : val.name;
-}
+let stationName =
+  tripDestinationName || stationCode;
       
     arrivals.push({
   platformId: stopId,
