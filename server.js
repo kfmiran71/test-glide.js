@@ -729,7 +729,7 @@ function getFeedUrlsForRoutes(routeIds) {
   }
 
   routeIds.forEach(routeId => {
-    if (["1","2","3","4","5","6","6X","7","7X","GS","FS","SF"].includes(routeId)) {
+    if (["1","2","3","4","5","6","6X","7","7X","GS"].includes(routeId)) {
       feeds.add(FEED_URLS.numbered);
     }
 
@@ -737,7 +737,7 @@ function getFeedUrlsForRoutes(routeIds) {
       feeds.add(FEED_URLS.ace);
     }
 
-    else if (["B","D","F","FX","M"].includes(routeId)) {
+    else if (["B","D","F","FX","FS","SF","M"].includes(routeId)) {
       feeds.add(FEED_URLS.bdfm);
     }
 
