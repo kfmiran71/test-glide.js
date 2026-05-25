@@ -33,6 +33,7 @@
       overflow-x: hidden;
       overflow-y: auto;
       width: 100%;
+      max-width: 100%;
       -webkit-overflow-scrolling: touch;
     }
 
@@ -51,11 +52,13 @@
       min-height: max(260px, 100vh);
       min-height: max(260px, 100dvh);
       width: 100%;
+      max-width: 100%;
       margin: 0;
       padding: 0 0 calc(112px + env(safe-area-inset-bottom, 0px));
       background: #ffffff;
       border-radius: 0;
-      overflow: visible;
+      overflow-x: hidden;
+      overflow-y: visible;
     }
 
     /*
@@ -64,6 +67,8 @@
     */
     .arrivals-panel {
       min-height: 100%;
+      width: 100%;
+      max-width: 100%;
       overflow: visible;
       overscroll-behavior-y: auto;
       padding: 2px 2px 14px;
@@ -137,8 +142,10 @@
     .direction-stack {
       display: grid;
       gap: 42px;
+      width: 100%;
       min-width: 0;
       max-width: 100%;
+      overflow-x: hidden;
     }
 
     .selected-station-hero {
@@ -150,6 +157,9 @@
       min-height: 118px;
       padding: 12px 10px 20px 0;
       background: #ffffff;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
     }
 
 
@@ -218,8 +228,10 @@
       position: relative;
       display: grid;
       gap: 5px;
+      width: 100%;
       min-width: 0;
       max-width: 100%;
+      overflow-x: hidden;
     }
 
     .station-picker:has(.station-select-wrap.is-open) {
@@ -355,6 +367,7 @@
       align-items: center;
       gap: 8px;
       width: 100%;
+      max-width: 100%;
       min-width: 0;
       min-height: 34px;
       border: 0;
@@ -428,6 +441,9 @@
     }
 
     .direction-card {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
       border: 2px solid var(--surface-outline);
       border-radius: var(--radius-xl);
       background: var(--app-green);
@@ -524,6 +540,8 @@
     .alert-panel {
       display: none;
       margin: 0 8px 8px;
+      min-width: 0;
+      max-width: calc(100% - 16px);
       border: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.10);
@@ -552,6 +570,8 @@
     .alert-item {
       display: grid;
       gap: 3px;
+      min-width: 0;
+      max-width: 100%;
       border-top: 1px solid rgba(255, 255, 255, 0.18);
       padding-top: 8px;
     }
@@ -565,6 +585,7 @@
       font-size: 13px;
       font-weight: 800;
       line-height: 1.25;
+      overflow-wrap: anywhere;
     }
 
     .alert-route-bullets {
@@ -602,11 +623,15 @@
       font-size: 12px;
       font-weight: 600;
       line-height: 1.35;
+      overflow-wrap: anywhere;
     }
 
     .route-alerts-footer {
       display: grid;
       gap: 10px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
       border: 2px solid var(--surface-outline);
       border-radius: var(--radius-xl);
       background: var(--app-green);
@@ -624,11 +649,15 @@
     .route-alerts-list {
       display: grid;
       gap: 8px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .route-alerts-row {
       display: grid;
       gap: 8px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .route-alerts-label {
@@ -643,12 +672,16 @@
       flex-wrap: wrap;
       justify-content: flex-start;
       gap: 6px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .route-alert-route-group {
       display: inline-flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 3px;
+      max-width: 100%;
       min-height: 24px;
       border: 0;
       border-radius: 999px;
@@ -686,6 +719,9 @@
     .arrival-list {
       display: grid;
       gap: 7px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
       padding: 0 8px 10px;
     }
 
@@ -694,6 +730,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 82px;
   border: 2px solid rgba(33, 65, 74, 0.72);
   border-radius: 10px;
@@ -735,6 +774,7 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 6px;
+      min-width: 0;
       max-width: 124px;
     }
 
@@ -912,6 +952,8 @@ transform: translateY(-6px);
   align-items: center;
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
     .empty-state,
     .message-card {
