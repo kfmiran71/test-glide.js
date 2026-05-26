@@ -2358,13 +2358,13 @@ function renderRouteAlertsFooter(routeAlertData) {
     routeAlertData?.alerts || [];
 
   const alertGroups =
-    routeAlertData?.alertGroups?.length
-      ? routeAlertData.alertGroups
-      : routeLinks.map(link => ({
+    routeLinks.length
+      ? routeLinks.map(link => ({
           routes: [link.route],
           stop: link.stop,
           route: link.route
-        }));
+        }))
+      : (routeAlertData?.alertGroups || []);
 
   if (!alerts.length && !alertGroups.length) {
     return "";
