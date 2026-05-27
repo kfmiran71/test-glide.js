@@ -1158,6 +1158,7 @@ let loadSequence = 0;
 let hasRenderedArrivals = false;
 let lastSuccessfulSelectionKey = "";
 let openStationSelectId = "";
+const openAlertDirections = new Set();
 let activeTouchCount = 0;
 let lastTouchScrollAt = 0;
 const touchScrollQuietMs = 900;
@@ -2306,10 +2307,12 @@ function renderAlertPanel(direction, alertData) {
     alerts;
   const title =
     "Matched service alerts";
+  const panelClass =
+    `alert-panel${openAlertDirections.has(direction) ? " is-open" : ""}`;
 
   if (alertData?.error) {
     return `
-      <div class="alert-panel" id="${direction}AlertPanel">
+      <div class="${panelClass}" id="${direction}AlertPanel">
         <p class="alert-panel-title">Service alerts unavailable</p>
         <div class="alert-item-body">${escapeHtml(alertData.error)}</div>
       </div>
@@ -2318,14 +2321,14 @@ function renderAlertPanel(direction, alertData) {
 
   if (!displayAlerts.length) {
     return `
-      <div class="alert-panel" id="${direction}AlertPanel">
+      <div class="${panelClass}" id="${direction}AlertPanel">
         <p class="alert-panel-title">No active alerts found for this platform.</p>
       </div>
     `;
   }
 
   return `
-    <div class="alert-panel" id="${direction}AlertPanel">
+    <div class="${panelClass}" id="${direction}AlertPanel">
       <p class="alert-feed-label">${escapeHtml(title)}</p>
       ${displayAlerts.map(alert => `
         <div class="alert-item">
@@ -2566,6 +2569,11 @@ function attachAlertHandlers() {
 
       if (panel) {
         panel.classList.toggle("is-open");
+        if (panel.classList.contains("is-open")) {
+          openAlertDirections.add(direction);
+        } else {
+          openAlertDirections.delete(direction);
+        }
       }
     });
 
