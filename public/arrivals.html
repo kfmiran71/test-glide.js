@@ -2226,6 +2226,25 @@ function formatAlertTimestamp(timestamp) {
 
 }
 
+function formatLookAheadTiming(alert) {
+
+  const starts =
+    (alert.starts || [])
+      .map(formatAlertTimestamp)
+      .filter(Boolean);
+
+  if (starts.length > 1) {
+    return `Upcoming: ${starts.join(", ")}`;
+  }
+
+  if (alert.timestampLabel && formatAlertTimestamp(alert.timestamp)) {
+    return `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`;
+  }
+
+  return "";
+
+}
+
 function renderTransferBlocks(direction, transferGroups) {
 
   const groups =
@@ -2456,9 +2475,7 @@ function renderLookAheadFooter(routeAlertData) {
             <div class="alert-item-title">${renderAlertText(alert.header || "Upcoming service advisory")}</div>
             <div class="alert-item-meta">
               ${escapeHtml([
-                alert.timestampLabel && formatAlertTimestamp(alert.timestamp)
-                  ? `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`
-                  : "",
+                formatLookAheadTiming(alert),
                 alert.effect,
                 alert.cause,
                 alert.severity

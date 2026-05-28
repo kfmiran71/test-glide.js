@@ -913,6 +913,48 @@ function sortAlertsByTimestamp(alerts) {
   });
 }
 
+function normalizeAlertGroupText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/-brooklyn museum/g, "")
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function groupLookAheadAlerts(alerts) {
+  const groups =
+    new Map();
+
+  sortAlertsByTimestamp(alerts).forEach(alert => {
+    const groupingText =
+      normalizeAlertGroupText(alert.header || alert.description);
+    const key =
+      `${(alert.routes || []).join("|")}::${groupingText}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        ...alert,
+        starts: []
+      });
+    }
+
+    const group =
+      groups.get(key);
+
+    if (alert.timestamp && !group.starts.includes(alert.timestamp)) {
+      group.starts.push(alert.timestamp);
+      group.starts.sort((a, b) => Date.parse(a) - Date.parse(b));
+      group.timestamp =
+        group.starts[0] || group.timestamp;
+      group.timestampLabel =
+        group.starts.length > 1 ? "Upcoming" : alert.timestampLabel;
+    }
+  });
+
+  return sortAlertsByTimestamp([...groups.values()]);
+}
+
 function activeAlertRoutes(alerts) {
   return sortRoutes([
     ...new Set(
@@ -1112,7 +1154,7 @@ app.get("/route-alerts", async (req, res) => {
     const routeAlerts =
       routeId ? alertsForRoute(activeAlerts, routeId).slice(0, 4) : [];
     const routeLookAheadAlerts =
-      routeId ? sortAlertsByTimestamp(alertsForRoute(upcomingAlerts, routeId)).slice(0, 4) : [];
+      routeId ? groupLookAheadAlerts(alertsForRoute(upcomingAlerts, routeId)).slice(0, 4) : [];
     const routeLinks =
       routes.map(activeRoute => {
         const alert =
