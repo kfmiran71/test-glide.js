@@ -898,6 +898,21 @@ function alertsForRoute(alerts, routeId) {
   return alerts.filter(alert => alert.routes.includes(routeId));
 }
 
+function sortAlertsByTimestamp(alerts) {
+  return [...alerts].sort((a, b) => {
+    const timeA =
+      Date.parse(a.timestamp || "") || Number.MAX_SAFE_INTEGER;
+    const timeB =
+      Date.parse(b.timestamp || "") || Number.MAX_SAFE_INTEGER;
+
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+
+    return (a.header || "").localeCompare(b.header || "");
+  });
+}
+
 function activeAlertRoutes(alerts) {
   return sortRoutes([
     ...new Set(
@@ -1097,7 +1112,7 @@ app.get("/route-alerts", async (req, res) => {
     const routeAlerts =
       routeId ? alertsForRoute(activeAlerts, routeId).slice(0, 4) : [];
     const routeLookAheadAlerts =
-      routeId ? alertsForRoute(upcomingAlerts, routeId).slice(0, 4) : [];
+      routeId ? sortAlertsByTimestamp(alertsForRoute(upcomingAlerts, routeId)).slice(0, 4) : [];
     const routeLinks =
       routes.map(activeRoute => {
         const alert =
