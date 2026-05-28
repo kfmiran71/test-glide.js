@@ -499,6 +499,17 @@ function isActiveAlert(alert, nowSeconds) {
   });
 }
 
+function nextFutureAlertStart(alert, nowSeconds) {
+  return (alert.activePeriod || [])
+    .map(period => toSeconds(period.start))
+    .filter(start => start && start > nowSeconds)
+    .sort((a, b) => a - b)[0] || 0;
+}
+
+function isUpcomingAlert(alert, nowSeconds) {
+  return !isActiveAlert(alert, nowSeconds) && Boolean(nextFutureAlertStart(alert, nowSeconds));
+}
+
 function alertMatches(alert, routeIds, stopIds) {
   const informed =
     alert.informedEntity || [];
@@ -584,6 +595,19 @@ function summarizeAlert(entity, feedTimestampSeconds = 0) {
     timestampLabel: timeInfo.label,
     header: translatedText(alert.headerText),
     description: translatedText(alert.descriptionText)
+  };
+}
+
+function summarizeUpcomingAlert(entity, feedTimestampSeconds = 0, nowSeconds = 0) {
+  const summary =
+    summarizeAlert(entity, feedTimestampSeconds);
+  const startSeconds =
+    nextFutureAlertStart(entity.alert, nowSeconds);
+
+  return {
+    ...summary,
+    timestamp: startSeconds ? new Date(startSeconds * 1000).toISOString() : summary.timestamp,
+    timestampLabel: startSeconds ? "MTA starts" : summary.timestampLabel
   };
 }
 
@@ -1059,10 +1083,21 @@ app.get("/route-alerts", async (req, res) => {
           (alert.header || alert.description) &&
           alert.routes.some(activeRoute => !HIDDEN_PICKER_ROUTES.has(activeRoute))
         );
+    const upcomingAlerts =
+      feed.entity
+        .filter(entity => entity.alert)
+        .filter(entity => isUpcomingAlert(entity.alert, nowSeconds))
+        .map(entity => summarizeUpcomingAlert(entity, feedTimestampSeconds, nowSeconds))
+        .filter(alert =>
+          (alert.header || alert.description) &&
+          alert.routes.some(activeRoute => !HIDDEN_PICKER_ROUTES.has(activeRoute))
+        );
     const routes =
       activeAlertRoutes(activeAlerts);
     const routeAlerts =
       routeId ? alertsForRoute(activeAlerts, routeId).slice(0, 4) : [];
+    const routeLookAheadAlerts =
+      routeId ? alertsForRoute(upcomingAlerts, routeId).slice(0, 4) : [];
     const routeLinks =
       routes.map(activeRoute => {
         const alert =
@@ -1118,6 +1153,7 @@ app.get("/route-alerts", async (req, res) => {
       routeId,
       count: routeAlerts.length,
       alerts: routeAlerts,
+      lookAheadAlerts: routeLookAheadAlerts,
       routes,
       routeLinks,
       alertGroups

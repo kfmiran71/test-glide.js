@@ -640,6 +640,22 @@
         var(--shadow);
     }
 
+    .look-ahead-footer {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      border: 2px solid var(--surface-outline);
+      border-radius: var(--radius-xl);
+      background: var(--app-green);
+      padding: 12px 14px;
+      color: #ffffff;
+      box-shadow:
+        0 0 0 1px rgba(33, 65, 74, 0.14),
+        var(--shadow);
+    }
+
     .route-alerts-footer.is-hidden {
       display: none;
     }
@@ -1856,6 +1872,7 @@ async function fetchRouteAlerts(routeId) {
   if (!routeId) {
     return {
       alerts: [],
+      lookAheadAlerts: [],
       routeLinks: [],
       routes: [],
       error: ""
@@ -1876,6 +1893,7 @@ async function fetchRouteAlerts(routeId) {
   if (!res.ok) {
     return {
       alerts: [],
+      lookAheadAlerts: [],
       routeLinks: [],
       routes: [],
       error: data.error || "Route alerts unavailable"
@@ -1885,6 +1903,7 @@ async function fetchRouteAlerts(routeId) {
   return {
     alerts: data.alerts || [],
     alertGroups: data.alertGroups || [],
+    lookAheadAlerts: data.lookAheadAlerts || [],
     routeLinks: data.routeLinks || [],
     routes: data.routes || [],
     error: ""
@@ -2419,6 +2438,41 @@ function renderRouteAlertsFooter(routeAlertData) {
 
 }
 
+function renderLookAheadFooter(routeAlertData) {
+
+  const advisories =
+    routeAlertData?.lookAheadAlerts || [];
+
+  if (!advisories.length) {
+    return "";
+  }
+
+  return `
+    <section class="look-ahead-footer" aria-label="Look ahead service advisories">
+      <div class="route-alerts-label">Look ahead:</div>
+      <div class="route-alerts-list">
+        ${advisories.map(alert => `
+          <div class="alert-item">
+            <div class="alert-item-title">${renderAlertText(alert.header || "Upcoming service advisory")}</div>
+            <div class="alert-item-meta">
+              ${escapeHtml([
+                alert.timestampLabel && formatAlertTimestamp(alert.timestamp)
+                  ? `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`
+                  : "",
+                alert.effect,
+                alert.cause,
+                alert.severity
+              ].filter(Boolean).join(" • "))}
+            </div>
+            ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 420))}</div>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+
+}
+
 function renderDirection(title, direction, groups, transferGroups, alertData) {
 
   const count = groups.reduce((total, group) => total + group.times.length, 0);
@@ -2505,6 +2559,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
   ${renderDirection("Downtown", "S", downtownGroups, transferGroups, alertsByDirection.S)}
 
   ${renderRouteAlertsFooter(routeAlertData)}
+  ${renderLookAheadFooter(routeAlertData)}
 
 </div>
   `;
