@@ -2226,22 +2226,90 @@ function formatAlertTimestamp(timestamp) {
 
 }
 
+function formatAlertTimingDate(timestamp) {
+
+  if (!timestamp) {
+    return "";
+  }
+
+  const date =
+    new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const day =
+    date.toLocaleDateString([], {
+      weekday: "long",
+      month: "short",
+      day: "numeric"
+    });
+  const time =
+    date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit"
+    });
+
+  return `${day} at ${time}`;
+
+}
+
+function formatAlertTiming(alert) {
+
+  const start =
+    formatAlertTimingDate(alert?.timestamp);
+  const end =
+    formatAlertTimingDate(alert?.endTimestamp);
+  const label =
+    String(alert?.timestampLabel || "").replace(/^MTA\s+/i, "");
+  const normalizedLabel =
+    label || (start ? "Since" : "");
+  const parts = [];
+
+  if (start && normalizedLabel) {
+    parts.push(`${normalizedLabel} ${start}`);
+  }
+
+  if (end) {
+    parts.push(`Ends ${end}`);
+  }
+
+  return parts.join(" • ");
+
+}
+
+function formatLookAheadOccurrence(occurrence) {
+
+  const start =
+    formatAlertTimingDate(occurrence?.start);
+  const end =
+    formatAlertTimingDate(occurrence?.end);
+
+  if (start && end) {
+    return `${start} to ${end}`;
+  }
+
+  return start;
+
+}
+
 function formatLookAheadTiming(alert) {
 
-  const starts =
-    (alert.starts || [])
-      .map(formatAlertTimestamp)
+  const occurrences =
+    (alert.occurrences || [])
+      .map(formatLookAheadOccurrence)
       .filter(Boolean);
 
-  if (starts.length > 1) {
-    return `Upcoming: ${starts.join(", ")}`;
+  if (occurrences.length > 1) {
+    return `Upcoming: ${occurrences.join("; ")}`;
   }
 
-  if (alert.timestampLabel && formatAlertTimestamp(alert.timestamp)) {
-    return `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`;
+  if (occurrences.length === 1) {
+    return formatAlertTiming(alert);
   }
 
-  return "";
+  return formatAlertTiming(alert);
 
 }
 
@@ -2373,9 +2441,7 @@ function renderAlertPanel(direction, alertData) {
           <div class="alert-item-title">${renderAlertText(alert.header || "Service alert")}</div>
           <div class="alert-item-meta">
             ${escapeHtml([
-              alert.timestampLabel && formatAlertTimestamp(alert.timestamp)
-                ? `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`
-                : "",
+              formatAlertTiming(alert),
               alert.effect,
               alert.cause,
               alert.severity
@@ -2418,9 +2484,7 @@ function renderRouteAlertsFooter(routeAlertData) {
               <div class="alert-item-title">${renderAlertText(alert.header || "Route alert")}</div>
               <div class="alert-item-meta">
                 ${escapeHtml([
-                  alert.timestampLabel && formatAlertTimestamp(alert.timestamp)
-                    ? `${alert.timestampLabel} ${formatAlertTimestamp(alert.timestamp)}`
-                    : "",
+                  formatAlertTiming(alert),
                   alert.effect,
                   alert.cause,
                   alert.severity

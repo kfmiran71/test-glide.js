@@ -500,14 +500,48 @@ function isActiveAlert(alert, nowSeconds) {
 }
 
 function nextFutureAlertStart(alert, nowSeconds) {
-  return (alert.activePeriod || [])
-    .map(period => toSeconds(period.start))
-    .filter(start => start && start > nowSeconds)
-    .sort((a, b) => a - b)[0] || 0;
+  return nextFutureAlertPeriod(alert, nowSeconds)?.start || 0;
 }
 
 function isUpcomingAlert(alert, nowSeconds) {
   return !isActiveAlert(alert, nowSeconds) && Boolean(nextFutureAlertStart(alert, nowSeconds));
+}
+
+function alertPeriods(alert) {
+  return (alert.activePeriod || [])
+    .map(period => ({
+      start: toSeconds(period.start),
+      end: toSeconds(period.end)
+    }))
+    .filter(period => period.start || period.end)
+    .sort((a, b) => {
+      const startA =
+        a.start || 0;
+      const startB =
+        b.start || 0;
+
+      return startA - startB;
+    });
+}
+
+function currentOrFirstAlertPeriod(alert, nowSeconds = 0) {
+  const periods =
+    alertPeriods(alert);
+
+  if (!periods.length) {
+    return null;
+  }
+
+  return periods.find(period =>
+    (!period.start || period.start <= nowSeconds) &&
+    (!period.end || period.end >= nowSeconds)
+  ) || periods[0];
+}
+
+function nextFutureAlertPeriod(alert, nowSeconds = 0) {
+  return alertPeriods(alert)
+    .filter(period => period.start && period.start > nowSeconds)
+    .sort((a, b) => a.start - b.start)[0] || null;
 }
 
 function alertMatches(alert, routeIds, stopIds) {
@@ -532,33 +566,32 @@ function alertMatches(alert, routeIds, stopIds) {
   });
 }
 
-function alertTimestamp(alert, feedTimestampSeconds) {
-  const activeStarts =
-    (alert.activePeriod || [])
-      .map(period => toSeconds(period.start))
-      .filter(Boolean)
-      .sort((a, b) => a - b);
+function alertTimestamp(alert, feedTimestampSeconds, nowSeconds = 0) {
+  const activePeriod =
+    currentOrFirstAlertPeriod(alert, nowSeconds);
   const timestampSeconds =
-    activeStarts[0] || feedTimestampSeconds || 0;
+    activePeriod?.start || feedTimestampSeconds || 0;
 
   if (!timestampSeconds) {
     return {
       timestamp: "",
-      label: ""
+      label: "",
+      endTimestamp: ""
     };
   }
 
   return {
     timestamp: new Date(timestampSeconds * 1000).toISOString(),
-    label: activeStarts[0] ? "MTA since" : "MTA updated"
+    label: activePeriod?.start ? "Since" : "Updated",
+    endTimestamp: activePeriod?.end ? new Date(activePeriod.end * 1000).toISOString() : ""
   };
 }
 
-function summarizeAlert(entity, feedTimestampSeconds = 0) {
+function summarizeAlert(entity, feedTimestampSeconds = 0, nowSeconds = 0) {
   const alert =
     entity.alert;
   const timeInfo =
-    alertTimestamp(alert, feedTimestampSeconds);
+    alertTimestamp(alert, feedTimestampSeconds, nowSeconds);
   const stopIds =
     [
       ...new Set(
@@ -593,6 +626,7 @@ function summarizeAlert(entity, feedTimestampSeconds = 0) {
     stopIds,
     timestamp: timeInfo.timestamp,
     timestampLabel: timeInfo.label,
+    endTimestamp: timeInfo.endTimestamp,
     header: translatedText(alert.headerText),
     description: translatedText(alert.descriptionText)
   };
@@ -600,14 +634,17 @@ function summarizeAlert(entity, feedTimestampSeconds = 0) {
 
 function summarizeUpcomingAlert(entity, feedTimestampSeconds = 0, nowSeconds = 0) {
   const summary =
-    summarizeAlert(entity, feedTimestampSeconds);
+    summarizeAlert(entity, feedTimestampSeconds, nowSeconds);
+  const futurePeriod =
+    nextFutureAlertPeriod(entity.alert, nowSeconds);
   const startSeconds =
-    nextFutureAlertStart(entity.alert, nowSeconds);
+    futurePeriod?.start || 0;
 
   return {
     ...summary,
     timestamp: startSeconds ? new Date(startSeconds * 1000).toISOString() : summary.timestamp,
-    timestampLabel: startSeconds ? "MTA starts" : summary.timestampLabel
+    timestampLabel: startSeconds ? "Starts" : summary.timestampLabel,
+    endTimestamp: futurePeriod?.end ? new Date(futurePeriod.end * 1000).toISOString() : summary.endTimestamp
   };
 }
 
@@ -935,18 +972,29 @@ function groupLookAheadAlerts(alerts) {
     if (!groups.has(key)) {
       groups.set(key, {
         ...alert,
+        occurrences: [],
         starts: []
       });
     }
 
     const group =
       groups.get(key);
+    const occurrenceKey =
+      `${alert.timestamp || ""}::${alert.endTimestamp || ""}`;
 
-    if (alert.timestamp && !group.starts.includes(alert.timestamp)) {
+    if (alert.timestamp && !group.occurrences.some(occurrence => occurrence.key === occurrenceKey)) {
+      group.occurrences.push({
+        key: occurrenceKey,
+        start: alert.timestamp,
+        end: alert.endTimestamp || ""
+      });
+      group.occurrences.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       group.starts.push(alert.timestamp);
       group.starts.sort((a, b) => Date.parse(a) - Date.parse(b));
       group.timestamp =
         group.starts[0] || group.timestamp;
+      group.endTimestamp =
+        group.occurrences[0]?.end || group.endTimestamp || "";
       group.timestampLabel =
         group.starts.length > 1 ? "Upcoming" : alert.timestampLabel;
     }
@@ -1071,14 +1119,14 @@ app.get("/service-alerts", async (req, res) => {
         .filter(entity => entity.alert)
         .filter(entity => isActiveAlert(entity.alert, nowSeconds))
         .filter(entity => alertMatches(entity.alert, routeIds, stopIds))
-        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds, nowSeconds))
         .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
         .slice(0, 12);
     const feedSample =
       feed.entity
         .filter(entity => entity.alert)
         .filter(entity => isActiveAlert(entity.alert, nowSeconds))
-        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds, nowSeconds))
         .filter(alert => (alert.header || alert.description) && alert.routes.some(routeId => !HIDDEN_PICKER_ROUTES.has(routeId)))
         .slice(0, 20);
 
@@ -1135,7 +1183,7 @@ app.get("/route-alerts", async (req, res) => {
       feed.entity
         .filter(entity => entity.alert)
         .filter(entity => isActiveAlert(entity.alert, nowSeconds))
-        .map(entity => summarizeAlert(entity, feedTimestampSeconds))
+        .map(entity => summarizeAlert(entity, feedTimestampSeconds, nowSeconds))
         .filter(alert =>
           (alert.header || alert.description) &&
           alert.routes.some(activeRoute => !HIDDEN_PICKER_ROUTES.has(activeRoute))
