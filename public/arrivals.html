@@ -2381,7 +2381,7 @@ function renderAlertPanel(direction, alertData) {
               alert.severity
             ].filter(Boolean).join(" • "))}
           </div>
-          ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 360))}</div>` : ""}
+          ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description)}</div>` : ""}
         </div>
       `).join("")}
     </div>
@@ -2426,7 +2426,7 @@ function renderRouteAlertsFooter(routeAlertData) {
                   alert.severity
                 ].filter(Boolean).join(" • "))}
               </div>
-              ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 260))}</div>` : ""}
+              ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description)}</div>` : ""}
             </div>
           `).join("")}
         </div>
@@ -2481,7 +2481,7 @@ function renderLookAheadFooter(routeAlertData) {
                 alert.severity
               ].filter(Boolean).join(" • "))}
             </div>
-            ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description.slice(0, 420))}</div>` : ""}
+            ${alert.description ? `<div class="alert-item-body">${renderAlertText(alert.description)}</div>` : ""}
           </div>
         `).join("")}
       </div>
