@@ -36,6 +36,11 @@ const STATIC_ROUTE_DIRECTION_SUFFIXES =
   buildStaticRouteDirectionSuffixes(
     fs.readFileSync(staticTripsPath, "utf-8")
   );
+const staticStopTimesPath = path.resolve("./Archive/stop_times.txt");
+const STATIC_TARGET_SEQUENCES =
+  buildStaticTargetSequences(
+    fs.readFileSync(staticStopTimesPath, "utf-8")
+  );
 const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
@@ -192,6 +197,41 @@ function buildStaticRouteDirectionSuffixes(csv) {
       )
     ])
   );
+}
+
+function realtimeTripPattern(tripId) {
+  return (String(tripId || "").match(/(\d{6}_[^.]+\.\.[NS])/) || [])[1] || "";
+}
+
+function buildStaticTargetSequences(csv) {
+  const lines = String(csv || "").trim().split(/\r?\n/);
+  const headers = (lines.shift() || "").split(",");
+  const tripIndex = headers.indexOf("trip_id");
+  const stopIndex = headers.indexOf("stop_id");
+  const sequenceIndex = headers.indexOf("stop_sequence");
+  const candidates = new Map();
+
+  for (const line of lines) {
+    const values = line.split(",");
+    const pattern = realtimeTripPattern(values[tripIndex]);
+    const stopId = values[stopIndex] || "";
+    const sequence = Number(values[sequenceIndex]);
+    if (!pattern || !stopId || !Number.isFinite(sequence)) continue;
+    const key = `${pattern}|${stopId}`;
+    if (!candidates.has(key)) candidates.set(key, new Set());
+    candidates.get(key).add(sequence);
+  }
+
+  return new Map(
+    [...candidates.entries()]
+      .filter(([, sequences]) => sequences.size === 1)
+      .map(([key, sequences]) => [key, [...sequences][0]])
+  );
+}
+
+function resolveStaticTargetSequence(tripId, stopId) {
+  const pattern = realtimeTripPattern(tripId);
+  return STATIC_TARGET_SEQUENCES.get(`${pattern}|${stopId}`) ?? null;
 }
 
 function sortRoutes(routes) {
@@ -1564,6 +1604,10 @@ async function handleArrivals(req, res) {
  const targetPlatform = req.query.stop || req.query.platformId; 
  const departureProofLockEnabled =
    req.query.departureProofLock === "1";
+ const arrivalProofGateEnabled =
+   req.query.arrivalProofGate === "1";
+ const exactEvidenceEnabled =
+   departureProofLockEnabled || arrivalProofGateEnabled;
     console.log("BACKEND VERSION: station-string-v2");
   let arrivals = [];
   let departureProofEvidence = [];
@@ -1591,13 +1635,28 @@ for (const url of feeds) {
     new Uint8Array(buffer)
   );
 
-  if (departureProofLockEnabled) {
+  if (exactEvidenceEnabled) {
     departureProofEvidence.push(
       ...buildGtfsEvidence(
         feed.entity,
         targetPlatform,
-        feed.header?.timestamp
-      )
+        feed.header?.timestamp,
+        resolveStaticTargetSequence
+      ).map(evidence => ({
+        ...evidence,
+        feedSucceeded: true,
+        feedAgeSeconds:
+          Number.isFinite(Number(evidence.feedTimestamp))
+            ? Math.max(0, Date.now() / 1000 - Number(evidence.feedTimestamp))
+            : null,
+        feedStale:
+          !Number.isFinite(Number(evidence.feedTimestamp)) ||
+          Date.now() / 1000 - Number(evidence.feedTimestamp) > 120,
+        vehicleAgeSeconds:
+          Number.isFinite(Number(evidence.vehicle?.timestamp))
+            ? Math.max(0, Date.now() / 1000 - Number(evidence.vehicle.timestamp))
+            : null
+      }))
     );
   }
 
@@ -1624,7 +1683,7 @@ const arrivalTime = eventTime * 1000;
   const minutes = Math.round((arrivalTime - now) / 60000);
 
   if (
-    (!departureProofLockEnabled && minutes < 0) ||
+    (!exactEvidenceEnabled && minutes < 0) ||
     minutes > 60
   ) continue;
 
@@ -1642,11 +1701,11 @@ let stationName =
   tripDestinationName || stationCode;
 
 const exactIdentity =
-  departureProofLockEnabled
+  exactEvidenceEnabled
     ? exactTripIdentity(entity.tripUpdate.trip)
     : null;
 
-if (departureProofLockEnabled && !exactIdentity) continue;
+if (exactEvidenceEnabled && !exactIdentity) continue;
       
     arrivals.push({
   platformId: stopId,
@@ -1656,7 +1715,7 @@ if (departureProofLockEnabled && !exactIdentity) continue;
   lat: stopDetails?.lat || "",
   lon: stopDetails?.lon || "",
   direction: direction,
-  ...(departureProofLockEnabled
+  ...(exactEvidenceEnabled
     ? {
         identityKey: exactIdentity.identityKey,
         tripId: exactIdentity.tripId,
@@ -1677,7 +1736,7 @@ for (const a of arrivals) {
   }
 
   if (
-    departureProofLockEnabled ||
+    exactEvidenceEnabled ||
     routeCounts[a.route] < 3
   ) {
     limitedArrivals.push(a);
@@ -1686,7 +1745,7 @@ for (const a of arrivals) {
 }
     
     limitedArrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
-if (!departureProofLockEnabled) {
+if (!exactEvidenceEnabled) {
     const glideArrivals =
       limitedArrivals;
     console.log("LIMITED ARRIVALS BEING SENT TO GLIDE:", glideArrivals);
@@ -1707,7 +1766,7 @@ glideArrivals.forEach((a, i) => {
     const runId = Date.now().toString();
     
     await runGlideMutationIfBaseline(
-      departureProofLockEnabled,
+      exactEvidenceEnabled,
       () => fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
@@ -1742,6 +1801,14 @@ glideArrivals.forEach((a, i) => {
   ...(departureProofLockEnabled
     ? {
         departureProofLock: {
+          enabled: true,
+          evidence: departureProofEvidence
+        }
+      }
+    : {}),
+  ...(arrivalProofGateEnabled
+    ? {
+        arrivalProofGate: {
           enabled: true,
           evidence: departureProofEvidence
         }

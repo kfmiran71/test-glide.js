@@ -94,3 +94,46 @@ test("multiple VehiclePositions for one identity are classified ambiguous", () =
   assert.equal(evidence[0].vehiclePositionPresent, false);
   assert.equal(evidence[0].vehicle, null);
 });
+
+test("protobuf default status is not treated as explicitly encoded", () => {
+  const trip = { tripId: "A-1", startDate: "20260730" };
+  const evidence = buildGtfsEvidence([
+    {
+      tripUpdate: {
+        trip,
+        stopTimeUpdate: [{ stopId: "A24N" }]
+      }
+    },
+    {
+      vehicle: {
+        trip,
+        stopId: "A24N",
+        currentStopSequence: 10
+      }
+    }
+  ], "A24N", 999, () => 10);
+
+  assert.equal(evidence[0].targetStopSequence, 10);
+  assert.equal(evidence[0].vehicle.currentStatus, null);
+  assert.equal(evidence[0].vehicle.currentStatusExplicit, false);
+  assert.equal(evidence[0].vehicle.currentStopSequenceExplicit, true);
+});
+
+test("explicit status and VehiclePosition timestamp are retained", () => {
+  const trip = { tripId: "A-1", startDate: "20260730" };
+  const evidence = buildGtfsEvidence([
+    {
+      vehicle: {
+        trip,
+        stopId: "A24N",
+        currentStopSequence: 10,
+        currentStatus: 0,
+        timestamp: 998
+      }
+    }
+  ], "A24N", 999);
+
+  assert.equal(evidence[0].vehicle.currentStatus, 0);
+  assert.equal(evidence[0].vehicle.currentStatusExplicit, true);
+  assert.equal(evidence[0].vehicle.timestamp, 998);
+});

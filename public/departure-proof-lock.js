@@ -41,7 +41,12 @@ function normalizeStopUpdate(update = {}) {
   };
 }
 
-export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
+export function buildGtfsEvidence(
+  entities,
+  targetStop,
+  feedTimestamp,
+  resolveTargetStopSequence = () => null
+) {
   const tripUpdates = new Map();
   const vehicles = new Map();
 
@@ -64,10 +69,25 @@ export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
       const identity = exactTripIdentity(entity.vehicle.trip);
       if (identity) {
         const existing = vehicles.get(identity.identityKey);
+        const statusExplicit =
+          Object.prototype.hasOwnProperty.call(
+            entity.vehicle,
+            "currentStatus"
+          );
+        const sequenceExplicit =
+          Object.prototype.hasOwnProperty.call(
+            entity.vehicle,
+            "currentStopSequence"
+          );
         const vehicle = {
           stopId: String(entity.vehicle.stopId || ""),
           currentStopSequence: numberValue(entity.vehicle.currentStopSequence),
-          currentStatus: numberValue(entity.vehicle.currentStatus)
+          currentStopSequenceExplicit: sequenceExplicit,
+          currentStatus: statusExplicit
+            ? numberValue(entity.vehicle.currentStatus)
+            : null,
+          currentStatusExplicit: statusExplicit,
+          timestamp: numberValue(entity.vehicle.timestamp)
         };
         vehicles.set(
           identity.identityKey,
@@ -93,7 +113,12 @@ export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
       route: String(update?.trip?.routeId || ""),
       targetStop,
       targetStopPresent: Boolean(targetUpdate),
-      targetStopSequence: targetUpdate?.stopSequence ?? null,
+      targetStopSequence:
+        targetUpdate?.stopSequence ??
+        resolveTargetStopSequence(
+          update?.identity.tripId || identityKey.split("|")[0],
+          targetStop
+        ),
       tripUpdatePresent: Boolean(update),
       tripUpdateProgressionSequence:
         update?.progressionStopSequence ?? null,
@@ -322,10 +347,17 @@ export function experimentalBoardArrivals(state, arrivals) {
       if (Boolean(a.departureProofLocked) !== Boolean(b.departureProofLocked)) {
         return a.departureProofLocked ? -1 : 1;
       }
+      if (Boolean(a.arrivalProofGated) !== Boolean(b.arrivalProofGated)) {
+        return a.arrivalProofGated ? -1 : 1;
+      }
       return Number(a.time) - Number(b.time);
     });
-    const locked = routeArrivals.filter(arrival => arrival.departureProofLocked);
-    const unlocked = routeArrivals.filter(arrival => !arrival.departureProofLocked);
+    const locked = routeArrivals.filter(arrival =>
+      arrival.departureProofLocked || arrival.arrivalProofGated
+    );
+    const unlocked = routeArrivals.filter(arrival =>
+      !arrival.departureProofLocked && !arrival.arrivalProofGated
+    );
     result.push(...locked, ...unlocked.slice(0, Math.max(0, 3 - locked.length)));
   }
 

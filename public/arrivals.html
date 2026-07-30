@@ -1157,6 +1157,21 @@ const departureProofModulePromise =
     ? import("./departure-proof-lock.js")
     : null;
 
+function isArrivalProofGateEnabled(searchParams) {
+
+  return searchParams.get("arrivalProofGate") !== "0";
+
+}
+
+const arrivalProofGateEnabled =
+  isArrivalProofGateEnabled(params);
+const arrivalProofStates =
+  arrivalProofGateEnabled ? new Map() : null;
+const arrivalProofModulePromise =
+  arrivalProofGateEnabled
+    ? import("./arrival-proof-gate.js")
+    : null;
+
 function isPlatformAlertSuppressionEnabled(searchParams) {
 
   return searchParams.get("platformAlertSuppression") !== "0";
@@ -1848,18 +1863,77 @@ async function fetchDirection(platformId) {
   if (departureProofLockEnabled) {
     query.set("departureProofLock", "1");
   }
+  if (arrivalProofGateEnabled) {
+    query.set("arrivalProofGate", "1");
+  }
 
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
 
-  if (departureProofLockEnabled) {
+  if (departureProofLockEnabled || arrivalProofGateEnabled) {
     return {
       arrivals: data.arrivals || [],
-      evidence: data.departureProofLock?.evidence || []
+      evidence:
+        data.arrivalProofGate?.evidence ||
+        data.departureProofLock?.evidence ||
+        []
     };
   }
 
   return data.arrivals || [];
+
+}
+
+async function arrivalProofArrivals(
+  platformId,
+  snapshot,
+  availabilityState
+) {
+
+  const {
+    arrivalProofBoardArrivals,
+    initialArrivalProofGateState,
+    reconcileArrivalProofGates,
+    suppressArrivalProofGates
+  } = await arrivalProofModulePromise;
+  const {
+    filterPlatformUnavailableArrivals
+  } = platformAlertSuppressionEnabled
+    ? await platformAlertModulePromise
+    : { filterPlatformUnavailableArrivals: (_state, arrivals) => arrivals };
+  let currentState =
+    arrivalProofStates.get(platformId) ||
+    initialArrivalProofGateState();
+
+  if (availabilityState?.activeEvidence?.length) {
+    currentState =
+      suppressArrivalProofGates(
+        currentState,
+        availabilityState.activeEvidence,
+        Date.now()
+      );
+  }
+
+  const filteredArrivals =
+    filterPlatformUnavailableArrivals(
+      availabilityState,
+      snapshot.arrivals
+    );
+  const nextState =
+    reconcileArrivalProofGates(
+      currentState,
+      { ...snapshot, arrivals: filteredArrivals },
+      Date.now()
+    );
+
+  arrivalProofStates.set(platformId, nextState);
+  return {
+    ...snapshot,
+    arrivals: filterPlatformUnavailableArrivals(
+      availabilityState,
+      arrivalProofBoardArrivals(nextState, filteredArrivals)
+    )
+  };
 
 }
 
@@ -1958,6 +2032,18 @@ if (departureProofLockEnabled) {
       value: createDepartureProofDiagnostics(departureProofStates)
     });
     document.documentElement.dataset.departureProofLock = "enabled";
+  });
+}
+
+if (arrivalProofGateEnabled) {
+  arrivalProofModulePromise.then(({ createArrivalProofDiagnostics }) => {
+    Object.defineProperty(window, "__arrivalProofGate", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createArrivalProofDiagnostics(arrivalProofStates)
+    });
+    document.documentElement.dataset.arrivalProofGate = "enabled";
   });
 }
 
@@ -2984,7 +3070,7 @@ async function loadArrivals(options = {}) {
       downtownStop
     } = getDirectionStops(selectedStopBase);
 
-    const [uptownPayload, downtownPayload, transferGroups, uptownAlerts, downtownAlerts] = await Promise.all([
+    let [uptownPayload, downtownPayload, transferGroups, uptownAlerts, downtownAlerts] = await Promise.all([
       fetchDirection(uptownStop),
       fetchDirection(downtownStop),
       fetchTransfers(uptownStop),
@@ -3002,6 +3088,23 @@ async function loadArrivals(options = {}) {
         platformAvailabilityState(uptownStop, uptownAlerts),
         platformAvailabilityState(downtownStop, downtownAlerts)
       ]);
+
+    if (arrivalProofGateEnabled) {
+      [uptownPayload, downtownPayload] = await Promise.all([
+        arrivalProofArrivals(
+          uptownStop,
+          uptownPayload,
+          uptownAvailability
+        ),
+        arrivalProofArrivals(
+          downtownStop,
+          downtownPayload,
+          downtownAvailability
+        )
+      ]);
+      uptownArrivals = uptownPayload.arrivals;
+      downtownArrivals = downtownPayload.arrivals;
+    }
 
     if (departureProofLockEnabled) {
       [uptownArrivals, downtownArrivals] = await Promise.all([
