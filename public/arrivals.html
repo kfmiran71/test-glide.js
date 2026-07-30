@@ -1870,10 +1870,15 @@ async function platformAvailabilityState(platformId, alertPayload) {
   }
 
   const {
+    initialAuthoritativePlatformAvailability,
     reconcilePlatformAvailability
   } = await platformAlertModulePromise;
   const previous =
-    platformAvailabilityStates.get(platformId) || null;
+    platformAvailabilityStates.get(platformId) ||
+    initialAuthoritativePlatformAvailability(
+      platformId,
+      Date.now()
+    );
   const next =
     reconcilePlatformAvailability(
       previous,
@@ -2006,11 +2011,12 @@ async function fetchServiceAlerts(direction, stopId) {
         alerts: [],
         feedSample: [],
         error: data.error || "Service alerts unavailable",
-        platformAvailability: {
-          feedSucceeded: false,
-          evidence: [],
-          error: data.error || "Service alerts unavailable"
-        }
+        platformAvailability:
+          data.platformAvailability || {
+            feedSucceeded: false,
+            evidence: [],
+            error: data.error || "Service alerts unavailable"
+          }
       };
     }
 

@@ -6,7 +6,11 @@ import {
   createPlatformAlertDiagnostics,
   evaluatePlatformAlertEntity,
   filterPlatformUnavailableArrivals,
-  reconcilePlatformAvailability
+  initialAuthoritativePlatformAvailability,
+  PLATFORM_AVAILABILITY,
+  reconcileAuthoritativePlatformAvailability,
+  reconcilePlatformAvailability,
+  SANITIZED_PLATFORM_CLOSURES
 } from "../public/platform-alert-suppression.js";
 import {
   reconcileDepartureProofLocks,
@@ -19,7 +23,7 @@ const fixture = JSON.parse(
     "utf8"
   )
 );
-const NOW_SECONDS = Date.UTC(2026, 6, 30, 12) / 1000;
+const NOW_SECONDS = Date.UTC(2026, 6, 30, 21) / 1000;
 const NOW_MS = NOW_SECONDS * 1000;
 const routeDirectionSuffixes = {
   "7": {
@@ -59,6 +63,28 @@ function stateFromEvidence(evidence, previous = null, feedSucceeded = true) {
     previous,
     { feedSucceeded, evidence },
     NOW_MS
+  );
+}
+
+function authoritativeState(
+  evidence,
+  previous = null,
+  overrides = {},
+  nowMs = NOW_MS,
+  platformId = "706N"
+) {
+  return reconcileAuthoritativePlatformAvailability(
+    previous,
+    {
+      feedSucceeded: true,
+      decodeSucceeded: true,
+      feedStale: false,
+      feedTimestamp: NOW_SECONDS,
+      evidence,
+      ...overrides
+    },
+    nowMs,
+    { platformId }
   );
 }
 
@@ -202,15 +228,23 @@ test("future alerts do not suppress early", () => {
   assert.equal(evaluated.decisionReason, "OUTSIDE_ACTIVE_PERIOD");
 });
 
-test("expired alert restores arrivals with an explicit restoration reason", () => {
-  const unavailable = stateFromEvidence([decision()]);
-  const expired = decision({
-    activePeriods: [{ start: NOW_SECONDS - 3600, end: NOW_SECONDS - 1 }]
-  });
-  const restored = stateFromEvidence([expired], unavailable);
+test("official active-period expiration conclusively restores arrivals", () => {
+  const unavailable = authoritativeState([decision()]);
+  const policyEnd =
+    SANITIZED_PLATFORM_CLOSURES["706N"].activePeriod.end;
+  const restored = authoritativeState(
+    [],
+    unavailable,
+    { feedTimestamp: policyEnd },
+    (policyEnd + 1) * 1000
+  );
 
   assert.equal(restored.unavailable, false);
-  assert.equal(restored.restorationReason, "ACTIVE_PERIOD_ENDED");
+  assert.equal(restored.availability, PLATFORM_AVAILABILITY.AVAILABLE);
+  assert.equal(
+    restored.restorationReason,
+    "OFFICIAL_ACTIVE_PERIOD_EXPIRED"
+  );
   assert.equal(filterPlatformUnavailableArrivals(restored, [arrival()]).length, 1);
 });
 
@@ -286,12 +320,14 @@ test("stale alert feed preserves the last conclusive state", () => {
   assert.equal(stale.uncertainty, "ALERT_FEED_STALE");
 });
 
-test("successful disappearance restores service", () => {
-  const unavailable = stateFromEvidence([decision()]);
-  const restored = stateFromEvidence([], unavailable);
+test("successful disappearance is uncertainty and retains suppression", () => {
+  const unavailable = authoritativeState([decision()]);
+  const retained = authoritativeState([], unavailable);
 
-  assert.equal(restored.unavailable, false);
-  assert.equal(restored.restorationReason, "ALERT_DISAPPEARED");
+  assert.equal(retained.unavailable, true);
+  assert.equal(retained.availability, PLATFORM_AVAILABILITY.UNKNOWN);
+  assert.equal(retained.retainedThroughUncertainty, true);
+  assert.equal(retained.uncertainty, "QUALIFYING_ALERT_ABSENT");
 });
 
 test("an existing lock is separately suppressed and cannot resurrect", () => {
@@ -350,8 +386,279 @@ test("new current exact evidence may create a different lock after restoration",
   assert.deepEqual(Object.keys(lockState.active), ["trip-2|20260730"]);
 });
 
+test("continuous evidence and coexisting 52/69 evidence stay suppressed regardless of order", () => {
+  const unrelated =
+    decision({
+      alertId: "lmm:planned_work:31498",
+      informedEntity: {
+        agencyId: "MTASBWY",
+        routeId: "7",
+        stopId: "713",
+        directionId: 0,
+        directionIdPresent: true
+      },
+      header: "Flushing-bound [7] skips 52 St and 69 St",
+      stationName: "103 St-Corona Plaza"
+    });
+  let state =
+    authoritativeState([decision(), unrelated]);
+  state =
+    authoritativeState([unrelated, decision()], state);
+
+  assert.equal(state.unavailable, true);
+  assert.equal(state.latestObservationResult, "QUALIFYING_EVIDENCE");
+  assert.equal(state.activeEvidence[0].alertId, fixture.id);
+});
+
+test("rider-facing limiting cannot affect complete suppression evidence", () => {
+  const allEvidence =
+    [
+      decision(),
+      decision({
+        alertId: "other",
+        header: "7 trains are delayed",
+        description: ""
+      })
+    ];
+  const state =
+    authoritativeState(allEvidence);
+  const riderFacingAlerts =
+    [{ id: "other" }];
+
+  assert.equal(riderFacingAlerts.some(item => item.id === fixture.id), false);
+  assert.equal(state.unavailable, true);
+});
+
+test("absent-present-absent-present snapshots never reopen the platform", () => {
+  let state =
+    authoritativeState([decision()]);
+  const states =
+    [state.availability];
+
+  for (const evidence of [[], [decision()], [], [decision()]]) {
+    state =
+      authoritativeState(
+        evidence,
+        state,
+        { feedTimestamp: state.lastAcceptedFeedTimestamp + 1 }
+      );
+    states.push(state.availability);
+    assert.equal(state.unavailable, true);
+  }
+
+  assert.deepEqual(states, [
+    PLATFORM_AVAILABILITY.SUPPRESSED,
+    PLATFORM_AVAILABILITY.UNKNOWN,
+    PLATFORM_AVAILABILITY.SUPPRESSED,
+    PLATFORM_AVAILABILITY.UNKNOWN,
+    PLATFORM_AVAILABILITY.SUPPRESSED
+  ]);
+});
+
+test("fetch, decode, and stale uncertainty retain last conclusive suppression", () => {
+  const initial =
+    authoritativeState([decision()]);
+  const cases = [
+    {
+      feedSucceeded: false,
+      decodeSucceeded: true,
+      evidence: []
+    },
+    {
+      feedSucceeded: false,
+      decodeSucceeded: false,
+      evidence: []
+    },
+    {
+      feedSucceeded: true,
+      decodeSucceeded: true,
+      feedStale: true,
+      evidence: []
+    }
+  ];
+
+  for (const snapshot of cases) {
+    const retained =
+      reconcileAuthoritativePlatformAvailability(
+        initial,
+        snapshot,
+        NOW_MS + 1000,
+        { platformId: "706N" }
+      );
+    assert.equal(retained.unavailable, true);
+    assert.equal(retained.availability, PLATFORM_AVAILABILITY.UNKNOWN);
+    assert.equal(retained.retainedThroughUncertainty, true);
+  }
+});
+
+test("older feed results cannot overwrite newer conclusive evidence", () => {
+  const newer =
+    authoritativeState(
+      [decision()],
+      null,
+      { feedTimestamp: NOW_SECONDS + 10 }
+    );
+  const older =
+    authoritativeState(
+      [],
+      newer,
+      { feedTimestamp: NOW_SECONDS }
+    );
+
+  assert.equal(older.unavailable, true);
+  assert.equal(older.latestObservationResult, "OUT_OF_ORDER_FEED");
+  assert.equal(
+    older.lastAcceptedFeedTimestamp,
+    NOW_SECONDS + 10
+  );
+});
+
+test("conflicting concurrent completion order cannot reopen 706N", () => {
+  const base =
+    initialAuthoritativePlatformAvailability("706N", NOW_MS);
+  const conclusive =
+    authoritativeState(
+      [decision()],
+      base,
+      { feedTimestamp: NOW_SECONDS + 20 }
+    );
+  const conflicting =
+    authoritativeState(
+      [],
+      conclusive,
+      { feedTimestamp: NOW_SECONDS + 10 }
+    );
+
+  assert.equal(conflicting.unavailable, true);
+  assert.equal(conflicting.availability, PLATFORM_AVAILABILITY.UNKNOWN);
+});
+
+test("new iframe and server restart bootstrap the same bounded official closure", () => {
+  const iframe =
+    initialAuthoritativePlatformAvailability("706N", NOW_MS);
+  const restartedServer =
+    initialAuthoritativePlatformAvailability("706N", NOW_MS);
+
+  assert.deepEqual(restartedServer, iframe);
+  assert.equal(iframe.unavailable, true);
+  assert.equal(iframe.evidenceAlertId, fixture.id);
+  assert.equal(
+    iframe.expiration.policyEnd,
+    SANITIZED_PLATFORM_CLOSURES["706N"].activePeriod.end
+  );
+});
+
+test("missing direction and harmless alert-id variation are uncertainty, not restoration", () => {
+  const initial =
+    authoritativeState([decision()]);
+  const missingDirection =
+    authoritativeState([
+      decision({
+        informedEntity: {
+          agencyId: "MTASBWY",
+          routeId: "7",
+          stopId: "706"
+        }
+      })
+    ], initial);
+  const variedId =
+    authoritativeState([
+      decision({ alertId: "replacement-id-with-same-exact-evidence" })
+    ], missingDirection);
+
+  assert.equal(missingDirection.unavailable, true);
+  assert.equal(missingDirection.availability, PLATFORM_AVAILABILITY.UNKNOWN);
+  assert.equal(variedId.unavailable, true);
+  assert.equal(variedId.availability, PLATFORM_AVAILABILITY.SUPPRESSED);
+});
+
+test("unrelated route-7 and delay alerts cannot reopen a retained closure", () => {
+  const initial =
+    authoritativeState([decision()]);
+  const unrelated =
+    decision({
+      alertId: "unrelated",
+      informedEntity: {
+        routeId: "7",
+        stopId: "705",
+        directionId: 0,
+        directionIdPresent: true
+      },
+      header: "Trains are delayed at 111 St",
+      stationName: fixture.stationName
+    });
+  const retained =
+    authoritativeState([unrelated], initial);
+
+  assert.equal(unrelated.suppressionApplied, false);
+  assert.equal(retained.unavailable, true);
+  assert.equal(retained.availability, PLATFORM_AVAILABILITY.UNKNOWN);
+});
+
+test("706S, 705N, and 707N never inherit the 706N policy", () => {
+  for (const platformId of ["706S", "705N", "707N"]) {
+    const state =
+      initialAuthoritativePlatformAvailability(platformId, NOW_MS);
+    assert.equal(state.availability, PLATFORM_AVAILABILITY.AVAILABLE);
+    assert.equal(state.unavailable, false);
+  }
+});
+
+test("critical flapping sequence remains suppressed throughout", () => {
+  let state =
+    authoritativeState([decision()]);
+  const snapshots = [
+    { feedSucceeded: true, evidence: [] },
+    {
+      feedSucceeded: true,
+      evidence: [decision({
+        alertId: "unrelated",
+        header: "7 trains are delayed",
+        description: ""
+      })]
+    },
+    { feedSucceeded: false, evidence: [] },
+    { feedSucceeded: true, evidence: [decision()] }
+  ];
+
+  for (const snapshot of snapshots) {
+    state =
+      reconcileAuthoritativePlatformAvailability(
+        state,
+        {
+          decodeSucceeded: snapshot.feedSucceeded,
+          feedStale: false,
+          feedTimestamp:
+            (state.lastAcceptedFeedTimestamp || NOW_SECONDS) + 1,
+          ...snapshot
+        },
+        NOW_MS + 1000,
+        { platformId: "706N" }
+      );
+    assert.equal(state.unavailable, true);
+  }
+});
+
+test("client reconciliation accepts the server result without reinterpreting missing evidence", () => {
+  const authoritative =
+    authoritativeState([]);
+  const client =
+    reconcilePlatformAvailability(
+      null,
+      {
+        feedSucceeded: true,
+        evidence: [],
+        authoritative
+      },
+      NOW_MS
+    );
+
+  assert.deepEqual(client, authoritative);
+  assert.equal(client.unavailable, true);
+});
+
 test("platform diagnostics are deeply detached, frozen, and read-only", () => {
-  const liveState = stateFromEvidence([decision()]);
+  const liveState = authoritativeState([decision()]);
   const diagnostics = createPlatformAlertDiagnostics(
     new Map([["706N", liveState]])
   );
@@ -364,6 +671,15 @@ test("platform diagnostics are deeply detached, frozen, and read-only", () => {
   assert.throws(() => {
     first.selections[0].activeEvidence[0].route = "BAD";
   }, TypeError);
+  assert.throws(() => {
+    first.selections[0].expiration.policyEnd = 0;
+  }, TypeError);
+  assert.equal(
+    first.selections[0].lastConclusiveState,
+    PLATFORM_AVAILABILITY.SUPPRESSED
+  );
+  assert.equal(first.selections[0].evidenceAlertId, fixture.id);
+  assert.equal(first.selections[0].retainedThroughUncertainty, false);
   assert.equal(JSON.stringify(diagnostics.inspect()), before);
   assert.deepEqual(Object.keys(diagnostics), ["inspect"]);
 });

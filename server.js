@@ -8,7 +8,9 @@ import {
   runGlideMutationIfBaseline
 } from "./public/departure-proof-lock.js";
 import {
-  evaluatePlatformAlertEntity
+  evaluatePlatformAlertEntity,
+  initialAuthoritativePlatformAvailability,
+  reconcileAuthoritativePlatformAvailability
 } from "./public/platform-alert-suppression.js";
 
 
@@ -93,6 +95,27 @@ const CLUSTER_WINDOW_MS =
 const CLUSTER_MAX_AGE_MS =
   Number(process.env.ALERT_CLUSTER_MAX_AGE_MINUTES || 120) * 60 * 1000;
 const alertsClusters = new Map();
+const platformAvailabilityAuthorityStates = new Map();
+
+function authoritativePlatformAvailability(
+  platformId,
+  snapshot,
+  nowMs = Date.now()
+) {
+  const previous =
+    platformAvailabilityAuthorityStates.get(platformId) ||
+    initialAuthoritativePlatformAvailability(platformId, nowMs);
+  const next =
+    reconcileAuthoritativePlatformAvailability(
+      previous,
+      snapshot,
+      nowMs,
+      { platformId }
+    );
+
+  platformAvailabilityAuthorityStates.set(platformId, next);
+  return next;
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -1206,14 +1229,14 @@ app.get("/clear-arrivals", async (req, res) => {
   }
 });
 app.get("/service-alerts", async (req, res) => {
+  const stopId =
+    req.query.stopId || "";
+  const routeId =
+    req.query.routeId || "";
 
   try {
     res.setHeader("Cache-Control", "no-store, max-age=0");
 
-    const stopId =
-      req.query.stopId || "";
-    const routeId =
-      req.query.routeId || "";
     const baseStopId =
       stopId.replace(/[NS]$/, "");
     const stopIds =
@@ -1234,8 +1257,25 @@ app.get("/service-alerts", async (req, res) => {
       });
 
     if (!mtaRes.ok) {
+      const authoritative =
+        authoritativePlatformAvailability(
+          stopId,
+          {
+            feedSucceeded: false,
+            decodeSucceeded: false,
+            error: `MTA alerts request failed with ${mtaRes.status}`,
+            evidence: []
+          }
+        );
       return res.status(mtaRes.status).json({
-        error: `MTA alerts request failed with ${mtaRes.status}`
+        error: `MTA alerts request failed with ${mtaRes.status}`,
+        platformAvailability: {
+          feedSucceeded: false,
+          feedStale: false,
+          feedTimestamp: 0,
+          evidence: [],
+          authoritative
+        }
       });
     }
 
@@ -1260,6 +1300,17 @@ app.get("/service-alerts", async (req, res) => {
         routeId || (routeIds.length === 1 ? routeIds[0] : ""),
         feedTimestampSeconds,
         nowSeconds
+      );
+    const authoritative =
+      authoritativePlatformAvailability(
+        stopId,
+        {
+          feedSucceeded: true,
+          decodeSucceeded: true,
+          feedStale,
+          feedTimestamp: feedTimestampSeconds,
+          evidence: platformAvailability
+        }
       );
     const alerts =
       feed.entity
@@ -1287,16 +1338,34 @@ app.get("/service-alerts", async (req, res) => {
         feedSucceeded: true,
         feedStale,
         feedTimestamp: feedTimestampSeconds,
-        evidence: platformAvailability
+        evidence: platformAvailability,
+        authoritative
       }
     });
 
   }
 
   catch(err) {
+    const authoritative =
+      authoritativePlatformAvailability(
+        stopId,
+        {
+          feedSucceeded: false,
+          decodeSucceeded: false,
+          error: err.message,
+          evidence: []
+        }
+      );
 
     res.status(500).json({
-      error: err.message
+      error: err.message,
+      platformAvailability: {
+        feedSucceeded: false,
+        feedStale: false,
+        feedTimestamp: 0,
+        evidence: [],
+        authoritative
+      }
     });
 
   }

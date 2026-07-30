@@ -1,5 +1,28 @@
 export const PLATFORM_DISPOSITION = "PLATFORM_UNAVAILABLE";
 
+export const PLATFORM_AVAILABILITY = Object.freeze({
+  AVAILABLE: "AVAILABLE",
+  SUPPRESSED: "SUPPRESSED",
+  UNKNOWN: "UNKNOWN"
+});
+
+export const SANITIZED_PLATFORM_CLOSURES = Object.freeze({
+  "706N": Object.freeze({
+    platformId: "706N",
+    route: "7",
+    alertId: "lmm:planned_work:23514",
+    evidenceSource: "MTA_SUBWAY_ALERTS",
+    evidenceFeedTimestamp: 1785443407,
+    lastValidatedAt: "2026-07-30T20:33:58.604Z",
+    activePeriod: Object.freeze({
+      start: 1783191600,
+      end: 1790582400
+    }),
+    header:
+      "In Queens, Flushing-bound [7] skips 103 St-Corona Plaza"
+  })
+});
+
 export const NO_STOP_PHRASE_CATEGORIES = Object.freeze({
   SKIP: "SKIP",
   ARE_NOT_STOPPING: "ARE_NOT_STOPPING",
@@ -274,16 +297,273 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
-function restorationReason(previous, evidence) {
-  if (!previous?.unavailable) return "";
-  if (!evidence.length) return "ALERT_DISAPPEARED";
-  if (evidence.some(item => item.decisionReason === "OUTSIDE_ACTIVE_PERIOD")) {
-    return "ACTIVE_PERIOD_ENDED";
+function isoTime(milliseconds) {
+  return milliseconds ? new Date(milliseconds).toISOString() : "";
+}
+
+function latestObservationResult(snapshot) {
+  if (!snapshot?.feedSucceeded) {
+    return snapshot?.decodeSucceeded === false
+      ? "DECODE_FAILURE"
+      : "FETCH_FAILURE";
   }
-  if (evidence.some(item => item.decisionReason === "NO_EXPLICIT_NO_STOP_PHRASE")) {
-    return "EXPLICIT_NO_STOP_REMOVED";
+  if (snapshot.feedStale) return "STALE_FEED";
+  return "SUCCESS";
+}
+
+function policyEvidence(policy, feedTimestamp = 0) {
+  if (!policy) return [];
+  return [{
+    alertId: policy.alertId,
+    activePeriods: [detachedCopy(policy.activePeriod)],
+    active: true,
+    informedEntity: {
+      agencyId: "MTASBWY",
+      routeId: policy.route,
+      stopId: policy.platformId.replace(/[NS]$/, ""),
+      directionId: policy.platformId.endsWith("N") ? 0 : 1,
+      directionIdPresent: true
+    },
+    route: policy.route,
+    parentStop: policy.platformId.replace(/[NS]$/, ""),
+    direction: policy.platformId.endsWith("N") ? 0 : 1,
+    resolvedPlatform: policy.platformId,
+    mappingStatus: "RESOLVED",
+    stationName: "",
+    structuredEffect: "",
+    phraseCategory: NO_STOP_PHRASE_CATEGORIES.SKIP,
+    phraseSource: "sanitized-policy",
+    suppressionApplied: true,
+    decisionReason: "SANITIZED_ACTIVE_PERIOD",
+    feedTimestamp: feedTimestamp || policy.evidenceFeedTimestamp || 0
+  }];
+}
+
+function blankAuthoritativeState(platformId, nowMs) {
+  return {
+    platformId,
+    availability: PLATFORM_AVAILABILITY.AVAILABLE,
+    unavailable: false,
+    lastConclusiveState: PLATFORM_AVAILABILITY.AVAILABLE,
+    activeEvidence: [],
+    decisions: [],
+    suppressionStart: "",
+    mostRecentSupportingEvidence: [],
+    restorationReason: "",
+    uncertainty: "",
+    evidenceAlertId: "",
+    evidenceFeedTimestamp: 0,
+    lastAcceptedFeedTimestamp: 0,
+    lastValidationTime: "",
+    latestObservationResult: "NOT_OBSERVED",
+    retainedThroughUncertainty: false,
+    retentionReason: "",
+    expiration: {
+      policyEnd: 0,
+      expired: false,
+      revalidationPolicy: "NONE"
+    },
+    updatedAt: isoTime(nowMs)
+  };
+}
+
+function activePolicyState(platformId, policy, nowMs) {
+  const evidence =
+    policyEvidence(policy);
+  return {
+    ...blankAuthoritativeState(platformId, nowMs),
+    availability: PLATFORM_AVAILABILITY.SUPPRESSED,
+    unavailable: true,
+    lastConclusiveState: PLATFORM_AVAILABILITY.SUPPRESSED,
+    activeEvidence: evidence,
+    mostRecentSupportingEvidence: detachedCopy(evidence),
+    suppressionStart: isoTime(policy.activePeriod.start * 1000),
+    evidenceAlertId: policy.alertId,
+    evidenceFeedTimestamp: policy.evidenceFeedTimestamp || 0,
+    lastAcceptedFeedTimestamp: policy.evidenceFeedTimestamp || 0,
+    lastValidationTime: policy.lastValidatedAt || "",
+    expiration: {
+      policyEnd: policy.activePeriod.end,
+      expired: false,
+      revalidationPolicy:
+        "RETAIN_UNTIL_OFFICIAL_ACTIVE_PERIOD_END_OR_NEWER_EXPLICIT_RESTORATION"
+    }
+  };
+}
+
+export function initialAuthoritativePlatformAvailability(
+  platformId,
+  nowMs,
+  policies = SANITIZED_PLATFORM_CLOSURES
+) {
+  const policy =
+    policies?.[platformId] || null;
+  const nowSeconds =
+    Math.floor(nowMs / 1000);
+
+  if (
+    policy &&
+    (!policy.activePeriod.start || policy.activePeriod.start <= nowSeconds) &&
+    (!policy.activePeriod.end || policy.activePeriod.end > nowSeconds)
+  ) {
+    return activePolicyState(platformId, policy, nowMs);
   }
-  return "STRUCTURED_ENTITY_NO_LONGER_APPLIES";
+
+  return blankAuthoritativeState(platformId, nowMs);
+}
+
+export function reconcileAuthoritativePlatformAvailability(
+  state,
+  snapshot,
+  nowMs,
+  {
+    platformId = state?.platformId || "",
+    policies = SANITIZED_PLATFORM_CLOSURES
+  } = {}
+) {
+  const policy =
+    policies?.[platformId] || null;
+  const previous =
+    state ||
+    initialAuthoritativePlatformAvailability(
+      platformId,
+      nowMs,
+      policies
+    );
+  const nowSeconds =
+    Math.floor(nowMs / 1000);
+  const feedTimestamp =
+    numberValue(snapshot?.feedTimestamp) || 0;
+  const decisions =
+    detachedCopy(snapshot?.evidence || []);
+  const qualifying =
+    decisions.filter(item =>
+      item.suppressionApplied &&
+      item.resolvedPlatform === platformId
+    );
+  const result =
+    latestObservationResult(snapshot);
+  const policyExpired =
+    Boolean(
+      policy?.activePeriod?.end &&
+      nowSeconds >= policy.activePeriod.end
+    );
+
+  if (policyExpired) {
+    return {
+      ...blankAuthoritativeState(platformId, nowMs),
+      decisions,
+      restorationReason: "OFFICIAL_ACTIVE_PERIOD_EXPIRED",
+      latestObservationResult: result,
+      lastAcceptedFeedTimestamp:
+        Math.max(previous.lastAcceptedFeedTimestamp || 0, feedTimestamp),
+      expiration: {
+        policyEnd: policy.activePeriod.end,
+        expired: true,
+        revalidationPolicy:
+          "RESTORE_AT_OFFICIAL_ACTIVE_PERIOD_END"
+      }
+    };
+  }
+
+  if (
+    feedTimestamp &&
+    previous.lastAcceptedFeedTimestamp &&
+    feedTimestamp < previous.lastAcceptedFeedTimestamp
+  ) {
+    return {
+      ...previous,
+      decisions,
+      availability:
+        previous.unavailable
+          ? PLATFORM_AVAILABILITY.UNKNOWN
+          : previous.availability,
+      latestObservationResult: "OUT_OF_ORDER_FEED",
+      uncertainty: "OUT_OF_ORDER_FEED",
+      retainedThroughUncertainty: previous.unavailable,
+      retentionReason:
+        previous.unavailable
+          ? "NEWER_CONCLUSIVE_SUPPRESSION_RETAINED"
+          : "",
+      updatedAt: isoTime(nowMs)
+    };
+  }
+
+  if (
+    snapshot?.feedSucceeded &&
+    !snapshot?.feedStale &&
+    qualifying.length
+  ) {
+    return {
+      ...previous,
+      availability: PLATFORM_AVAILABILITY.SUPPRESSED,
+      unavailable: true,
+      lastConclusiveState: PLATFORM_AVAILABILITY.SUPPRESSED,
+      activeEvidence: qualifying,
+      decisions,
+      suppressionStart:
+        previous.unavailable && previous.suppressionStart
+          ? previous.suppressionStart
+          : isoTime(nowMs),
+      mostRecentSupportingEvidence: detachedCopy(qualifying),
+      restorationReason: "",
+      uncertainty: "",
+      evidenceAlertId: qualifying[0].alertId || policy?.alertId || "",
+      evidenceFeedTimestamp: feedTimestamp,
+      lastAcceptedFeedTimestamp:
+        Math.max(previous.lastAcceptedFeedTimestamp || 0, feedTimestamp),
+      lastValidationTime: isoTime(nowMs),
+      latestObservationResult: "QUALIFYING_EVIDENCE",
+      retainedThroughUncertainty: false,
+      retentionReason: "",
+      expiration: {
+        policyEnd: policy?.activePeriod?.end || 0,
+        expired: false,
+        revalidationPolicy:
+          "RETAIN_UNTIL_OFFICIAL_ACTIVE_PERIOD_END_OR_NEWER_EXPLICIT_RESTORATION"
+      },
+      updatedAt: isoTime(nowMs)
+    };
+  }
+
+  if (previous.unavailable) {
+    const uncertainty =
+      result === "SUCCESS"
+        ? decisions.length
+          ? "NO_QUALIFYING_EVIDENCE_IN_SNAPSHOT"
+          : "QUALIFYING_ALERT_ABSENT"
+        : result;
+    return {
+      ...previous,
+      availability: PLATFORM_AVAILABILITY.UNKNOWN,
+      decisions,
+      uncertainty,
+      lastAcceptedFeedTimestamp:
+        result === "SUCCESS"
+          ? Math.max(previous.lastAcceptedFeedTimestamp || 0, feedTimestamp)
+          : previous.lastAcceptedFeedTimestamp || 0,
+      latestObservationResult: uncertainty,
+      retainedThroughUncertainty: true,
+      retentionReason:
+        policy
+          ? "OFFICIAL_ACTIVE_PERIOD_STILL_OPEN"
+          : "LAST_CONCLUSIVE_SUPPRESSION",
+      updatedAt: isoTime(nowMs)
+    };
+  }
+
+  return {
+    ...previous,
+    decisions,
+    latestObservationResult: result,
+    lastAcceptedFeedTimestamp:
+      result === "SUCCESS"
+        ? Math.max(previous.lastAcceptedFeedTimestamp || 0, feedTimestamp)
+        : previous.lastAcceptedFeedTimestamp || 0,
+    uncertainty:
+      result === "SUCCESS" ? "" : result,
+    updatedAt: isoTime(nowMs)
+  };
 }
 
 export function reconcilePlatformAvailability(
@@ -302,6 +582,10 @@ export function reconcilePlatformAvailability(
       uncertainty: ""
     };
 
+  if (snapshot?.authoritative) {
+    return detachedCopy(snapshot.authoritative);
+  }
+
   if (!snapshot?.feedSucceeded || snapshot?.feedStale) {
     return {
       ...previous,
@@ -318,11 +602,14 @@ export function reconcilePlatformAvailability(
   const activeEvidence =
     decisions.filter(item => item.suppressionApplied);
   const unavailable =
-    activeEvidence.length > 0;
+    activeEvidence.length > 0 || Boolean(previous.unavailable);
 
   return {
     unavailable,
-    activeEvidence,
+    activeEvidence:
+      activeEvidence.length
+        ? activeEvidence
+        : detachedCopy(previous.activeEvidence || []),
     decisions,
     suppressionStart:
       unavailable
@@ -332,11 +619,20 @@ export function reconcilePlatformAvailability(
         : "",
     mostRecentSupportingEvidence:
       unavailable
-        ? detachedCopy(activeEvidence)
+        ? detachedCopy(
+            activeEvidence.length
+              ? activeEvidence
+              : previous.mostRecentSupportingEvidence || []
+          )
         : detachedCopy(previous.mostRecentSupportingEvidence || []),
     restorationReason:
-      unavailable ? "" : restorationReason(previous, decisions),
-    uncertainty: ""
+      unavailable ? "" : previous.restorationReason || "",
+    uncertainty:
+      activeEvidence.length
+        ? ""
+        : previous.unavailable
+          ? "QUALIFYING_ALERT_ABSENT"
+          : ""
   };
 }
 
@@ -360,14 +656,28 @@ export function createPlatformAlertDiagnostics(states, enabled = true) {
       for (const [platform, state] of states.entries()) {
         selections.push({
           platform,
+          availability:
+            state?.availability ||
+            (state?.unavailable
+              ? PLATFORM_AVAILABILITY.SUPPRESSED
+              : PLATFORM_AVAILABILITY.AVAILABLE),
           unavailable: Boolean(state?.unavailable),
+          lastConclusiveState: state?.lastConclusiveState || "",
           activeEvidence: state?.activeEvidence || [],
           decisions: state?.decisions || [],
           suppressionStart: state?.suppressionStart || "",
           mostRecentSupportingEvidence:
             state?.mostRecentSupportingEvidence || [],
           restorationReason: state?.restorationReason || "",
-          uncertainty: state?.uncertainty || ""
+          uncertainty: state?.uncertainty || "",
+          evidenceAlertId: state?.evidenceAlertId || "",
+          evidenceFeedTimestamp: state?.evidenceFeedTimestamp || 0,
+          lastValidationTime: state?.lastValidationTime || "",
+          latestObservationResult: state?.latestObservationResult || "",
+          retainedThroughUncertainty:
+            Boolean(state?.retainedThroughUncertainty),
+          retentionReason: state?.retentionReason || "",
+          expiration: state?.expiration || {}
         });
       }
 
