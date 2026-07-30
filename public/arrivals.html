@@ -1139,18 +1139,16 @@ transform: translateY(-6px);
     </section>
   </main>
 
-<script type="module">
-import {
-  createDepartureProofDiagnostics,
-  experimentalBoardArrivals,
-  reconcileDepartureProofLocks
-} from "./departure-proof-lock.js";
-
+<script>
 const params = new URLSearchParams(window.location.search);
 const departureProofLockEnabled =
   params.get("departureProofLock") === "1";
 const departureProofStates =
   departureProofLockEnabled ? new Map() : null;
+const departureProofModulePromise =
+  departureProofLockEnabled
+    ? import("./departure-proof-lock.js")
+    : null;
 
 function firstParam(names) {
 
@@ -1843,10 +1841,15 @@ async function fetchDirection(platformId) {
 
 }
 
-function departureProofArrivals(platformId, snapshot) {
+async function departureProofArrivals(platformId, snapshot) {
 
+  const {
+    experimentalBoardArrivals,
+    reconcileDepartureProofLocks
+  } = await departureProofModulePromise;
   const currentState =
-    departureProofStates.get(platformId) || { active: {}, released: [] };
+    departureProofStates.get(platformId) ||
+    { active: {}, released: [], tombstones: {} };
   const nextState =
     reconcileDepartureProofLocks(currentState, snapshot, Date.now());
 
@@ -1856,13 +1859,15 @@ function departureProofArrivals(platformId, snapshot) {
 }
 
 if (departureProofLockEnabled) {
-  Object.defineProperty(window, "__departureProofLock", {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: createDepartureProofDiagnostics(departureProofStates)
+  departureProofModulePromise.then(({ createDepartureProofDiagnostics }) => {
+    Object.defineProperty(window, "__departureProofLock", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createDepartureProofDiagnostics(departureProofStates)
+    });
+    document.documentElement.dataset.departureProofLock = "enabled";
   });
-  document.documentElement.dataset.departureProofLock = "enabled";
 }
 
 async function fetchTransfers(stopId) {
@@ -2857,14 +2862,17 @@ async function loadArrivals(options = {}) {
       fetchServiceAlerts("S", downtownStop)
     ]);
 
-    const uptownArrivals =
-      departureProofLockEnabled
-        ? departureProofArrivals(uptownStop, uptownPayload)
-        : uptownPayload;
-    const downtownArrivals =
-      departureProofLockEnabled
-        ? departureProofArrivals(downtownStop, downtownPayload)
-        : downtownPayload;
+    let uptownArrivals =
+      uptownPayload;
+    let downtownArrivals =
+      downtownPayload;
+
+    if (departureProofLockEnabled) {
+      [uptownArrivals, downtownArrivals] = await Promise.all([
+        departureProofArrivals(uptownStop, uptownPayload),
+        departureProofArrivals(downtownStop, downtownPayload)
+      ]);
+    }
 
     const groupedUptown =
       groupArrivals(uptownArrivals);

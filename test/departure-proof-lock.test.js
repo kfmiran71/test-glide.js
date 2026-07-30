@@ -5,8 +5,10 @@ import {
   RELEASE_REASONS,
   experimentalBoardArrivals,
   inspectDepartureProofState,
-  reconcileDepartureProofLocks
+  reconcileDepartureProofLocks,
+  runGlideMutationIfBaseline
 } from "../public/departure-proof-lock.js";
+import fs from "node:fs";
 
 const NOW = Date.UTC(2026, 6, 30, 12, 0, 0);
 const TARGET = "A24N";
@@ -210,4 +212,176 @@ test("read-only diagnostics expose active and released audit records", () => {
   assert.equal(inspected.enabled, true);
   assert.equal(inspected.active[0].tripId, "trip-1");
   assert.equal(inspected.active[0].selectedStop, TARGET);
+});
+
+test("released exact identity is tombstoned and cannot re-lock", () => {
+  let state = reconcile(null, [arrival()], [evidence()]);
+  state = reconcile(state, [], [
+    evidence({
+      vehiclePositionPresent: true,
+      vehicle: { stopId: "A25N", currentStopSequence: 11, currentStatus: 1 }
+    })
+  ]);
+  state = reconcile(state, [arrival()], [evidence()]);
+
+  assert.equal(Object.keys(state.active).length, 0);
+  assert.equal(state.released.length, 1);
+  assert.equal(
+    state.tombstones["trip-1|20260730"].releaseReason,
+    RELEASE_REASONS.VEHICLE_DOWNSTREAM
+  );
+});
+
+test("a different exact identity may lock after another identity is tombstoned", () => {
+  let state = reconcile(null, [arrival()], [evidence()]);
+  state = reconcile(state, [], [
+    evidence({
+      vehiclePositionPresent: true,
+      vehicle: { currentStopSequence: 11 }
+    })
+  ]);
+
+  const secondArrival = arrival({
+    identityKey: "trip-2|20260730",
+    tripId: "trip-2"
+  });
+  const secondEvidence = evidence({
+    identityKey: "trip-2|20260730",
+    tripId: "trip-2"
+  });
+  state = reconcile(state, [secondArrival], [secondEvidence]);
+
+  assert.deepEqual(Object.keys(state.active), ["trip-2|20260730"]);
+});
+
+test("temporary disappearance does not create a tombstone", () => {
+  let state = reconcile(null, [arrival()], [evidence()]);
+  state = reconcile(state, [], []);
+
+  assert.equal(Object.keys(state.active).length, 1);
+  assert.deepEqual(state.tombstones, {});
+});
+
+test("every authorized release reason creates its exact tombstone", () => {
+  const releaseEvidence = [
+    [
+      RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+      evidence({
+        vehiclePositionPresent: true,
+        vehicle: { currentStopSequence: 11 }
+      })
+    ],
+    [
+      RELEASE_REASONS.TRIP_UPDATE_DOWNSTREAM,
+      evidence({ tripUpdateProgressionSequence: 11 })
+    ],
+    [
+      RELEASE_REASONS.TARGET_STOP_REMOVED_WITH_DOWNSTREAM_EVIDENCE,
+      evidence({
+        targetStopPresent: false,
+        stopUpdates: [{ stopId: "A25N", stopSequence: 11 }]
+      })
+    ]
+  ];
+
+  for (const [reason, downstreamEvidence] of releaseEvidence) {
+    let state = reconcile(null, [arrival()], [evidence()]);
+    state = reconcile(state, [], [downstreamEvidence]);
+    assert.equal(state.tombstones["trip-1|20260730"].releaseReason, reason);
+  }
+});
+
+test("diagnostics are deeply detached and recursively frozen", () => {
+  let state = reconcile(null, [arrival()], [
+    evidence({
+      vehiclePositionPresent: true,
+      vehicle: { stopId: TARGET, currentStopSequence: 10, currentStatus: 1 }
+    })
+  ]);
+  const states = new Map([[TARGET, state]]);
+  const diagnostics = createDepartureProofDiagnostics(states);
+  const first = diagnostics.inspect();
+  const before = JSON.stringify(first);
+
+  assert.notEqual(first.active[0], state.active["trip-1|20260730"]);
+  assert.notEqual(first.active[0].arrival, state.active["trip-1|20260730"].arrival);
+  assert.notEqual(
+    first.active[0].lastSupportingEvidence,
+    state.active["trip-1|20260730"].lastSupportingEvidence
+  );
+  assert.notEqual(
+    first.active[0].lastSupportingEvidence.stopUpdates,
+    state.active["trip-1|20260730"].lastSupportingEvidence.stopUpdates
+  );
+  assert.notEqual(
+    first.active[0].lastSupportingEvidence.vehicle,
+    state.active["trip-1|20260730"].lastSupportingEvidence.vehicle
+  );
+
+  assert.throws(() => { first.active[0].arrival.time = "99"; }, TypeError);
+  assert.throws(() => {
+    first.active[0].lastSupportingEvidence.stopUpdates[0].stopId = "BAD";
+  }, TypeError);
+  assert.throws(() => {
+    first.active[0].lastSupportingEvidence.vehicle.currentStopSequence = 999;
+  }, TypeError);
+  assert.throws(() => { first.active.push({}); }, TypeError);
+  assert.throws(() => { first.released.push({}); }, TypeError);
+  assert.throws(() => { first.tombstones.push({}); }, TypeError);
+
+  assert.equal(JSON.stringify(diagnostics.inspect()), before);
+  assert.deepEqual(Object.keys(diagnostics).sort(), ["inspect"]);
+});
+
+test("released records and tombstones are detached from diagnostics", () => {
+  let state = reconcile(null, [arrival()], [evidence()]);
+  state = reconcile(state, [], [
+    evidence({
+      vehiclePositionPresent: true,
+      vehicle: { stopId: "A25N", currentStopSequence: 11, currentStatus: 1 }
+    })
+  ]);
+  const diagnostics = createDepartureProofDiagnostics(new Map([[TARGET, state]]));
+  const first = diagnostics.inspect();
+  const before = JSON.stringify(first);
+
+  assert.notEqual(first.released[0], state.released[0]);
+  assert.notEqual(first.released[0].arrival, state.released[0].arrival);
+  assert.notEqual(
+    first.tombstones[0],
+    state.tombstones["trip-1|20260730"]
+  );
+  assert.throws(() => { first.released[0].arrival.time = "99"; }, TypeError);
+  assert.throws(() => { first.tombstones[0].releaseReason = "BAD"; }, TypeError);
+  assert.equal(JSON.stringify(diagnostics.inspect()), before);
+  assert.equal(Object.isFrozen(state.tombstones["trip-1|20260730"]), false);
+});
+
+test("experimental mode skips Glide mutation and baseline invokes it", async () => {
+  let calls = 0;
+  const mutate = async () => {
+    calls++;
+    return "ok";
+  };
+
+  const experimental = await runGlideMutationIfBaseline(true, mutate);
+  assert.deepEqual(experimental, { skipped: true });
+  assert.equal(calls, 0);
+
+  const baseline = await runGlideMutationIfBaseline(false, mutate);
+  assert.deepEqual(baseline, { skipped: false, result: "ok" });
+  assert.equal(calls, 1);
+});
+
+test("baseline client remains a classic script and imports no module without toggle", () => {
+  const html = fs.readFileSync(
+    new URL("../public/arrivals.html", import.meta.url),
+    "utf8"
+  );
+  assert.match(html, /<script>\s*const params/);
+  assert.doesNotMatch(html, /<script type="module">/);
+  assert.match(
+    html,
+    /departureProofLockEnabled\s*\? import\("\.\/departure-proof-lock\.js"\)\s*:\s*null/
+  );
 });

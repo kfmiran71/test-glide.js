@@ -4,7 +4,8 @@ import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 import fs from "fs";
 import {
   buildGtfsEvidence,
-  exactTripIdentity
+  exactTripIdentity,
+  runGlideMutationIfBaseline
 } from "./public/departure-proof-lock.js";
 
 
@@ -1468,21 +1469,9 @@ for (const a of arrivals) {
 }
     
     limitedArrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
+if (!departureProofLockEnabled) {
     const glideArrivals =
-      departureProofLockEnabled
-        ? arrivals
-            .filter(arrival => Number(arrival.time) >= 0)
-            .sort((a, b) => parseInt(a.time) - parseInt(b.time))
-            .filter((() => {
-              const counts = {};
-              return arrival => {
-                counts[arrival.route] = counts[arrival.route] || 0;
-                if (counts[arrival.route] >= 3) return false;
-                counts[arrival.route]++;
-                return true;
-              };
-            })())
-        : limitedArrivals;
+      limitedArrivals;
     console.log("LIMITED ARRIVALS BEING SENT TO GLIDE:", glideArrivals);
 glideArrivals.forEach((a, i) => {
   console.log("GLIDE ROW", i, {
@@ -1500,7 +1489,9 @@ glideArrivals.forEach((a, i) => {
     
     const runId = Date.now().toString();
     
-    const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+    await runGlideMutationIfBaseline(
+      departureProofLockEnabled,
+      () => fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1524,7 +1515,9 @@ glideArrivals.forEach((a, i) => {
   }))
 ]
  })
- });
+ })
+    );
+}
   
     res.json({
   status: 200,

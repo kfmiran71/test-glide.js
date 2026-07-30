@@ -160,7 +160,8 @@ function releaseClassification(lock, evidence) {
 function cloneState(state) {
   return {
     active: { ...(state?.active || {}) },
-    released: [...(state?.released || [])]
+    released: [...(state?.released || [])],
+    tombstones: { ...(state?.tombstones || {}) }
   };
 }
 
@@ -174,6 +175,7 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
     const evidence = evidenceByIdentity.get(arrival.identityKey);
     if (
       !next.active[arrival.identityKey] &&
+      !next.tombstones[arrival.identityKey] &&
       Number(arrival.time) === 0 &&
       evidence?.tripUpdatePresent &&
       evidence.targetStopPresent &&
@@ -229,6 +231,13 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
       updated.releaseReason = classification.releaseReason;
       updated.releasedAt = new Date(nowMs).toISOString();
       next.released.push(updated);
+      next.tombstones[identityKey] = {
+        identityKey,
+        tripId: updated.tripId,
+        startDate: updated.startDate,
+        releaseReason: classification.releaseReason,
+        releasedAt: updated.releasedAt
+      };
       delete next.active[identityKey];
     } else {
       next.active[identityKey] = updated;
@@ -274,11 +283,32 @@ export function experimentalBoardArrivals(state, arrivals) {
   return result.sort((a, b) => Number(a.time) - Number(b.time));
 }
 
+function detachedCopy(value) {
+  if (Array.isArray(value)) {
+    return value.map(detachedCopy);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, detachedCopy(nested)])
+    );
+  }
+  return value;
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+}
+
 export function inspectDepartureProofState(state) {
-  return Object.freeze({
-    active: Object.values(state?.active || {}).map(lock => Object.freeze({ ...lock })),
-    released: (state?.released || []).map(lock => Object.freeze({ ...lock }))
-  });
+  return deepFreeze(detachedCopy({
+    active: Object.values(state?.active || {}),
+    released: state?.released || [],
+    tombstones: Object.values(state?.tombstones || {})
+  }));
 }
 
 export function createDepartureProofDiagnostics(states) {
@@ -286,18 +316,34 @@ export function createDepartureProofDiagnostics(states) {
     inspect() {
       const active = [];
       const released = [];
+      const tombstones = [];
 
       for (const state of states.values()) {
         const inspected = inspectDepartureProofState(state);
         active.push(...inspected.active);
         released.push(...inspected.released);
+        tombstones.push(...inspected.tombstones);
       }
 
-      return Object.freeze({
+      return deepFreeze({
         enabled: true,
-        active: Object.freeze(active),
-        released: Object.freeze(released)
+        active,
+        released,
+        tombstones
       });
     }
   });
+}
+
+export async function runGlideMutationIfBaseline(
+  departureProofLockEnabled,
+  mutate
+) {
+  if (departureProofLockEnabled) {
+    return { skipped: true };
+  }
+  return {
+    skipped: false,
+    result: await mutate()
+  };
 }
