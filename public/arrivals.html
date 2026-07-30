@@ -1141,8 +1141,15 @@ transform: translateY(-6px);
 
 <script>
 const params = new URLSearchParams(window.location.search);
+
+function isDepartureProofLockEnabled(searchParams) {
+
+  return searchParams.get("departureProofLock") !== "0";
+
+}
+
 const departureProofLockEnabled =
-  params.get("departureProofLock") === "1";
+  isDepartureProofLockEnabled(params);
 const departureProofStates =
   departureProofLockEnabled ? new Map() : null;
 const departureProofModulePromise =

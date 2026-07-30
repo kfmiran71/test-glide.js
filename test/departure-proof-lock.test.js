@@ -373,15 +373,59 @@ test("experimental mode skips Glide mutation and baseline invokes it", async () 
   assert.equal(calls, 1);
 });
 
-test("baseline client remains a classic script and imports no module without toggle", () => {
+function activationPolicyFromEmbed(html) {
+  const match = html.match(
+    /function isDepartureProofLockEnabled\(searchParams\) \{[\s\S]*?\n\}/
+  );
+  assert.ok(match, "activation policy function must exist in arrivals.html");
+  return new Function(
+    "URLSearchParams",
+    `${match[0]}; return value =>
+      isDepartureProofLockEnabled(new URLSearchParams(value));`
+  )(URLSearchParams);
+}
+
+test("Glide embed defaults Departure-Proof Lock on and supports explicit on/off", () => {
   const html = fs.readFileSync(
     new URL("../public/arrivals.html", import.meta.url),
     "utf8"
   );
+  const isEnabled = activationPolicyFromEmbed(html);
+
+  assert.equal(isEnabled(""), true);
+  assert.equal(isEnabled("departureProofLock=1"), true);
+  assert.equal(isEnabled("departureProofLock=0"), false);
   assert.match(html, /<script>\s*const params/);
   assert.doesNotMatch(html, /<script type="module">/);
+});
+
+test("enabled embed requests experimental API and disabled mode loads no experiment", () => {
+  const html = fs.readFileSync(
+    new URL("../public/arrivals.html", import.meta.url),
+    "utf8"
+  );
+
   assert.match(
     html,
     /departureProofLockEnabled\s*\? import\("\.\/departure-proof-lock\.js"\)\s*:\s*null/
   );
+  assert.match(
+    html,
+    /if \(departureProofLockEnabled\) \{\s*query\.set\("departureProofLock", "1"\);/
+  );
+  assert.match(
+    html,
+    /const departureProofStates =\s*departureProofLockEnabled \? new Map\(\) : null;/
+  );
+});
+
+test("existing Glide embed URLs require no experiment query parameter", () => {
+  const html = fs.readFileSync(
+    new URL("../public/arrivals.html", import.meta.url),
+    "utf8"
+  );
+  const isEnabled = activationPolicyFromEmbed(html);
+
+  assert.equal(isEnabled("stop=A24&route=A"), true);
+  assert.equal(isEnabled("stop=A24&route=A&departureProofLock=0"), false);
 });
