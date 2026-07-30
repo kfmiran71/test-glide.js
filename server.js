@@ -36,10 +36,11 @@ const STATIC_ROUTE_DIRECTION_SUFFIXES =
   buildStaticRouteDirectionSuffixes(
     fs.readFileSync(staticTripsPath, "utf-8")
   );
-const staticStopTimesPath = path.resolve("./Archive/stop_times.txt");
+const staticTripStopSequencesPath =
+  path.resolve("./static-trip-stop-sequences.json");
 const STATIC_TARGET_SEQUENCES =
-  buildStaticTargetSequences(
-    fs.readFileSync(staticStopTimesPath, "utf-8")
+  JSON.parse(
+    fs.readFileSync(staticTripStopSequencesPath, "utf-8")
   );
 const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
@@ -101,6 +102,25 @@ const CLUSTER_MAX_AGE_MS =
   Number(process.env.ALERT_CLUSTER_MAX_AGE_MINUTES || 120) * 60 * 1000;
 const alertsClusters = new Map();
 const platformAvailabilityAuthorityStates = new Map();
+
+async function gtfsBuffer(url) {
+  const fixturePath =
+    process.env.NODE_ENV === "test"
+      ? process.env.MTA_GTFS_FIXTURE_PATH
+      : "";
+
+  if (fixturePath) {
+    return fs.readFileSync(fixturePath);
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      "x-api-key": process.env.MTA_API_KEY
+    }
+  });
+
+  return new Uint8Array(await response.arrayBuffer());
+}
 
 function authoritativePlatformAvailability(
   platformId,
@@ -203,35 +223,9 @@ function realtimeTripPattern(tripId) {
   return (String(tripId || "").match(/(\d{6}_[^.]+\.\.[NS])/) || [])[1] || "";
 }
 
-function buildStaticTargetSequences(csv) {
-  const lines = String(csv || "").trim().split(/\r?\n/);
-  const headers = (lines.shift() || "").split(",");
-  const tripIndex = headers.indexOf("trip_id");
-  const stopIndex = headers.indexOf("stop_id");
-  const sequenceIndex = headers.indexOf("stop_sequence");
-  const candidates = new Map();
-
-  for (const line of lines) {
-    const values = line.split(",");
-    const pattern = realtimeTripPattern(values[tripIndex]);
-    const stopId = values[stopIndex] || "";
-    const sequence = Number(values[sequenceIndex]);
-    if (!pattern || !stopId || !Number.isFinite(sequence)) continue;
-    const key = `${pattern}|${stopId}`;
-    if (!candidates.has(key)) candidates.set(key, new Set());
-    candidates.get(key).add(sequence);
-  }
-
-  return new Map(
-    [...candidates.entries()]
-      .filter(([, sequences]) => sequences.size === 1)
-      .map(([key, sequences]) => [key, [...sequences][0]])
-  );
-}
-
 function resolveStaticTargetSequence(tripId, stopId) {
   const pattern = realtimeTripPattern(tripId);
-  return STATIC_TARGET_SEQUENCES.get(`${pattern}|${stopId}`) ?? null;
+  return STATIC_TARGET_SEQUENCES[pattern]?.[stopId] ?? null;
 }
 
 function sortRoutes(routes) {
@@ -1624,15 +1618,8 @@ const feeds =
   getFeedUrlsForRoutes(routesForFeeds);
   
 for (const url of feeds) {
-  const mtaRes = await fetch(url, {
-    headers: {
-      "x-api-key": process.env.MTA_API_KEY
-    }
-  });
-
-  const buffer = await mtaRes.arrayBuffer();
   const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-    new Uint8Array(buffer)
+    await gtfsBuffer(url)
   );
 
   if (exactEvidenceEnabled) {
@@ -1810,12 +1797,15 @@ glideArrivals.forEach((a, i) => {
     ? {
         arrivalProofGate: {
           enabled: true,
-          evidence: departureProofEvidence
+          ...(!departureProofLockEnabled
+            ? { evidence: departureProofEvidence }
+            : {})
         }
       }
     : {})
 });
   } catch (err) {
+    console.error("Arrivals request failed:", err);
     res.json({ error: err.message });
   }
 }

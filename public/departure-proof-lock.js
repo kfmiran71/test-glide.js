@@ -34,9 +34,14 @@ export function exactTripIdentity(descriptor = {}) {
 }
 
 function normalizeStopUpdate(update = {}) {
+  const sequenceExplicit =
+    Object.prototype.hasOwnProperty.call(update, "stopSequence");
   return {
     stopId: String(update.stopId || ""),
-    stopSequence: numberValue(update.stopSequence),
+    stopSequence: sequenceExplicit
+      ? numberValue(update.stopSequence)
+      : null,
+    stopSequenceExplicit: sequenceExplicit,
     eventTime: eventSeconds(update)
   };
 }
@@ -58,7 +63,12 @@ export function buildGtfsEvidence(
           identity,
           trip: entity.tripUpdate.trip,
           progressionStopSequence:
-            numberValue(entity.tripUpdate.currentStopSequence),
+            Object.prototype.hasOwnProperty.call(
+              entity.tripUpdate,
+              "currentStopSequence"
+            )
+              ? numberValue(entity.tripUpdate.currentStopSequence)
+              : null,
           stopUpdates: (entity.tripUpdate.stopTimeUpdate || [])
             .map(normalizeStopUpdate)
         });
