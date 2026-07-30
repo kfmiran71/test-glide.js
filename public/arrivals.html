@@ -2065,10 +2065,9 @@ function formatTimes(times) {
   const isApproaching =
     Number.isFinite(firstMinutes) && firstMinutes <= 1;
   const primaryTime =
-    new Date(Date.now() + firstMinutes * 60000).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit"
-    });
+    Number.isFinite(firstMinutes)
+      ? String(Math.max(0, Math.round(firstMinutes)))
+      : String(first ?? "--");
 
   return `
     <span class="time-cluster">
