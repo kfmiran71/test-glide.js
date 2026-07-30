@@ -1,0 +1,18 @@
+{
+  "id": "lmm:planned_work:23514",
+  "activePeriods": [
+    {
+      "start": 1783191600,
+      "end": 1790582400
+    }
+  ],
+  "informedEntity": {
+    "agencyId": "MTASBWY",
+    "routeId": "7",
+    "stopId": "706",
+    "directionId": 0
+  },
+  "header": "In Queens, Flushing-bound [7] skips 103 St-Corona Plaza",
+  "description": "Use nearby Junction Blvd or 111 St stations.\n\nAdditional travel alternatives:\nFor service to this station, take the [7] to 111 St and transfer to a Manhattan-bound train.\n\nFor service from this station, take the [7] to Junction Blvd and transfer to a Flushing-bound train.\n\nWhat's happening?\nWe're making station improvements",
+  "stationName": "103 St-Corona Plaza"
+}

@@ -1157,6 +1157,21 @@ const departureProofModulePromise =
     ? import("./departure-proof-lock.js")
     : null;
 
+function isPlatformAlertSuppressionEnabled(searchParams) {
+
+  return searchParams.get("platformAlertSuppression") !== "0";
+
+}
+
+const platformAlertSuppressionEnabled =
+  isPlatformAlertSuppressionEnabled(params);
+const platformAvailabilityStates =
+  platformAlertSuppressionEnabled ? new Map() : null;
+const platformAlertModulePromise =
+  platformAlertSuppressionEnabled
+    ? import("./platform-alert-suppression.js")
+    : null;
+
 function firstParam(names) {
 
   for (const name of names) {
@@ -1848,20 +1863,84 @@ async function fetchDirection(platformId) {
 
 }
 
-async function departureProofArrivals(platformId, snapshot) {
+async function platformAvailabilityState(platformId, alertPayload) {
+
+  if (!platformAlertSuppressionEnabled) {
+    return null;
+  }
+
+  const {
+    reconcilePlatformAvailability
+  } = await platformAlertModulePromise;
+  const previous =
+    platformAvailabilityStates.get(platformId) || null;
+  const next =
+    reconcilePlatformAvailability(
+      previous,
+      alertPayload.platformAvailability,
+      Date.now()
+    );
+
+  platformAvailabilityStates.set(platformId, next);
+  return next;
+
+}
+
+async function departureProofArrivals(
+  platformId,
+  snapshot,
+  availabilityState
+) {
 
   const {
     experimentalBoardArrivals,
-    reconcileDepartureProofLocks
+    reconcileDepartureProofLocks,
+    suppressDepartureProofLocks
   } = await departureProofModulePromise;
-  const currentState =
+  const {
+    filterPlatformUnavailableArrivals
+  } = platformAlertSuppressionEnabled
+    ? await platformAlertModulePromise
+    : { filterPlatformUnavailableArrivals: (_state, arrivals) => arrivals };
+  let currentState =
     departureProofStates.get(platformId) ||
-    { active: {}, released: [], tombstones: {} };
+    {
+      active: {},
+      released: [],
+      tombstones: {},
+      suppressed: [],
+      suppressionTombstones: {}
+    };
+
+  if (availabilityState?.activeEvidence?.length) {
+    currentState =
+      suppressDepartureProofLocks(
+        currentState,
+        availabilityState.activeEvidence,
+        Date.now()
+      );
+  }
+
+  const filteredArrivals =
+    filterPlatformUnavailableArrivals(
+      availabilityState,
+      snapshot.arrivals
+    );
   const nextState =
-    reconcileDepartureProofLocks(currentState, snapshot, Date.now());
+    reconcileDepartureProofLocks(
+      currentState,
+      {
+        ...snapshot,
+        arrivals: filteredArrivals
+      },
+      Date.now()
+    );
 
   departureProofStates.set(platformId, nextState);
-  return experimentalBoardArrivals(nextState, snapshot.arrivals);
+  return filterPlatformUnavailableArrivals(
+    availabilityState,
+    experimentalBoardArrivals(nextState, filteredArrivals)
+  );
 
 }
 
@@ -1877,6 +1956,21 @@ if (departureProofLockEnabled) {
   });
 }
 
+if (platformAlertSuppressionEnabled) {
+  platformAlertModulePromise.then(({ createPlatformAlertDiagnostics }) => {
+    Object.defineProperty(window, "__platformAlertSuppression", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createPlatformAlertDiagnostics(
+        platformAvailabilityStates,
+        true
+      )
+    });
+    document.documentElement.dataset.platformAlertSuppression = "enabled";
+  });
+}
+
 async function fetchTransfers(stopId) {
 
   const query = new URLSearchParams({ stopId });
@@ -1889,36 +1983,59 @@ async function fetchTransfers(stopId) {
 
 async function fetchServiceAlerts(direction, stopId) {
 
-  const query =
-    new URLSearchParams({
-      direction,
-      stopId
-    });
+  try {
+    const query =
+      new URLSearchParams({
+        direction,
+        stopId
+      });
 
-  if (selectedRoute) {
-    query.set("routeId", selectedRoute);
-  }
+    if (selectedRoute) {
+      query.set("routeId", selectedRoute);
+    }
 
-  const res =
-    await fetch(`/service-alerts?${query.toString()}`, {
-      cache: "no-store"
-    });
-  const data =
-    await res.json();
+    const res =
+      await fetch(`/service-alerts?${query.toString()}`, {
+        cache: "no-store"
+      });
+    const data =
+      await res.json();
 
-  if (!res.ok) {
+    if (!res.ok) {
+      return {
+        alerts: [],
+        feedSample: [],
+        error: data.error || "Service alerts unavailable",
+        platformAvailability: {
+          feedSucceeded: false,
+          evidence: [],
+          error: data.error || "Service alerts unavailable"
+        }
+      };
+    }
+
+    return {
+      alerts: data.alerts || [],
+      feedSample: data.feedSample || [],
+      error: "",
+      platformAvailability:
+        data.platformAvailability || {
+          feedSucceeded: true,
+          evidence: []
+        }
+    };
+  } catch (error) {
     return {
       alerts: [],
       feedSample: [],
-      error: data.error || "Service alerts unavailable"
+      error: error.message || "Service alerts unavailable",
+      platformAvailability: {
+        feedSucceeded: false,
+        evidence: [],
+        error: error.message || "Service alerts unavailable"
+      }
     };
   }
-
-  return {
-    alerts: data.alerts || [],
-    feedSample: data.feedSample || [],
-    error: ""
-  };
 
 }
 
@@ -2874,11 +2991,40 @@ async function loadArrivals(options = {}) {
     let downtownArrivals =
       downtownPayload;
 
+    const [uptownAvailability, downtownAvailability] =
+      await Promise.all([
+        platformAvailabilityState(uptownStop, uptownAlerts),
+        platformAvailabilityState(downtownStop, downtownAlerts)
+      ]);
+
     if (departureProofLockEnabled) {
       [uptownArrivals, downtownArrivals] = await Promise.all([
-        departureProofArrivals(uptownStop, uptownPayload),
-        departureProofArrivals(downtownStop, downtownPayload)
+        departureProofArrivals(
+          uptownStop,
+          uptownPayload,
+          uptownAvailability
+        ),
+        departureProofArrivals(
+          downtownStop,
+          downtownPayload,
+          downtownAvailability
+        )
       ]);
+    } else if (platformAlertSuppressionEnabled) {
+      const {
+        filterPlatformUnavailableArrivals
+      } = await platformAlertModulePromise;
+
+      uptownArrivals =
+        filterPlatformUnavailableArrivals(
+          uptownAvailability,
+          uptownArrivals
+        );
+      downtownArrivals =
+        filterPlatformUnavailableArrivals(
+          downtownAvailability,
+          downtownArrivals
+        );
     }
 
     const groupedUptown =

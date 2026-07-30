@@ -161,7 +161,9 @@ function cloneState(state) {
   return {
     active: { ...(state?.active || {}) },
     released: [...(state?.released || [])],
-    tombstones: { ...(state?.tombstones || {}) }
+    tombstones: { ...(state?.tombstones || {}) },
+    suppressed: [...(state?.suppressed || [])],
+    suppressionTombstones: { ...(state?.suppressionTombstones || {}) }
   };
 }
 
@@ -176,6 +178,7 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
     if (
       !next.active[arrival.identityKey] &&
       !next.tombstones[arrival.identityKey] &&
+      !next.suppressionTombstones[arrival.identityKey] &&
       Number(arrival.time) === 0 &&
       evidence?.tripUpdatePresent &&
       evidence.targetStopPresent &&
@@ -247,6 +250,52 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
   return next;
 }
 
+export function suppressDepartureProofLocks(
+  state,
+  platformEvidence,
+  nowMs
+) {
+  const next =
+    cloneState(state);
+
+  for (const [identityKey, lock] of Object.entries(next.active)) {
+    const matchingEvidence =
+      (platformEvidence || []).find(evidence =>
+        evidence.suppressionApplied &&
+        evidence.route === lock.route &&
+        evidence.resolvedPlatform === lock.platformId
+      );
+
+    if (!matchingEvidence) {
+      continue;
+    }
+
+    const suppressedAt =
+      new Date(nowMs).toISOString();
+    const suppressed = {
+      ...lock,
+      disposition: "PLATFORM_UNAVAILABLE",
+      suppressedAt,
+      platformEvidence: matchingEvidence
+    };
+
+    next.suppressed.push(suppressed);
+    next.suppressionTombstones[identityKey] = {
+      identityKey,
+      tripId: lock.tripId,
+      startDate: lock.startDate,
+      disposition: "PLATFORM_UNAVAILABLE",
+      suppressedAt,
+      alertId: matchingEvidence.alertId,
+      route: matchingEvidence.route,
+      platformId: matchingEvidence.resolvedPlatform
+    };
+    delete next.active[identityKey];
+  }
+
+  return next;
+}
+
 export function experimentalBoardArrivals(state, arrivals) {
   const normal = (arrivals || [])
     .filter(arrival => Number(arrival.time) >= 0)
@@ -307,7 +356,10 @@ export function inspectDepartureProofState(state) {
   return deepFreeze(detachedCopy({
     active: Object.values(state?.active || {}),
     released: state?.released || [],
-    tombstones: Object.values(state?.tombstones || {})
+    tombstones: Object.values(state?.tombstones || {}),
+    suppressed: state?.suppressed || [],
+    suppressionTombstones:
+      Object.values(state?.suppressionTombstones || {})
   }));
 }
 
@@ -317,19 +369,25 @@ export function createDepartureProofDiagnostics(states) {
       const active = [];
       const released = [];
       const tombstones = [];
+      const suppressed = [];
+      const suppressionTombstones = [];
 
       for (const state of states.values()) {
         const inspected = inspectDepartureProofState(state);
         active.push(...inspected.active);
         released.push(...inspected.released);
         tombstones.push(...inspected.tombstones);
+        suppressed.push(...inspected.suppressed);
+        suppressionTombstones.push(...inspected.suppressionTombstones);
       }
 
       return deepFreeze({
         enabled: true,
         active,
         released,
-        tombstones
+        tombstones,
+        suppressed,
+        suppressionTombstones
       });
     }
   });

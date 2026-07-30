@@ -7,6 +7,9 @@ import {
   exactTripIdentity,
   runGlideMutationIfBaseline
 } from "./public/departure-proof-lock.js";
+import {
+  evaluatePlatformAlertEntity
+} from "./public/platform-alert-suppression.js";
 
 
 
@@ -26,6 +29,11 @@ for (const routeStops of Object.values(ROUTE_STOP_MAP)) {
 }
 const officialPlatformRouteMapPath = path.resolve("./official-platform-route-map.json");
 const OFFICIAL_PLATFORM_ROUTE_MAP = JSON.parse(fs.readFileSync(officialPlatformRouteMapPath, "utf-8"));
+const staticTripsPath = path.resolve("./Archive/trips.txt");
+const STATIC_ROUTE_DIRECTION_SUFFIXES =
+  buildStaticRouteDirectionSuffixes(
+    fs.readFileSync(staticTripsPath, "utf-8")
+  );
 const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
@@ -45,6 +53,7 @@ const FEED_URLS = {
 };
 const ALERT_FEED_URL =
   "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/camsys%2Fsubway-alerts";
+const ALERT_FEED_STALE_AFTER_SECONDS = 5 * 60;
 const GLIDE_API_URL =
   "https://api.glideapp.io/api/function/mutateTables";
 const GLIDE_APP_ID =
@@ -113,6 +122,54 @@ app.use((err, req, res, next) => {
   next(err);
 });
 const PORT = process.env.PORT || 3000;
+
+function buildStaticRouteDirectionSuffixes(csv) {
+  const lines =
+    String(csv || "").trim().split(/\r?\n/);
+  const headers =
+    (lines.shift() || "").split(",");
+  const routeIndex =
+    headers.indexOf("route_id");
+  const directionIndex =
+    headers.indexOf("direction_id");
+  const shapeIndex =
+    headers.indexOf("shape_id");
+  const suffixes =
+    {};
+
+  for (const line of lines) {
+    const values =
+      line.split(",");
+    const route =
+      values[routeIndex] || "";
+    const direction =
+      values[directionIndex] || "";
+    const shape =
+      values[shapeIndex] || "";
+    const suffixMatch =
+      shape.match(/\.\.([NS])/);
+
+    if (!route || direction === "" || !suffixMatch) {
+      continue;
+    }
+
+    suffixes[route] ||= {};
+    suffixes[route][direction] ||= new Set();
+    suffixes[route][direction].add(suffixMatch[1]);
+  }
+
+  return Object.fromEntries(
+    Object.entries(suffixes).map(([route, directions]) => [
+      route,
+      Object.fromEntries(
+        Object.entries(directions).map(([direction, values]) => [
+          direction,
+          [...values]
+        ])
+      )
+    ])
+  );
+}
 
 function sortRoutes(routes) {
   return [...routes].sort((a, b) => {
@@ -653,6 +710,79 @@ function summarizeUpcomingAlert(entity, feedTimestampSeconds = 0, nowSeconds = 0
   };
 }
 
+function platformAvailabilityEvidence(
+  entities,
+  selectedPlatform,
+  selectedRoute,
+  feedTimestampSeconds,
+  nowSeconds
+) {
+  if (!selectedPlatform || !selectedRoute) {
+    return [];
+  }
+
+  const parentStop =
+    selectedPlatform.replace(/[NS]$/, "");
+  const stationName =
+    STOP_DETAIL_MAP.get(selectedPlatform)?.stop_name || "";
+  const evidence =
+    [];
+
+  for (const entity of entities || []) {
+    if (!entity.alert) {
+      continue;
+    }
+
+    const header =
+      translatedText(entity.alert.headerText);
+    const description =
+      translatedText(entity.alert.descriptionText);
+    const activePeriods =
+      alertPeriods(entity.alert);
+    const structuredEffect =
+      enumLabel(
+        GtfsRealtimeBindings.transit_realtime.Alert.Effect,
+        entity.alert.effect
+      );
+
+    for (const informedEntity of entity.alert.informedEntity || []) {
+      if (
+        informedEntity.routeId !== selectedRoute ||
+        String(informedEntity.stopId || "").replace(/[NS]$/, "") !== parentStop
+      ) {
+        continue;
+      }
+
+      const evaluated =
+        evaluatePlatformAlertEntity({
+          alertId: entity.id || "",
+          activePeriods,
+          informedEntity,
+          header,
+          description,
+          stationName,
+          routeDirectionSuffixes: STATIC_ROUTE_DIRECTION_SUFFIXES,
+          platformRoutes: OFFICIAL_PLATFORM_ROUTE_MAP,
+          nowSeconds,
+          feedTimestamp: feedTimestampSeconds,
+          structuredEffect
+        });
+
+      evidence.push(
+        evaluated.resolvedPlatform === selectedPlatform
+          ? evaluated
+          : {
+              ...evaluated,
+              suppressionApplied: false,
+              decisionReason: "DIFFERENT_PLATFORM"
+            }
+      );
+    }
+  }
+
+  return evidence;
+}
+
 function getRouteBranches(routeId, direction) {
   const routeBranches = ROUTE_BRANCH_MAP[routeId];
 
@@ -1119,6 +1249,18 @@ app.get("/service-alerts", async (req, res) => {
       toSeconds(feed.header?.timestamp);
     const nowSeconds =
       Math.floor(Date.now() / 1000);
+    const feedStale =
+      !feedTimestampSeconds ||
+      nowSeconds - feedTimestampSeconds > ALERT_FEED_STALE_AFTER_SECONDS ||
+      feedTimestampSeconds - nowSeconds > 60;
+    const platformAvailability =
+      platformAvailabilityEvidence(
+        feed.entity,
+        stopId,
+        routeId || (routeIds.length === 1 ? routeIds[0] : ""),
+        feedTimestampSeconds,
+        nowSeconds
+      );
     const alerts =
       feed.entity
         .filter(entity => entity.alert)
@@ -1140,7 +1282,13 @@ app.get("/service-alerts", async (req, res) => {
       stopIds,
       count: alerts.length,
       alerts,
-      feedSample
+      feedSample,
+      platformAvailability: {
+        feedSucceeded: true,
+        feedStale,
+        feedTimestamp: feedTimestampSeconds,
+        evidence: platformAvailability
+      }
     });
 
   }
