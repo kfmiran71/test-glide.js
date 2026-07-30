@@ -1142,6 +1142,21 @@ transform: translateY(-6px);
 <script>
 const params = new URLSearchParams(window.location.search);
 
+function isDepartureProofLockEnabled(searchParams) {
+
+  return searchParams.get("departureProofLock") !== "0";
+
+}
+
+const departureProofLockEnabled =
+  isDepartureProofLockEnabled(params);
+const departureProofStates =
+  departureProofLockEnabled ? new Map() : null;
+const departureProofModulePromise =
+  departureProofLockEnabled
+    ? import("./departure-proof-lock.js")
+    : null;
+
 function firstParam(names) {
 
   for (const name of names) {
@@ -1815,11 +1830,51 @@ async function fetchDirection(platformId) {
     query.set("routeId", selectedRoute);
   }
 
+  if (departureProofLockEnabled) {
+    query.set("departureProofLock", "1");
+  }
+
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
 
+  if (departureProofLockEnabled) {
+    return {
+      arrivals: data.arrivals || [],
+      evidence: data.departureProofLock?.evidence || []
+    };
+  }
+
   return data.arrivals || [];
 
+}
+
+async function departureProofArrivals(platformId, snapshot) {
+
+  const {
+    experimentalBoardArrivals,
+    reconcileDepartureProofLocks
+  } = await departureProofModulePromise;
+  const currentState =
+    departureProofStates.get(platformId) ||
+    { active: {}, released: [], tombstones: {} };
+  const nextState =
+    reconcileDepartureProofLocks(currentState, snapshot, Date.now());
+
+  departureProofStates.set(platformId, nextState);
+  return experimentalBoardArrivals(nextState, snapshot.arrivals);
+
+}
+
+if (departureProofLockEnabled) {
+  departureProofModulePromise.then(({ createDepartureProofDiagnostics }) => {
+    Object.defineProperty(window, "__departureProofLock", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createDepartureProofDiagnostics(departureProofStates)
+    });
+    document.documentElement.dataset.departureProofLock = "enabled";
+  });
 }
 
 async function fetchTransfers(stopId) {
@@ -2806,13 +2861,25 @@ async function loadArrivals(options = {}) {
       downtownStop
     } = getDirectionStops(selectedStopBase);
 
-    const [uptownArrivals, downtownArrivals, transferGroups, uptownAlerts, downtownAlerts] = await Promise.all([
+    const [uptownPayload, downtownPayload, transferGroups, uptownAlerts, downtownAlerts] = await Promise.all([
       fetchDirection(uptownStop),
       fetchDirection(downtownStop),
       fetchTransfers(uptownStop),
       fetchServiceAlerts("N", uptownStop),
       fetchServiceAlerts("S", downtownStop)
     ]);
+
+    let uptownArrivals =
+      uptownPayload;
+    let downtownArrivals =
+      downtownPayload;
+
+    if (departureProofLockEnabled) {
+      [uptownArrivals, downtownArrivals] = await Promise.all([
+        departureProofArrivals(uptownStop, uptownPayload),
+        departureProofArrivals(downtownStop, downtownPayload)
+      ]);
+    }
 
     const groupedUptown =
       groupArrivals(uptownArrivals);

@@ -2,6 +2,11 @@ import express from "express";
 import fetch from "node-fetch";
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 import fs from "fs";
+import {
+  buildGtfsEvidence,
+  exactTripIdentity,
+  runGlideMutationIfBaseline
+} from "./public/departure-proof-lock.js";
 
 
 
@@ -1340,8 +1345,11 @@ app.post("/process-alert", async (req, res) => {
 async function handleArrivals(req, res) {
   try {
  const targetPlatform = req.query.stop || req.query.platformId; 
+ const departureProofLockEnabled =
+   req.query.departureProofLock === "1";
     console.log("BACKEND VERSION: station-string-v2");
   let arrivals = [];
+  let departureProofEvidence = [];
 
 const routeId = req.query.routeId;
 
@@ -1366,6 +1374,16 @@ for (const url of feeds) {
     new Uint8Array(buffer)
   );
 
+  if (departureProofLockEnabled) {
+    departureProofEvidence.push(
+      ...buildGtfsEvidence(
+        feed.entity,
+        targetPlatform,
+        feed.header?.timestamp
+      )
+    );
+  }
+
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue;
 
@@ -1388,7 +1406,10 @@ const arrivalTime = eventTime * 1000;
   const now = Date.now();
   const minutes = Math.round((arrivalTime - now) / 60000);
 
-  if (minutes < 0 || minutes > 60) continue;
+  if (
+    (!departureProofLockEnabled && minutes < 0) ||
+    minutes > 60
+  ) continue;
 
 const directionCode = stopId.slice(-1);
 const stationCode = stopId.slice(0, -1);
@@ -1402,6 +1423,13 @@ const stopDetails =
 
 let stationName =
   tripDestinationName || stationCode;
+
+const exactIdentity =
+  departureProofLockEnabled
+    ? exactTripIdentity(entity.tripUpdate.trip)
+    : null;
+
+if (departureProofLockEnabled && !exactIdentity) continue;
       
     arrivals.push({
   platformId: stopId,
@@ -1410,7 +1438,14 @@ let stationName =
   station: stationName,
   lat: stopDetails?.lat || "",
   lon: stopDetails?.lon || "",
-  direction: direction
+  direction: direction,
+  ...(departureProofLockEnabled
+    ? {
+        identityKey: exactIdentity.identityKey,
+        tripId: exactIdentity.tripId,
+        startDate: exactIdentity.startDate
+      }
+    : {})
 });
     }
   }
@@ -1424,15 +1459,21 @@ for (const a of arrivals) {
     routeCounts[a.route] = 0;
   }
 
-  if (routeCounts[a.route] < 3) {
+  if (
+    departureProofLockEnabled ||
+    routeCounts[a.route] < 3
+  ) {
     limitedArrivals.push(a);
     routeCounts[a.route]++;
   }
 }
     
     limitedArrivals.sort((a, b) => parseInt(a.time) - parseInt(b.time));
-    console.log("LIMITED ARRIVALS BEING SENT TO GLIDE:", limitedArrivals);
-limitedArrivals.forEach((a, i) => {
+if (!departureProofLockEnabled) {
+    const glideArrivals =
+      limitedArrivals;
+    console.log("LIMITED ARRIVALS BEING SENT TO GLIDE:", glideArrivals);
+glideArrivals.forEach((a, i) => {
   console.log("GLIDE ROW", i, {
     platformId: a.platformId,
     route: a.route,
@@ -1448,7 +1489,9 @@ limitedArrivals.forEach((a, i) => {
     
     const runId = Date.now().toString();
     
-    const response = await fetch("https://api.glideapp.io/api/function/mutateTables", {
+    await runGlideMutationIfBaseline(
+      departureProofLockEnabled,
+      () => fetch("https://api.glideapp.io/api/function/mutateTables", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1458,7 +1501,7 @@ limitedArrivals.forEach((a, i) => {
         appID: "TYenWzXz52pcp3wCTXG6",
            mutations: [
            
-  ...limitedArrivals.map((arrival, index) => ({
+  ...glideArrivals.map((arrival, index) => ({
     kind: "add-row-to-table",
     tableName: "native-table-d3UgJzNMFLdWdcIIc8AP",
     columnValues: {
@@ -1472,11 +1515,21 @@ limitedArrivals.forEach((a, i) => {
   }))
 ]
  })
- });
+ })
+    );
+}
   
     res.json({
   status: 200,
-  arrivals: limitedArrivals
+  arrivals: limitedArrivals,
+  ...(departureProofLockEnabled
+    ? {
+        departureProofLock: {
+          enabled: true,
+          evidence: departureProofEvidence
+        }
+      }
+    : {})
 });
   } catch (err) {
     res.json({ error: err.message });
