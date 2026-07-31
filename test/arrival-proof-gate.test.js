@@ -88,9 +88,10 @@ test("3 zero prediction remains displayed at one while in transit", () => {
   assert.equal(arrivalProofBoardArrivals(state, [arrival({ time: "0" })])[0].time, "1");
 });
 
-test("4 negative prediction remains displayed at one", () => {
+test("4 initial negative prediction cannot create a gate", () => {
   const state = reconcile(null, [arrival({ time: "-4" })]);
-  assert.equal(arrivalProofBoardArrivals(state, [arrival({ time: "-4" })])[0].time, "1");
+  assert.equal(Object.keys(state.active).length, 0);
+  assert.equal(arrivalProofBoardArrivals(state, [arrival({ time: "-4" })]).length, 0);
 });
 
 test("5 jump from two to zero creates a gate", () => {
@@ -208,6 +209,17 @@ test("16 temporary TripUpdate disappearance retains gate", () => {
   assert.ok(state.active["trip-1|20260730"]);
 });
 
+test("16a existing gate survives a negative prediction with exact evidence", () => {
+  let state = reconcile(null);
+  state = reconcile(state, [arrival({ time: "-4" })], [evidence()]);
+  assert.ok(state.active["trip-1|20260730"]);
+  assert.equal(state.active["trip-1|20260730"].rawComputedCountdown, -4);
+  assert.equal(
+    state.active["trip-1|20260730"].lastTripUpdateEvidence.identityKey,
+    "trip-1|20260730"
+  );
+});
+
 test("17 failed feed retains gate", () => {
   let state = reconcile(null);
   state = reconcile(state, [], [evidence({ feedSucceeded: false })]);
@@ -312,6 +324,33 @@ test("28 per-route limiting protects gated trip", () => {
   const board = arrivalProofBoardArrivals(state, arrivals);
   assert.equal(board.length, 3);
   assert.ok(board.some(item => item.identityKey === "trip-1|20260730"));
+});
+
+test("28a negative historical trips cannot occupy protected board slots", () => {
+  const historical = [1, 2, 3].map(number =>
+    arrival({
+      identityKey: `expired-${number}|20260730`,
+      tripId: `expired-${number}`,
+      time: String(-number * 100)
+    })
+  );
+  const evidences = historical.map(item =>
+    evidence({
+      identityKey: item.identityKey,
+      tripId: item.tripId,
+      vehiclePositionPresent: false,
+      vehicle: null
+    })
+  );
+  const current = arrival({
+    identityKey: "current|20260730",
+    tripId: "current",
+    time: "3"
+  });
+  const state = reconcile(null, [...historical, current], evidences);
+  const board = arrivalProofBoardArrivals(state, [...historical, current]);
+  assert.deepEqual(board.map(item => item.identityKey), ["current|20260730"]);
+  assert.equal(board.some(item => item.time === "1"), false);
 });
 
 function activationPolicy(html) {

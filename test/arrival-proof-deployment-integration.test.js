@@ -12,6 +12,9 @@ import {
   initialArrivalProofGateState,
   reconcileArrivalProofGates
 } from "../public/arrival-proof-gate.js";
+import {
+  reconcileDepartureProofLocks
+} from "../public/departure-proof-lock.js";
 
 const repositoryRoot =
   path.resolve(new URL("..", import.meta.url).pathname);
@@ -68,13 +71,85 @@ function fixtureFeed(nowSeconds) {
   }).finish();
 }
 
-async function startFixtureServer(t) {
+function staleInitialGateFixture(nowSeconds) {
+  const northStops = ["714N", "712N", "709N", "708N", "707N"];
+  const southStops = ["714S", "712S", "709S", "708S", "707S"];
+  const staleTrip = (tripId, routeId, stops, eventTime, vehicle) => [
+    {
+      id: `${tripId}-update`,
+      tripUpdate: {
+        trip: { tripId, startDate: "20260730", routeId },
+        stopTimeUpdate: stops.map(stopId => ({
+          stopId,
+          arrival: { time: eventTime }
+        }))
+      }
+    },
+    {
+      id: `${tripId}-vehicle`,
+      vehicle: {
+        trip: { tripId, startDate: "20260730", routeId },
+        ...vehicle
+      }
+    }
+  ];
+  const currentTrip = (tripId, stops, offset, direction) => [
+    {
+      id: `${tripId}-update`,
+      tripUpdate: {
+        trip: { tripId, startDate: "20260730", routeId: "7" },
+        stopTimeUpdate: stops.map((stopId, index) => ({
+          stopId,
+          stopSequence: direction === "N" ? 11 + index : 10 - index,
+          arrival: { time: nowSeconds + offset + index * 60 }
+        }))
+      }
+    }
+  ];
+
+  return GtfsRealtimeBindings.transit_realtime.FeedMessage.encode({
+    header: {
+      gtfsRealtimeVersion: "2.0",
+      timestamp: nowSeconds
+    },
+    entity: [
+      ...staleTrip(
+        "063600_7..N",
+        "7",
+        northStops,
+        nowSeconds - 9 * 60 * 60,
+        {
+          stopId: "726N",
+          currentStopSequence: 1,
+          currentStatus: VEHICLE_STATUSES.STOPPED_AT,
+          timestamp: nowSeconds - 9 * 60 * 60
+        }
+      ),
+      ...staleTrip(
+        "098650_7..S",
+        "7",
+        southStops,
+        nowSeconds - 4 * 60 * 60,
+        {
+          stopId: "701S",
+          currentStopSequence: 1,
+          currentStatus: VEHICLE_STATUSES.STOPPED_AT,
+          timestamp: nowSeconds - 4 * 60 * 60
+        }
+      ),
+      ...currentTrip("current-7..N", northStops, 120, "N"),
+      ...currentTrip("current-7..S", southStops, 120, "S")
+    ]
+  }).finish();
+}
+
+async function startFixtureServer(t, feedFactory = fixtureFeed) {
   const directory =
     fs.mkdtempSync(path.join(os.tmpdir(), "arrival-proof-integration-"));
   const fixturePath = path.join(directory, "numbered.pb");
   fs.writeFileSync(
     fixturePath,
-    fixtureFeed(Math.floor(Date.now() / 1000))
+    feedFactory(Math.floor(Date.now() / 1000))
   );
   const port = await availablePort();
   const child = spawn(process.execPath, ["server.js"], {
@@ -116,6 +191,137 @@ async function startFixtureServer(t) {
     serverErrors: () => stderr
   };
 }
+
+test("stale initial Route 7 trips remain evidence-only across fresh stations", async t => {
+  const { baseUrl, serverErrors } =
+    await startFixtureServer(t, staleInitialGateFixture);
+  const platforms = [
+    ["714N", "063600_7..N|20260730", 11],
+    ["712N", "063600_7..N|20260730", 13],
+    ["709N", "063600_7..N|20260730", 16],
+    ["708N", "063600_7..N|20260730", 17],
+    ["707N", "063600_7..N|20260730", 18],
+    ["714S", "098650_7..S|20260730", 10],
+    ["712S", "098650_7..S|20260730", 9],
+    ["709S", "098650_7..S|20260730", 7],
+    ["708S", "098650_7..S|20260730", 6],
+    ["707S", "098650_7..S|20260730", 5]
+  ];
+
+  for (const [platform, staleIdentity, expectedStaticSequence] of platforms) {
+    const response = await fetch(
+      `${baseUrl}/push-arrivals?stop=${platform}&routeId=7&` +
+      "departureProofLock=1&arrivalProofGate=1"
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    const evidence = payload.departureProofLock.evidence;
+    const staleEvidence =
+      evidence.find(item => item.identityKey === staleIdentity);
+
+    assert.ok(staleEvidence, `${platform} must retain stale exact evidence`);
+    assert.equal(
+      staleEvidence.targetStopSequence,
+      expectedStaticSequence,
+      `${platform} must retain the exact static target sequence`
+    );
+    assert.equal(
+      staleEvidence.stopUpdates.find(
+        update => update.stopId === platform
+      ).stopSequenceExplicit,
+      false,
+      `${platform} fixture sequence must be supplied by static lookup`
+    );
+    assert.equal(
+      payload.arrivals.some(item => item.identityKey === staleIdentity),
+      false,
+      `${platform} must exclude stale identity from candidates`
+    );
+    assert.ok(
+      payload.arrivals.some(item => item.tripId.startsWith("current-7")),
+      `${platform} must retain current arrivals`
+    );
+
+    const state = reconcileArrivalProofGates(
+      initialArrivalProofGateState(),
+      { arrivals: payload.arrivals, evidence },
+      Date.now()
+    );
+    const board = arrivalProofBoardArrivals(state, payload.arrivals);
+    assert.equal(
+      state.active[staleIdentity],
+      undefined,
+      `${platform} fresh state must not reconstruct stale gate`
+    );
+    assert.equal(
+      board.some(item => item.identityKey === staleIdentity),
+      false,
+      `${platform} stale trip must not render`
+    );
+    assert.notDeepEqual(
+      board.slice(0, 3).map(item => item.time),
+      ["1", "1", "1"],
+      `${platform} must not render historical 1 • 1 • 1`
+    );
+  }
+  assert.equal(serverErrors(), "");
+});
+
+test("filtered candidates do not cut off evidence for existing gate or lock", async t => {
+  const { baseUrl } =
+    await startFixtureServer(t, staleInitialGateFixture);
+  const response = await fetch(
+    `${baseUrl}/push-arrivals?stop=714N&routeId=7&` +
+    "departureProofLock=1&arrivalProofGate=1"
+  );
+  const payload = await response.json();
+  const evidence = payload.departureProofLock.evidence;
+  const staleIdentity = "063600_7..N|20260730";
+  const staleEvidence =
+    evidence.find(item => item.identityKey === staleIdentity);
+  const staleAtZero = {
+    identityKey: staleIdentity,
+    tripId: "063600_7..N",
+    startDate: "20260730",
+    route: "7",
+    platformId: "714N",
+    direction: "Northbound",
+    station: "Flushing-Main St",
+    time: "0"
+  };
+
+  let gate = reconcileArrivalProofGates(
+    initialArrivalProofGateState(),
+    { arrivals: [staleAtZero], evidence: [staleEvidence] },
+    Date.now()
+  );
+  gate = reconcileArrivalProofGates(
+    gate,
+    { arrivals: payload.arrivals, evidence },
+    Date.now() + 15_000
+  );
+  assert.ok(gate.active[staleIdentity]);
+  assert.equal(
+    gate.active[staleIdentity].lastTripUpdateEvidence.identityKey,
+    staleIdentity
+  );
+
+  let lock = reconcileDepartureProofLocks(
+    null,
+    { arrivals: [staleAtZero], evidence: [staleEvidence] },
+    Date.now()
+  );
+  lock = reconcileDepartureProofLocks(
+    lock,
+    { arrivals: payload.arrivals, evidence },
+    Date.now() + 15_000
+  );
+  assert.ok(lock.active[staleIdentity]);
+  assert.equal(
+    lock.active[staleIdentity].lastSupportingEvidence.targetStopPresent,
+    true
+  );
+});
 
 test("production server serves modules and gate API without rider error", async t => {
   const { baseUrl, serverErrors } = await startFixtureServer(t);

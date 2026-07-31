@@ -1670,7 +1670,7 @@ const arrivalTime = eventTime * 1000;
   const minutes = Math.round((arrivalTime - now) / 60000);
 
   if (
-    (!exactEvidenceEnabled && minutes < 0) ||
+    minutes < 0 ||
     minutes > 60
   ) continue;
 

@@ -135,6 +135,7 @@ export function reconcileArrivalProofGates(state, snapshot, nowMs) {
       !next.suppressionTombstones[arrival.identityKey] &&
       arrival.identityKey &&
       arrival.tripId &&
+      Number(arrival.time) >= 0 &&
       Number(arrival.time) <= 1 &&
       evidence?.tripUpdatePresent &&
       evidence.targetStopPresent &&
