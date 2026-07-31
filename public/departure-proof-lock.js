@@ -1,3 +1,12 @@
+import {
+  downstreamStopDecision,
+  exactEvidenceIdentityMatches,
+  freshExactVehicle,
+  newerConclusivePattern,
+  realtimeStoppingPattern,
+  staticRealtimeSequenceMismatch
+} from "./station-state-proof.js";
+
 export const RELEASE_REASONS = Object.freeze({
   VEHICLE_DOWNSTREAM: "VEHICLE_DOWNSTREAM",
   TRIP_UPDATE_DOWNSTREAM: "TRIP_UPDATE_DOWNSTREAM",
@@ -141,7 +150,7 @@ export function buildGtfsEvidence(
   });
 }
 
-function releaseClassification(lock, evidence) {
+function legacyReleaseClassification(lock, evidence) {
   if (!evidence) return { classification: "EVIDENCE_UNAVAILABLE", releaseReason: null };
 
   const targetSequence = numberValue(lock.targetStopSequence);
@@ -192,6 +201,171 @@ function releaseClassification(lock, evidence) {
   };
 }
 
+function correctedReleaseClassification(lock, evidence) {
+  const currentRealtimeStoppingPattern =
+    realtimeStoppingPattern(evidence);
+  const lastConclusiveStoppingPattern =
+    newerConclusivePattern(
+      lock,
+      evidence,
+      lock.lastConclusiveStoppingPattern
+    );
+  const mismatch =
+    staticRealtimeSequenceMismatch(lock, evidence);
+  const base = {
+    stationStateProofEnabled: true,
+    staticRealtimeSequenceMismatch: mismatch,
+    sequenceOnlyEvidenceRejected: mismatch,
+    currentRealtimeStoppingPattern,
+    lastConclusiveStoppingPattern,
+    proposedDownstreamStop: evidence?.vehicle?.stopId || null,
+    evidenceRejectedAsAmbiguous:
+      Boolean(evidence?.vehiclePositionAmbiguous) ||
+      Boolean(
+        currentRealtimeStoppingPattern &&
+        !currentRealtimeStoppingPattern.targetUnique
+      )
+  };
+  const evaluatedPredicates = [
+    {
+      predicate: RELEASE_REASONS.TRIP_UPDATE_DOWNSTREAM,
+      outcome: "UNKNOWN",
+      reason: "NO_EXPLICIT_SAME_DOMAIN_TRIP_UPDATE_PROGRESSION"
+    },
+    {
+      predicate:
+        RELEASE_REASONS.TARGET_STOP_REMOVED_WITH_DOWNSTREAM_EVIDENCE,
+      outcome: "UNKNOWN",
+      reason:
+        "TARGET_REMOVAL_AND_FUTURE_PREDICTIONS_ARE_NOT_PROGRESSION"
+    }
+  ];
+
+  if (
+    evidence?.vehicle?.stopId &&
+    evidence.vehicle.stopId === lock.targetStop
+  ) {
+    return {
+      classification: "AT_TARGET",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "NEGATIVE",
+        reason: "VEHICLE_STILL_NAMES_TARGET",
+        evaluatedPredicates
+      }
+    };
+  }
+  if (
+    currentRealtimeStoppingPattern &&
+    currentRealtimeStoppingPattern.targetIndexes.length > 1
+  ) {
+    return {
+      classification: "UNKNOWN",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "UNKNOWN",
+        reason: "TARGET_OCCURRENCE_AMBIGUOUS",
+        evaluatedPredicates
+      }
+    };
+  }
+  if (!exactEvidenceIdentityMatches(lock, evidence)) {
+    return {
+      classification: "EVIDENCE_UNAVAILABLE",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "UNKNOWN",
+        reason: "EXACT_IDENTITY_EVIDENCE_UNAVAILABLE",
+        evaluatedPredicates
+      }
+    };
+  }
+
+  const vehicle = freshExactVehicle(lock, evidence);
+  if (!vehicle) {
+    return {
+      classification: "EVIDENCE_UNAVAILABLE",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "UNKNOWN",
+        reason: "FRESH_UNAMBIGUOUS_VEHICLE_UNAVAILABLE",
+        evaluatedPredicates
+      }
+    };
+  }
+  if (!vehicle.currentStopSequenceExplicit) {
+    return {
+      classification: "UNKNOWN",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "UNKNOWN",
+        reason: "CURRENT_STOP_SEQUENCE_NOT_EXPLICIT",
+        evaluatedPredicates
+      }
+    };
+  }
+  if (!vehicle.currentStatusExplicit) {
+    return {
+      classification: "UNKNOWN",
+      releaseReason: null,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        outcome: "UNKNOWN",
+        reason: "CURRENT_STATUS_NOT_EXPLICIT",
+        evaluatedPredicates
+      }
+    };
+  }
+
+  const downstream =
+    downstreamStopDecision(
+      lastConclusiveStoppingPattern,
+      vehicle.stopId
+    );
+  if (downstream.outcome === "AFFIRMATIVE") {
+    return {
+      classification: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+      releaseReason: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+      lastConclusiveStoppingPattern,
+      releaseDecision: {
+        ...base,
+        ...downstream,
+        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+        evaluatedPredicates
+      }
+    };
+  }
+
+  return {
+    classification: "UNKNOWN",
+    releaseReason: null,
+    lastConclusiveStoppingPattern,
+    releaseDecision: {
+      ...base,
+      ...downstream,
+      predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+      evaluatedPredicates
+    }
+  };
+}
+
 function cloneState(state) {
   return {
     active: { ...(state?.active || {}) },
@@ -202,7 +376,12 @@ function cloneState(state) {
   };
 }
 
-export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
+export function reconcileDepartureProofLocks(
+  state,
+  snapshot,
+  nowMs,
+  { stationStateProofEnabled = false } = {}
+) {
   const next = cloneState(state);
   const evidenceByIdentity = new Map(
     (snapshot?.evidence || []).map(evidence => [evidence.identityKey, evidence])
@@ -228,6 +407,15 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
         platformId: arrival.platformId,
         selectedStop: arrival.platformId,
         targetStopSequence: evidence.targetStopSequence,
+        ...(stationStateProofEnabled
+          ? {
+              stationStateProofEnabled: true,
+              targetStop: evidence.targetStop,
+              lastConclusiveStoppingPattern:
+                newerConclusivePattern(arrival, evidence, null),
+              releaseDecision: null
+            }
+          : {}),
         lockedAt: new Date(nowMs).toISOString(),
         lastSupportingEvidence: {
           observedAt: new Date(nowMs).toISOString(),
@@ -247,12 +435,23 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
 
   for (const [identityKey, lock] of Object.entries(next.active)) {
     const evidence = evidenceByIdentity.get(identityKey);
-    const classification = releaseClassification(lock, evidence);
+    const classification =
+      stationStateProofEnabled
+        ? correctedReleaseClassification(lock, evidence)
+        : legacyReleaseClassification(lock, evidence);
     const updated = {
       ...lock,
       tripUpdatePresent: Boolean(evidence?.tripUpdatePresent),
       vehiclePositionPresent: Boolean(evidence?.vehiclePositionPresent),
       evidenceClassification: classification.classification,
+      ...(stationStateProofEnabled
+        ? {
+            stationStateProofEnabled: true,
+            lastConclusiveStoppingPattern:
+              classification.lastConclusiveStoppingPattern,
+            releaseDecision: classification.releaseDecision
+          }
+        : {}),
       lastSupportingEvidence:
         evidence?.tripUpdatePresent || evidence?.vehiclePositionPresent
           ? {
@@ -405,7 +604,10 @@ export function inspectDepartureProofState(state) {
   }));
 }
 
-export function createDepartureProofDiagnostics(states) {
+export function createDepartureProofDiagnostics(
+  states,
+  stationStateProofEnabled = true
+) {
   return Object.freeze({
     inspect() {
       const active = [];
@@ -425,6 +627,9 @@ export function createDepartureProofDiagnostics(states) {
 
       return deepFreeze({
         enabled: true,
+        ...(stationStateProofEnabled
+          ? { stationStateProofEnabled: true }
+          : {}),
         active,
         released,
         tombstones,

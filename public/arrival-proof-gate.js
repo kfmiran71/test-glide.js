@@ -1,3 +1,13 @@
+import {
+  conclusiveRealtimePattern,
+  downstreamStopDecision,
+  exactEvidenceIdentityMatches,
+  freshExactVehicle,
+  newerConclusivePattern,
+  realtimeStoppingPattern,
+  staticRealtimeSequenceMismatch
+} from "./station-state-proof.js";
+
 export const GATE_STATES = Object.freeze({
   GATED_AT_ONE: "GATED_AT_ONE",
   ENTRY_CONFIRMED: "ENTRY_CONFIRMED",
@@ -68,7 +78,7 @@ function evidenceIsFresh(evidence, vehicle) {
   return age >= -15 && age <= VEHICLE_FRESHNESS_SECONDS;
 }
 
-function vehicleClassification(gate, evidence) {
+function legacyVehicleClassification(gate, evidence) {
   const vehicle = evidence?.vehicle;
   if (
     !evidence?.vehiclePositionPresent ||
@@ -117,11 +127,159 @@ function vehicleClassification(gate, evidence) {
   return { type: "UNKNOWN", vehicle, timestamp };
 }
 
+function correctedVehicleClassification(gate, evidence) {
+  const currentRealtimeStoppingPattern =
+    realtimeStoppingPattern(evidence);
+  const pattern =
+    newerConclusivePattern(
+      gate,
+      evidence,
+      gate.lastConclusiveStoppingPattern
+    );
+  const vehicle = freshExactVehicle(gate, evidence);
+  const baseDecision = {
+    predicate: "ARRIVAL_PROOF_ENTRY",
+    currentRealtimeStoppingPattern,
+    pattern,
+    staticRealtimeSequenceMismatch:
+      staticRealtimeSequenceMismatch(gate, evidence),
+    evidenceRejectedAsAmbiguous:
+      Boolean(evidence?.vehiclePositionAmbiguous) ||
+      Boolean(
+        currentRealtimeStoppingPattern &&
+        !currentRealtimeStoppingPattern.targetUnique
+      )
+  };
+
+  if (!exactEvidenceIdentityMatches(gate, evidence)) {
+    return {
+      type: "UNKNOWN",
+      vehicle,
+      decision: {
+        ...baseDecision,
+        outcome: "UNKNOWN",
+        reason: "EXACT_IDENTITY_EVIDENCE_UNAVAILABLE"
+      }
+    };
+  }
+  if (!vehicle) {
+    return {
+      type: "UNKNOWN",
+      vehicle,
+      decision: {
+        ...baseDecision,
+        outcome: "UNKNOWN",
+        reason: "FRESH_UNAMBIGUOUS_VEHICLE_UNAVAILABLE"
+      }
+    };
+  }
+  if (!currentRealtimeStoppingPattern?.targetUnique) {
+    return {
+      type: "UNKNOWN",
+      vehicle,
+      timestamp: vehicle.timestamp,
+      decision: {
+        ...baseDecision,
+        outcome: "UNKNOWN",
+        reason: "TARGET_OCCURRENCE_AMBIGUOUS"
+      }
+    };
+  }
+  if (!vehicle.currentStopSequenceExplicit) {
+    return {
+      type: "UNKNOWN",
+      vehicle,
+      timestamp: vehicle.timestamp,
+      decision: {
+        ...baseDecision,
+        outcome: "UNKNOWN",
+        reason: "CURRENT_STOP_SEQUENCE_NOT_EXPLICIT"
+      }
+    };
+  }
+  if (vehicle.stopId === gate.targetStop) {
+    if (!vehicle.currentStatusExplicit) {
+      return {
+        type: "UNKNOWN",
+        vehicle,
+        timestamp: vehicle.timestamp,
+        decision: {
+          ...baseDecision,
+          outcome: "UNKNOWN",
+          reason: "CURRENT_STATUS_NOT_EXPLICIT"
+        }
+      };
+    }
+    if (vehicle.currentStatus === VEHICLE_STATUSES.STOPPED_AT) {
+      return {
+        type: "ENTRY_CONFIRMED",
+        vehicle,
+        timestamp: vehicle.timestamp,
+        decision: {
+          ...baseDecision,
+          outcome: "AFFIRMATIVE",
+          reason: "FRESH_EXACT_TARGET_STOPPED_AT"
+        }
+      };
+    }
+    return {
+      type:
+        vehicle.currentStatus === VEHICLE_STATUSES.INCOMING_AT
+          ? "INCOMING_AT"
+          : vehicle.currentStatus === VEHICLE_STATUSES.IN_TRANSIT_TO
+            ? "IN_TRANSIT_TO"
+            : "UNKNOWN",
+      vehicle,
+      timestamp: vehicle.timestamp,
+      decision: {
+        ...baseDecision,
+        outcome: "NEGATIVE",
+        reason:
+          vehicle.currentStatus === VEHICLE_STATUSES.INCOMING_AT
+            ? "INCOMING_AT_IS_APPROACH_EVIDENCE"
+            : vehicle.currentStatus === VEHICLE_STATUSES.IN_TRANSIT_TO
+              ? "IN_TRANSIT_TO_IS_APPROACH_EVIDENCE"
+              : "STATUS_IS_NOT_STOPPED_AT"
+      }
+    };
+  }
+
+  if (!vehicle.currentStatusExplicit) {
+    return {
+      type: "UNKNOWN",
+      vehicle,
+      timestamp: vehicle.timestamp,
+      decision: {
+        ...baseDecision,
+        outcome: "UNKNOWN",
+        reason: "CURRENT_STATUS_NOT_EXPLICIT"
+      }
+    };
+  }
+
+  const downstream =
+    downstreamStopDecision(pattern, vehicle.stopId);
+  return {
+    type: downstream.outcome === "AFFIRMATIVE" ? "DOWNSTREAM" : "UNKNOWN",
+    vehicle,
+    timestamp: vehicle.timestamp,
+    decision: {
+      ...baseDecision,
+      ...downstream
+    }
+  };
+}
+
 export function initialArrivalProofGateState() {
   return cloneState(null);
 }
 
-export function reconcileArrivalProofGates(state, snapshot, nowMs) {
+export function reconcileArrivalProofGates(
+  state,
+  snapshot,
+  nowMs,
+  { stationStateProofEnabled = false } = {}
+) {
   const next = cloneState(state);
   const evidenceByIdentity = new Map(
     (snapshot?.evidence || []).map(item => [item.identityKey, item])
@@ -156,6 +314,14 @@ export function reconcileArrivalProofGates(state, snapshot, nowMs) {
         lastTransitionReason: "COUNTDOWN_REACHED_GATE",
         lastTripUpdateEvidence: evidence,
         latestVehiclePositionEvidence: evidence.vehicle || null,
+        ...(stationStateProofEnabled
+          ? {
+              lastConclusiveStoppingPattern:
+                conclusiveRealtimePattern(arrival, evidence),
+              stationStateProofEnabled: true,
+              entryDecision: null
+            }
+          : {}),
         lastVehicleTimestamp: null,
         transferredToDepartureProofLock: false,
         arrival: { ...arrival, time: "1", arrivalProofGated: true }
@@ -165,7 +331,10 @@ export function reconcileArrivalProofGates(state, snapshot, nowMs) {
 
   for (const [identityKey, gate] of Object.entries(next.active)) {
     const evidence = evidenceByIdentity.get(identityKey);
-    const classification = vehicleClassification(gate, evidence);
+    const classification =
+      stationStateProofEnabled
+        ? correctedVehicleClassification(gate, evidence)
+        : legacyVehicleClassification(gate, evidence);
     const updated = {
       ...gate,
       rawComputedCountdown:
@@ -179,6 +348,18 @@ export function reconcileArrivalProofGates(state, snapshot, nowMs) {
       latestVehiclePositionEvidence: evidence?.vehiclePositionPresent
         ? evidence.vehicle
         : gate.latestVehiclePositionEvidence,
+      ...(stationStateProofEnabled
+        ? {
+            lastConclusiveStoppingPattern:
+              newerConclusivePattern(
+                gate,
+                evidence,
+                gate.lastConclusiveStoppingPattern
+              ),
+            stationStateProofEnabled: true,
+            entryDecision: classification.decision
+          }
+        : {}),
       lastVehicleTimestamp:
         classification.timestamp ?? gate.lastVehicleTimestamp
     };
@@ -234,7 +415,9 @@ export function reconcileArrivalProofGates(state, snapshot, nowMs) {
       displayedCountdown: 1,
       state: GATE_STATES.GATED_AT_ONE,
       lastTransitionReason:
-        classification.type === "IN_TRANSIT_TO"
+        classification.type === "INCOMING_AT"
+          ? "INCOMING_AT_IS_APPROACH_EVIDENCE"
+          : classification.type === "IN_TRANSIT_TO"
           ? "EXPLICIT_IN_TRANSIT_TO_TARGET"
           : "ENTRY_EVIDENCE_UNKNOWN",
       arrival: { ...updated.arrival, time: "1", arrivalProofGated: true }
@@ -318,11 +501,17 @@ export function inspectArrivalProofState(state) {
   }));
 }
 
-export function createArrivalProofDiagnostics(states) {
+export function createArrivalProofDiagnostics(
+  states,
+  stationStateProofEnabled = true
+) {
   return Object.freeze({
     inspect() {
       const combined = {
         enabled: true,
+        ...(stationStateProofEnabled
+          ? { stationStateProofEnabled: true }
+          : {}),
         activeGates: [],
         confirmedEntries: [],
         bypassDispositions: [],
@@ -332,8 +521,8 @@ export function createArrivalProofDiagnostics(states) {
       };
       for (const state of states.values()) {
         const inspected = inspectArrivalProofState(state);
-        for (const key of Object.keys(combined)) {
-          if (key !== "enabled") combined[key].push(...inspected[key]);
+        for (const key of Object.keys(inspected)) {
+          combined[key].push(...inspected[key]);
         }
       }
       return deepFreeze(combined);

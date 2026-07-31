@@ -1142,6 +1142,15 @@ transform: translateY(-6px);
 <script>
 const params = new URLSearchParams(window.location.search);
 
+function isStationStateProofEnabled(searchParams) {
+
+  return searchParams.get("stationStateProof") !== "0";
+
+}
+
+const stationStateProofEnabled =
+  isStationStateProofEnabled(params);
+
 function isDepartureProofLockEnabled(searchParams) {
 
   return searchParams.get("departureProofLock") !== "0";
@@ -1884,6 +1893,9 @@ async function fetchDirection(platformId) {
   if (vehicleProofQuarantineEnabled) {
     query.set("vehicleProofQuarantine", "1");
   }
+  if (stationStateProofEnabled) {
+    query.set("stationStateProof", "1");
+  }
 
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
@@ -1941,7 +1953,8 @@ async function arrivalProofArrivals(
     reconcileArrivalProofGates(
       currentState,
       { ...snapshot, arrivals: filteredArrivals },
-      Date.now()
+      Date.now(),
+      { stationStateProofEnabled }
     );
 
   arrivalProofStates.set(platformId, nextState);
@@ -2065,7 +2078,8 @@ async function departureProofArrivals(
         ...snapshot,
         arrivals: filteredArrivals
       },
-      Date.now()
+      Date.now(),
+      { stationStateProofEnabled }
     );
 
   departureProofStates.set(platformId, nextState);
@@ -2082,7 +2096,10 @@ if (departureProofLockEnabled) {
       configurable: false,
       enumerable: false,
       writable: false,
-      value: createDepartureProofDiagnostics(departureProofStates)
+      value: createDepartureProofDiagnostics(
+        departureProofStates,
+        stationStateProofEnabled
+      )
     });
     document.documentElement.dataset.departureProofLock = "enabled";
   });
@@ -2094,10 +2111,17 @@ if (arrivalProofGateEnabled) {
       configurable: false,
       enumerable: false,
       writable: false,
-      value: createArrivalProofDiagnostics(arrivalProofStates)
+      value: createArrivalProofDiagnostics(
+        arrivalProofStates,
+        stationStateProofEnabled
+      )
     });
     document.documentElement.dataset.arrivalProofGate = "enabled";
   });
+}
+
+if (stationStateProofEnabled) {
+  document.documentElement.dataset.stationStateProof = "enabled";
 }
 
 if (platformAlertSuppressionEnabled) {
