@@ -1187,6 +1187,21 @@ const platformAlertModulePromise =
     ? import("./platform-alert-suppression.js")
     : null;
 
+function isVehicleProofQuarantineEnabled(searchParams) {
+
+  return searchParams.get("vehicleProofQuarantine") !== "0";
+
+}
+
+const vehicleProofQuarantineEnabled =
+  isVehicleProofQuarantineEnabled(params);
+const vehicleProofQuarantineStates =
+  vehicleProofQuarantineEnabled ? new Map() : null;
+const vehicleProofQuarantineModulePromise =
+  vehicleProofQuarantineEnabled
+    ? import("./vehicle-proof-quarantine.js")
+    : null;
+
 function firstParam(names) {
 
   for (const name of names) {
@@ -1866,6 +1881,9 @@ async function fetchDirection(platformId) {
   if (arrivalProofGateEnabled) {
     query.set("arrivalProofGate", "1");
   }
+  if (vehicleProofQuarantineEnabled) {
+    query.set("vehicleProofQuarantine", "1");
+  }
 
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
@@ -1933,6 +1951,41 @@ async function arrivalProofArrivals(
       availabilityState,
       arrivalProofBoardArrivals(nextState, filteredArrivals)
     )
+  };
+
+}
+
+async function vehicleProofArrivals(platformId, snapshot, availabilityState) {
+
+  const {
+    initialVehicleProofQuarantineState,
+    reconcileVehicleProofQuarantine,
+    vehicleProofCandidateArrivals
+  } = await vehicleProofQuarantineModulePromise;
+  const {
+    filterPlatformUnavailableArrivals
+  } = platformAlertSuppressionEnabled
+    ? await platformAlertModulePromise
+    : { filterPlatformUnavailableArrivals: (_state, arrivals) => arrivals };
+  const currentState =
+    vehicleProofQuarantineStates.get(platformId) ||
+    initialVehicleProofQuarantineState();
+  const filteredArrivals =
+    filterPlatformUnavailableArrivals(
+      availabilityState,
+      snapshot.arrivals
+    );
+  const nextState =
+    reconcileVehicleProofQuarantine(
+      currentState,
+      { ...snapshot, arrivals: filteredArrivals },
+      Date.now()
+    );
+
+  vehicleProofQuarantineStates.set(platformId, nextState);
+  return {
+    ...snapshot,
+    arrivals: vehicleProofCandidateArrivals(nextState)
   };
 
 }
@@ -2059,6 +2112,22 @@ if (platformAlertSuppressionEnabled) {
       )
     });
     document.documentElement.dataset.platformAlertSuppression = "enabled";
+  });
+}
+
+if (vehicleProofQuarantineEnabled) {
+  vehicleProofQuarantineModulePromise.then(({
+    createVehicleProofQuarantineDiagnostics
+  }) => {
+    Object.defineProperty(window, "__vehicleProofQuarantine", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: createVehicleProofQuarantineDiagnostics(
+        vehicleProofQuarantineStates
+      )
+    });
+    document.documentElement.dataset.vehicleProofQuarantine = "enabled";
   });
 }
 
@@ -3088,6 +3157,21 @@ async function loadArrivals(options = {}) {
         platformAvailabilityState(uptownStop, uptownAlerts),
         platformAvailabilityState(downtownStop, downtownAlerts)
       ]);
+
+    if (vehicleProofQuarantineEnabled) {
+      [uptownPayload, downtownPayload] = await Promise.all([
+        vehicleProofArrivals(
+          uptownStop,
+          uptownPayload,
+          uptownAvailability
+        ),
+        vehicleProofArrivals(
+          downtownStop,
+          downtownPayload,
+          downtownAvailability
+        )
+      ]);
+    }
 
     if (arrivalProofGateEnabled) {
       [uptownPayload, downtownPayload] = await Promise.all([

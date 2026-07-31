@@ -328,7 +328,8 @@ test("production server serves modules and gate API without rider error", async 
   const modulePaths = [
     "/arrival-proof-gate.js",
     "/departure-proof-lock.js",
-    "/platform-alert-suppression.js"
+    "/platform-alert-suppression.js",
+    "/vehicle-proof-quarantine.js"
   ];
 
   for (const modulePath of modulePaths) {
@@ -346,6 +347,7 @@ test("production server serves modules and gate API without rider error", async 
   assert.equal(htmlResponse.status, 200);
   const html = await htmlResponse.text();
   assert.match(html, /import\("\.\/arrival-proof-gate\.js"\)/);
+  assert.match(html, /import\("\.\/vehicle-proof-quarantine\.js"\)/);
 
   const enabledResponse = await fetch(
     `${baseUrl}/push-arrivals?stop=706N&routeId=7&` +
