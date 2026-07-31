@@ -1,8 +1,15 @@
+import {
+  SUCCESSOR_OCCUPANCY_RELEASE_REASON,
+  classifySuccessorOccupancyRelease
+} from "./successor-occupancy-proof.js";
+
 export const RELEASE_REASONS = Object.freeze({
   VEHICLE_DOWNSTREAM: "VEHICLE_DOWNSTREAM",
   TRIP_UPDATE_DOWNSTREAM: "TRIP_UPDATE_DOWNSTREAM",
   TARGET_STOP_REMOVED_WITH_DOWNSTREAM_EVIDENCE:
-    "TARGET_STOP_REMOVED_WITH_DOWNSTREAM_EVIDENCE"
+    "TARGET_STOP_REMOVED_WITH_DOWNSTREAM_EVIDENCE",
+  SUCCESSOR_STOPPED_AT_TARGET:
+    SUCCESSOR_OCCUPANCY_RELEASE_REASON
 });
 
 function numberValue(value) {
@@ -41,6 +48,13 @@ function normalizeStopUpdate(update = {}) {
   };
 }
 
+function hasExplicitField(record, field) {
+  return Boolean(
+    record &&
+    Object.prototype.hasOwnProperty.call(record, field)
+  );
+}
+
 export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
   const tripUpdates = new Map();
   const vehicles = new Map();
@@ -67,7 +81,10 @@ export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
         const vehicle = {
           stopId: String(entity.vehicle.stopId || ""),
           currentStopSequence: numberValue(entity.vehicle.currentStopSequence),
-          currentStatus: numberValue(entity.vehicle.currentStatus)
+          currentStatus: numberValue(entity.vehicle.currentStatus),
+          currentStatusExplicit:
+            hasExplicitField(entity.vehicle, "currentStatus"),
+          timestamp: numberValue(entity.vehicle.timestamp)
         };
         vehicles.set(
           identity.identityKey,
@@ -167,7 +184,12 @@ function cloneState(state) {
   };
 }
 
-export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
+export function reconcileDepartureProofLocks(
+  state,
+  snapshot,
+  nowMs,
+  { successorOccupancyProofEnabled = false } = {}
+) {
   const next = cloneState(state);
   const evidenceByIdentity = new Map(
     (snapshot?.evidence || []).map(evidence => [evidence.identityKey, evidence])
@@ -212,12 +234,36 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
 
   for (const [identityKey, lock] of Object.entries(next.active)) {
     const evidence = evidenceByIdentity.get(identityKey);
-    const classification = releaseClassification(lock, evidence);
+    let classification = releaseClassification(lock, evidence);
+    let successorOccupancyDecision = null;
+    if (
+      successorOccupancyProofEnabled &&
+      !classification.releaseReason
+    ) {
+      successorOccupancyDecision =
+        classifySuccessorOccupancyRelease({
+          lock,
+          lockedEvidence: evidence,
+          allEvidence: snapshot?.evidence || [],
+          nowMs
+        });
+      if (successorOccupancyDecision.outcome === "AFFIRMATIVE") {
+        classification = {
+          classification:
+            RELEASE_REASONS.SUCCESSOR_STOPPED_AT_TARGET,
+          releaseReason:
+            RELEASE_REASONS.SUCCESSOR_STOPPED_AT_TARGET
+        };
+      }
+    }
     const updated = {
       ...lock,
       tripUpdatePresent: Boolean(evidence?.tripUpdatePresent),
       vehiclePositionPresent: Boolean(evidence?.vehiclePositionPresent),
       evidenceClassification: classification.classification,
+      ...(successorOccupancyProofEnabled
+        ? { successorOccupancyDecision }
+        : {}),
       lastSupportingEvidence:
         evidence?.tripUpdatePresent || evidence?.vehiclePositionPresent
           ? {
@@ -239,7 +285,15 @@ export function reconcileDepartureProofLocks(state, snapshot, nowMs) {
         tripId: updated.tripId,
         startDate: updated.startDate,
         releaseReason: classification.releaseReason,
-        releasedAt: updated.releasedAt
+        releasedAt: updated.releasedAt,
+        ...(successorOccupancyDecision?.outcome === "AFFIRMATIVE"
+          ? {
+              successorIdentityKey:
+                successorOccupancyDecision.successorIdentityKey,
+              successorRoute:
+                successorOccupancyDecision.successorRoute
+            }
+          : {})
       };
       delete next.active[identityKey];
     } else {

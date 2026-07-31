@@ -1157,6 +1157,24 @@ const departureProofModulePromise =
     ? import("./departure-proof-lock.js")
     : null;
 
+function isSuccessorOccupancyProofEnabled(
+  searchParams,
+  departureProofEnabled
+) {
+
+  return (
+    departureProofEnabled &&
+    searchParams.get("successorOccupancyProof") !== "0"
+  );
+
+}
+
+const successorOccupancyProofEnabled =
+  isSuccessorOccupancyProofEnabled(
+    params,
+    departureProofLockEnabled
+  );
+
 function isPlatformAlertSuppressionEnabled(searchParams) {
 
   return searchParams.get("platformAlertSuppression") !== "0";
@@ -1848,6 +1866,9 @@ async function fetchDirection(platformId) {
   if (departureProofLockEnabled) {
     query.set("departureProofLock", "1");
   }
+  if (successorOccupancyProofEnabled) {
+    query.set("successorOccupancyProof", "1");
+  }
 
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
@@ -1933,7 +1954,8 @@ async function departureProofArrivals(
         ...snapshot,
         arrivals: filteredArrivals
       },
-      Date.now()
+      Date.now(),
+      { successorOccupancyProofEnabled }
     );
 
   departureProofStates.set(platformId, nextState);
@@ -1953,6 +1975,9 @@ if (departureProofLockEnabled) {
       value: createDepartureProofDiagnostics(departureProofStates)
     });
     document.documentElement.dataset.departureProofLock = "enabled";
+    if (successorOccupancyProofEnabled) {
+      document.documentElement.dataset.successorOccupancyProof = "enabled";
+    }
   });
 }
 

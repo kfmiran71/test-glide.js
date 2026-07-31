@@ -47,7 +47,8 @@ test("TripUpdate and exact VehiclePosition are correlated", () => {
         trip: descriptor,
         stopId: "A25N",
         currentStopSequence: 11,
-        currentStatus: 1
+        currentStatus: 1,
+        timestamp: 998
       }
     }
   ], "A24N", 999);
@@ -59,6 +60,27 @@ test("TripUpdate and exact VehiclePosition are correlated", () => {
   assert.equal(evidence[0].tripUpdateProgressionSequence, 11);
   assert.equal(evidence[0].vehiclePositionPresent, true);
   assert.equal(evidence[0].vehicle.currentStopSequence, 11);
+  assert.equal(evidence[0].vehicle.currentStatusExplicit, true);
+  assert.equal(evidence[0].vehicle.timestamp, 998);
+});
+
+test("defaulted VehiclePosition status is not treated as explicit", () => {
+  const evidence = buildGtfsEvidence([
+    {
+      vehicle: {
+        trip: {
+          tripId: "A-1",
+          startDate: "20260730",
+          routeId: "A"
+        },
+        stopId: "A24N",
+        currentStopSequence: 10
+      }
+    }
+  ], "A24N", 999);
+
+  assert.equal(evidence[0].vehicle.currentStatus, null);
+  assert.equal(evidence[0].vehicle.currentStatusExplicit, false);
 });
 
 test("mismatched VehiclePosition remains separate and cannot correlate", () => {
