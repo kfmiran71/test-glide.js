@@ -1,0 +1,29 @@
+{
+  "platform": "723S",
+  "regular7": {
+    "identityKey": "138500_7..S|20260730",
+    "tripId": "138500_7..S",
+    "startDate": "20260730",
+    "routeId": "7",
+    "staticTargetSequence": 17,
+    "realtimeTargetSequence": 19,
+    "omittedFromStatic": ["711S", "713S"],
+    "realtimeStops": [
+      "701S", "702S", "705S", "706S", "707S", "708S", "709S",
+      "710S", "711S", "712S", "713S", "714S", "715S", "716S",
+      "718S", "719S", "720S", "721S", "723S", "724S", "725S", "726S"
+    ]
+  },
+  "express7X": {
+    "identityKey": "141801_7..S|20260730",
+    "tripId": "141801_7..S",
+    "startDate": "20260730",
+    "routeId": "7X",
+    "staticTargetSequence": null,
+    "realtimeStops": [
+      "707S", "710S", "711S", "712S", "713S", "714S", "715S",
+      "716S", "718S", "719S", "720S", "721S", "723S", "724S",
+      "725S", "726S"
+    ]
+  }
+}

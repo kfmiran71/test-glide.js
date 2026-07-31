@@ -1,14 +1,18 @@
 import {
+  COMPATIBILITY_CLASSIFICATIONS,
   conclusiveRealtimePattern,
   downstreamStopDecision,
   exactEvidenceIdentityMatches,
   freshExactVehicle,
   newerConclusivePattern,
+  reconcileCompatibilityState,
+  reconcileExactIdentityRoute,
   realtimeStoppingPattern,
   staticRealtimeSequenceMismatch
 } from "./station-state-proof.js";
 
 export const GATE_STATES = Object.freeze({
+  PREARMED_AT_2: "PREARMED_AT_2",
   GATED_AT_ONE: "GATED_AT_ONE",
   ENTRY_CONFIRMED: "ENTRY_CONFIRMED",
   BYPASSED_OR_DOWNSTREAM: "BYPASSED_OR_DOWNSTREAM",
@@ -78,6 +82,56 @@ function evidenceIsFresh(evidence, vehicle) {
   return age >= -15 && age <= VEHICLE_FRESHNESS_SECONDS;
 }
 
+function exactCurrentArrival(arrivals, identityKey) {
+  return (arrivals || []).find(item =>
+    item?.identityKey === identityKey &&
+    item?.tripId &&
+    Number.isFinite(finiteNumber(item.time))
+  ) || null;
+}
+
+function exactTargetPredictionTimestamp(subject, evidence) {
+  if (
+    !exactEvidenceIdentityMatches(subject, evidence) ||
+    !evidence?.tripUpdatePresent ||
+    !evidence.targetStopPresent
+  ) {
+    return null;
+  }
+  const matches = (evidence.stopUpdates || []).filter(stop =>
+    stop.stopId === subject.targetStop
+  );
+  if (matches.length !== 1) return null;
+  return finiteNumber(matches[0].eventTime);
+}
+
+function retainedCountdown(targetTimestamp, nowMs) {
+  const timestamp = finiteNumber(targetTimestamp);
+  if (timestamp === null) return null;
+  return Math.round((timestamp * 1000 - nowMs) / 60000);
+}
+
+function hasUsableTargetEvidence(arrival, evidence, stationStateProofEnabled) {
+  if (
+    !arrival?.identityKey ||
+    !arrival.tripId ||
+    !evidence?.tripUpdatePresent ||
+    evidence.tripUpdateRouteAmbiguous ||
+    evidence.routeIdMismatch ||
+    !evidence.targetStop ||
+    !evidence.targetStopPresent
+  ) {
+    return false;
+  }
+  return Boolean(
+    finiteNumber(evidence.targetStopSequence) !== null ||
+    (
+      stationStateProofEnabled &&
+      conclusiveRealtimePattern(arrival, evidence)
+    )
+  );
+}
+
 function legacyVehicleClassification(gate, evidence) {
   const vehicle = evidence?.vehicle;
   if (
@@ -97,6 +151,7 @@ function legacyVehicleClassification(gate, evidence) {
   }
   const sequence = finiteNumber(vehicle.currentStopSequence);
   if (
+    vehicle.stopId !== gate.targetStop &&
     vehicle.currentStopSequenceExplicit &&
     sequence !== null &&
     sequence > gate.targetStopSequence
@@ -125,6 +180,44 @@ function legacyVehicleClassification(gate, evidence) {
     return { type: "IN_TRANSIT_TO", vehicle, timestamp };
   }
   return { type: "UNKNOWN", vehicle, timestamp };
+}
+
+function adaptiveVehicleClassification(gate, evidence) {
+  if (
+    gate?.compatibilityState?.classification ===
+      COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE
+  ) {
+    const result = legacyVehicleClassification(gate, evidence);
+    return {
+      ...result,
+      decision: {
+        predicate: "ARRIVAL_PROOF_ENTRY",
+        mode: "DEPLOYED_COMPATIBLE",
+        compatibilityState: gate.compatibilityState,
+        outcome:
+          result.type === "ENTRY_CONFIRMED"
+            ? "AFFIRMATIVE"
+            : result.type === "DOWNSTREAM"
+              ? "AFFIRMATIVE_DOWNSTREAM"
+              : "UNKNOWN",
+        reason:
+          result.type === "ENTRY_CONFIRMED"
+            ? "COMPATIBLE_DEPLOYED_ENTRY_PREDICATE"
+            : result.type === "DOWNSTREAM"
+              ? "COMPATIBLE_DEPLOYED_DOWNSTREAM_PREDICATE"
+              : "COMPATIBLE_DEPLOYED_EVIDENCE_INSUFFICIENT"
+      }
+    };
+  }
+  const result = correctedVehicleClassification(gate, evidence);
+  return {
+    ...result,
+    decision: {
+      ...result.decision,
+      mode: "STRICT_STATION_STATE_PROOF",
+      compatibilityState: gate?.compatibilityState || null
+    }
+  };
 }
 
 function correctedVehicleClassification(gate, evidence) {
@@ -287,18 +380,65 @@ export function reconcileArrivalProofGates(
 
   for (const arrival of snapshot?.arrivals || []) {
     const evidence = evidenceByIdentity.get(arrival.identityKey);
+    const rawCountdown = finiteNumber(arrival.time);
+    const prearmEligible =
+      stationStateProofEnabled &&
+      rawCountdown !== null &&
+      rawCountdown >= 0 &&
+      rawCountdown <= 2;
+    const prearmTargetTimestamp =
+      prearmEligible && rawCountdown > 1
+        ? exactTargetPredictionTimestamp(
+            {
+              identityKey: arrival.identityKey,
+              tripId: arrival.tripId,
+              startDate: arrival.startDate || "",
+              targetStop: evidence?.targetStop
+            },
+            evidence
+          )
+        : null;
+    const legacyGateEligible =
+      rawCountdown !== null &&
+      rawCountdown >= 0 &&
+      rawCountdown <= 1;
     if (
       !next.active[arrival.identityKey] &&
       !next.tombstones[arrival.identityKey] &&
       !next.suppressionTombstones[arrival.identityKey] &&
       arrival.identityKey &&
       arrival.tripId &&
-      Number(arrival.time) >= 0 &&
-      Number(arrival.time) <= 1 &&
-      evidence?.tripUpdatePresent &&
-      evidence.targetStopPresent &&
-      finiteNumber(evidence.targetStopSequence) !== null
+      (prearmEligible || legacyGateEligible) &&
+      (
+        !prearmEligible ||
+        rawCountdown <= 1 ||
+        prearmTargetTimestamp !== null
+      ) &&
+      hasUsableTargetEvidence(
+        arrival,
+        evidence,
+        stationStateProofEnabled
+      )
     ) {
+      const initialState =
+        prearmEligible && rawCountdown > 1
+          ? GATE_STATES.PREARMED_AT_2
+          : GATE_STATES.GATED_AT_ONE;
+      const initialPattern =
+        stationStateProofEnabled
+          ? conclusiveRealtimePattern(arrival, evidence)
+          : null;
+      const targetPredictionTimestamp =
+        prearmTargetTimestamp ??
+        exactTargetPredictionTimestamp(
+          {
+            identityKey: arrival.identityKey,
+            tripId: arrival.tripId,
+            startDate: arrival.startDate || "",
+            targetStop: evidence.targetStop
+          },
+          evidence
+        );
       next.active[arrival.identityKey] = {
         identityKey: arrival.identityKey,
         tripId: arrival.tripId,
@@ -307,41 +447,129 @@ export function reconcileArrivalProofGates(
         platformId: arrival.platformId,
         targetStop: evidence.targetStop,
         targetStopSequence: finiteNumber(evidence.targetStopSequence),
-        gatedAt: new Date(nowMs).toISOString(),
-        rawComputedCountdown: Number(arrival.time),
-        displayedCountdown: 1,
-        state: GATE_STATES.GATED_AT_ONE,
-        lastTransitionReason: "COUNTDOWN_REACHED_GATE",
+        prearmedAt:
+          initialState === GATE_STATES.PREARMED_AT_2
+            ? new Date(nowMs).toISOString()
+            : null,
+        gatedAt:
+          initialState === GATE_STATES.GATED_AT_ONE
+            ? new Date(nowMs).toISOString()
+            : null,
+        rawComputedCountdown: rawCountdown,
+        displayedCountdown:
+          initialState === GATE_STATES.PREARMED_AT_2
+            ? rawCountdown
+            : 1,
+        state: initialState,
+        lastTransitionReason:
+          initialState === GATE_STATES.PREARMED_AT_2
+            ? "ADMITTED_CANDIDATE_PREARMED_AT_2"
+            : "COUNTDOWN_REACHED_GATE",
+        lastAcceptedTargetPredictionTimestamp:
+          targetPredictionTimestamp,
         lastTripUpdateEvidence: evidence,
         latestVehiclePositionEvidence: evidence.vehicle || null,
         ...(stationStateProofEnabled
           ? {
+              compatibilityState:
+                reconcileCompatibilityState(null, evidence),
               lastConclusiveStoppingPattern:
-                conclusiveRealtimePattern(arrival, evidence),
+                initialPattern,
               stationStateProofEnabled: true,
               entryDecision: null
             }
           : {}),
         lastVehicleTimestamp: null,
         transferredToDepartureProofLock: false,
-        arrival: { ...arrival, time: "1", arrivalProofGated: true }
+        arrival: {
+          ...arrival,
+          time:
+            initialState === GATE_STATES.PREARMED_AT_2
+              ? String(rawCountdown)
+              : "1",
+          arrivalProofPrearmed:
+            initialState === GATE_STATES.PREARMED_AT_2,
+          arrivalProofGated:
+            initialState === GATE_STATES.GATED_AT_ONE
+        }
       };
     }
   }
 
   for (const [identityKey, gate] of Object.entries(next.active)) {
     const evidence = evidenceByIdentity.get(identityKey);
+    const currentArrival =
+      exactCurrentArrival(snapshot?.arrivals, identityKey);
+    const currentCountdown =
+      finiteNumber(currentArrival?.time);
+    const currentNonnegative =
+      currentCountdown !== null && currentCountdown >= 0;
+    const candidateTargetTimestamp =
+      currentNonnegative
+        ? exactTargetPredictionTimestamp(gate, evidence)
+        : null;
+    const previousTargetTimestamp =
+      finiteNumber(gate.lastAcceptedTargetPredictionTimestamp);
+    const acceptedTargetTimestamp =
+      candidateTargetTimestamp !== null &&
+      (
+        previousTargetTimestamp === null ||
+        candidateTargetTimestamp > previousTargetTimestamp
+      )
+        ? candidateTargetTimestamp
+        : previousTargetTimestamp;
+    const retained =
+      retainedCountdown(acceptedTargetTimestamp, nowMs);
+    const shouldDisplayCurrentAboveGate =
+      currentNonnegative && currentCountdown > 1;
+    const nextState =
+      shouldDisplayCurrentAboveGate
+        ? GATE_STATES.PREARMED_AT_2
+        : (
+            currentNonnegative && currentCountdown <= 1
+          ) || (
+            !currentNonnegative &&
+            retained !== null &&
+            retained <= 1
+          )
+          ? GATE_STATES.GATED_AT_ONE
+          : gate.state;
+    const displayedCountdown =
+      nextState === GATE_STATES.GATED_AT_ONE
+        ? 1
+        : currentNonnegative
+          ? currentCountdown
+          : retained !== null
+            ? Math.max(2, retained)
+            : finiteNumber(gate.displayedCountdown) ?? 2;
+    const routeDecision =
+      reconcileExactIdentityRoute(
+        gate,
+        evidence,
+        snapshot?.arrivals || []
+      );
+    const compatibilityState =
+      stationStateProofEnabled
+        ? reconcileCompatibilityState(
+            gate.compatibilityState,
+            evidence
+          )
+        : null;
     const classification =
       stationStateProofEnabled
-        ? correctedVehicleClassification(gate, evidence)
+        ? adaptiveVehicleClassification(
+            { ...gate, compatibilityState },
+            evidence
+          )
         : legacyVehicleClassification(gate, evidence);
     const updated = {
       ...gate,
+      route: routeDecision.route,
+      routeDecision,
       rawComputedCountdown:
-        finiteNumber(
-          (snapshot?.arrivals || [])
-            .find(item => item.identityKey === identityKey)?.time
-        ) ?? gate.rawComputedCountdown,
+        currentCountdown ?? gate.rawComputedCountdown,
+      lastAcceptedTargetPredictionTimestamp:
+        acceptedTargetTimestamp,
       lastTripUpdateEvidence: evidence?.tripUpdatePresent
         ? evidence
         : gate.lastTripUpdateEvidence,
@@ -357,14 +585,33 @@ export function reconcileArrivalProofGates(
                 gate.lastConclusiveStoppingPattern
               ),
             stationStateProofEnabled: true,
+            compatibilityState,
             entryDecision: classification.decision
           }
         : {}),
       lastVehicleTimestamp:
-        classification.timestamp ?? gate.lastVehicleTimestamp
+        (
+          nextState === GATE_STATES.GATED_AT_ONE ||
+          classification.type === "DOWNSTREAM"
+        )
+          ? classification.timestamp ?? gate.lastVehicleTimestamp
+          : gate.lastVehicleTimestamp
+    };
+    updated.arrival = {
+      ...updated.arrival,
+      ...(currentNonnegative ? currentArrival : {}),
+      route: routeDecision.route,
+      time: String(displayedCountdown),
+      arrivalProofPrearmed:
+        nextState === GATE_STATES.PREARMED_AT_2,
+      arrivalProofGated:
+        nextState === GATE_STATES.GATED_AT_ONE
     };
 
-    if (classification.type === "ENTRY_CONFIRMED") {
+    if (
+      nextState === GATE_STATES.GATED_AT_ONE &&
+      classification.type === "ENTRY_CONFIRMED"
+    ) {
       const confirmed = {
         ...updated,
         state: GATE_STATES.ENTRY_CONFIRMED,
@@ -376,7 +623,9 @@ export function reconcileArrivalProofGates(
           ...updated.arrival,
           time: "0",
           arrivalProofGated: false,
-          arrivalProofEntryConfirmed: true
+          arrivalProofEntryConfirmed: true,
+          stationStateCompatibility:
+            updated.compatibilityState || null
         }
       };
       next.confirmed.push(confirmed);
@@ -412,15 +661,25 @@ export function reconcileArrivalProofGates(
 
     next.active[identityKey] = {
       ...updated,
-      displayedCountdown: 1,
-      state: GATE_STATES.GATED_AT_ONE,
+      displayedCountdown,
+      state: nextState,
+      gatedAt:
+        nextState === GATE_STATES.GATED_AT_ONE
+          ? gate.gatedAt || new Date(nowMs).toISOString()
+          : gate.gatedAt,
       lastTransitionReason:
-        classification.type === "INCOMING_AT"
-          ? "INCOMING_AT_IS_APPROACH_EVIDENCE"
-          : classification.type === "IN_TRANSIT_TO"
-          ? "EXPLICIT_IN_TRANSIT_TO_TARGET"
-          : "ENTRY_EVIDENCE_UNKNOWN",
-      arrival: { ...updated.arrival, time: "1", arrivalProofGated: true }
+        nextState === GATE_STATES.PREARMED_AT_2
+          ? (
+              currentNonnegative
+                ? "PREARMED_CURRENT_PREDICTION"
+                : "PREARMED_RETAINED_PREDICTION"
+            )
+          : classification.type === "INCOMING_AT"
+            ? "INCOMING_AT_IS_APPROACH_EVIDENCE"
+            : classification.type === "IN_TRANSIT_TO"
+              ? "EXPLICIT_IN_TRANSIT_TO_TARGET"
+              : "ENTRY_EVIDENCE_UNKNOWN",
+      arrival: { ...updated.arrival }
     };
   }
   return next;
@@ -474,13 +733,23 @@ export function arrivalProofBoardArrivals(state, arrivals) {
   const output = [];
   for (const routeItems of byRoute.values()) {
     routeItems.sort((a, b) => {
-      if (Boolean(a.arrivalProofGated) !== Boolean(b.arrivalProofGated)) {
-        return a.arrivalProofGated ? -1 : 1;
+      const aProtected =
+        Boolean(a.arrivalProofGated) ||
+        Boolean(a.arrivalProofPrearmed);
+      const bProtected =
+        Boolean(b.arrivalProofGated) ||
+        Boolean(b.arrivalProofPrearmed);
+      if (aProtected !== bProtected) {
+        return aProtected ? -1 : 1;
       }
       return Number(a.time) - Number(b.time);
     });
-    const protectedItems = routeItems.filter(item => item.arrivalProofGated);
-    const ordinary = routeItems.filter(item => !item.arrivalProofGated);
+    const protectedItems = routeItems.filter(item =>
+      item.arrivalProofGated || item.arrivalProofPrearmed
+    );
+    const ordinary = routeItems.filter(item =>
+      !item.arrivalProofGated && !item.arrivalProofPrearmed
+    );
     output.push(
       ...protectedItems,
       ...ordinary.slice(0, Math.max(0, 3 - protectedItems.length))

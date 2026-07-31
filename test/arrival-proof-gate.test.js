@@ -246,7 +246,12 @@ test("20 bypass tombstone prevents recreation", () => {
   let state = reconcile(null);
   state = reconcile(state, [], [
     evidence({
-      vehicle: { ...evidence().vehicle, currentStopSequence: 23, timestamp: FEED + 1 }
+      vehicle: {
+        ...evidence().vehicle,
+        stopId: "702N",
+        currentStopSequence: 23,
+        timestamp: FEED + 1
+      }
     })
   ]);
   state = reconcile(state);

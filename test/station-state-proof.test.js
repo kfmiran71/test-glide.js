@@ -12,6 +12,9 @@ import {
   createDepartureProofDiagnostics,
   reconcileDepartureProofLocks
 } from "../public/departure-proof-lock.js";
+import {
+  COMPATIBILITY_CLASSIFICATIONS
+} from "../public/station-state-proof.js";
 
 const NOW = Date.UTC(2026, 6, 30, 22, 30);
 const FEED = NOW / 1000;
@@ -71,6 +74,19 @@ function evidence(overrides = {}) {
   };
 }
 
+function compatibleEvidence(overrides = {}) {
+  return evidence({
+    compatibility: {
+      classification: COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE,
+      reason: "EXPLICIT_TARGET_SEQUENCE_ZERO_OFFSET",
+      contradictionReason: null,
+      zeroOffsetProven: true
+    },
+    vehicle: vehicle({ currentStopSequence: 17 }),
+    ...overrides
+  });
+}
+
 function gate(state, arrivals = [arrival()], evidences = [evidence()]) {
   return reconcileArrivalProofGates(
     state,
@@ -96,6 +112,68 @@ test("one fresh exact STOPPED_AT promotes and transfers to the lock", () => {
   assert.equal(gated.confirmed[0].entryDecision.reason, "FRESH_EXACT_TARGET_STOPPED_AT");
   const locked = lock(null, board, [evidence()]);
   assert.ok(locked.active[ID]);
+});
+
+test("compatible trip preserves deployed INCOMING_AT entry behavior", () => {
+  const state = gate(
+    null,
+    [arrival()],
+    [
+      compatibleEvidence({
+        vehicle: vehicle({
+          currentStopSequence: 17,
+          currentStatus: VEHICLE_STATUSES.INCOMING_AT
+        })
+      })
+    ]
+  );
+  assert.equal(arrivalProofBoardArrivals(state, [])[0].time, "0");
+  assert.equal(
+    state.confirmed[0].entryDecision.mode,
+    "DEPLOYED_COMPATIBLE"
+  );
+});
+
+test("compatible state changes to sticky conflict before later classification", () => {
+  let state = gate(
+    null,
+    [arrival({ time: "1" })],
+    [
+      compatibleEvidence({
+        vehicle: vehicle({
+          currentStopSequence: 17,
+          currentStatus: VEHICLE_STATUSES.IN_TRANSIT_TO
+        })
+      })
+    ]
+  );
+  assert.equal(
+    state.active[ID].compatibilityState.classification,
+    COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE
+  );
+
+  state = gate(state, [], [
+    evidence({
+      compatibility: {
+        classification: COMPATIBILITY_CLASSIFICATIONS.CONFLICT,
+        reason: "EXPLICIT_ANCHOR_NONZERO_OFFSET",
+        contradictionReason: "EXPLICIT_ANCHOR_NONZERO_OFFSET",
+        zeroOffsetProven: false
+      },
+      vehicle: vehicle({
+        currentStatus: VEHICLE_STATUSES.INCOMING_AT
+      })
+    })
+  ]);
+  assert.equal(arrivalProofBoardArrivals(state, [])[0].time, "1");
+  assert.equal(
+    state.active[ID].compatibilityState.classification,
+    COMPATIBILITY_CLASSIFICATIONS.CONFLICT
+  );
+  assert.equal(
+    state.active[ID].entryDecision.mode,
+    "STRICT_STATION_STATE_PROOF"
+  );
 });
 
 for (const [label, change, reason] of [
@@ -256,7 +334,7 @@ test("older reordered pattern, feed failure, and absence retain the lock", () =>
   assert.ok(state.active[ID]);
 });
 
-test("stationStateProof=0 reproduces prior entry and release predicates", () => {
+test("stationStateProof=0 preserves legacy entry but universal target retention", () => {
   const legacy = { stationStateProofEnabled: false };
   const gated = reconcileArrivalProofGates(
     null,
@@ -281,7 +359,12 @@ test("stationStateProof=0 reproduces prior entry and release predicates", () => 
     NOW,
     legacy
   );
-  assert.equal(released.released[0].releaseReason, RELEASE_REASONS.VEHICLE_DOWNSTREAM);
+  assert.ok(released.active[ID]);
+  assert.equal(released.released.length, 0);
+  assert.equal(
+    released.active[ID].releaseDecision.reason,
+    "VEHICLE_STILL_NAMES_TARGET"
+  );
 });
 
 test("default-on URL policy and diagnostics remain detached and frozen", () => {

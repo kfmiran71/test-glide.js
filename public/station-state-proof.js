@@ -1,9 +1,285 @@
 export const STATION_STATE_VEHICLE_FRESHNESS_SECONDS = 120;
+export const COMPATIBILITY_CLASSIFICATIONS = Object.freeze({
+  UNRESOLVED: "UNRESOLVED",
+  COMPATIBLE: "COMPATIBLE",
+  CONFLICT: "CONFLICT"
+});
 
 function finiteNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function boundedAnchors(anchors) {
+  if (!anchors.length) return [];
+  if (anchors.length <= 4) return anchors;
+  return [
+    anchors[0],
+    anchors[1],
+    anchors[anchors.length - 2],
+    anchors[anchors.length - 1]
+  ];
+}
+
+export function buildCompatibilityObservation({
+  tripId,
+  startDate,
+  route,
+  targetStop,
+  stopUpdates = [],
+  vehicle = null,
+  tripUpdateRouteAmbiguous = false,
+  routeIdMismatch = false,
+  feedTimestamp = null,
+  resolveStaticSequence = () => null
+}) {
+  const targetIndexes = [];
+  const occurrenceCounts = new Map();
+  const mapped = stopUpdates.map((stop, patternIndex) => {
+    const stopId = String(stop?.stopId || "");
+    occurrenceCounts.set(stopId, (occurrenceCounts.get(stopId) || 0) + 1);
+    if (stopId === targetStop) targetIndexes.push(patternIndex);
+    return {
+      stopId,
+      patternIndex,
+      staticSequence: finiteNumber(resolveStaticSequence(tripId, stopId)),
+      explicitRealtimeSequence:
+        stop?.stopSequenceExplicit
+          ? finiteNumber(stop.stopSequence)
+          : null,
+      explicitSource:
+        stop?.stopSequenceExplicit ? "TRIP_UPDATE" : null
+    };
+  });
+  const targetUnique = targetIndexes.length === 1;
+  const targetPatternIndex = targetUnique ? targetIndexes[0] : null;
+  const targetStaticSequence =
+    finiteNumber(resolveStaticSequence(tripId, targetStop));
+
+  const anchors = mapped
+    .filter(item => item.explicitRealtimeSequence !== null)
+    .map(item => ({
+      source: item.explicitSource,
+      stopId: item.stopId,
+      patternIndex: item.patternIndex,
+      realtimeSequence: item.explicitRealtimeSequence,
+      staticSequence: item.staticSequence
+    }));
+
+  if (
+    vehicle?.currentStopSequenceExplicit &&
+    finiteNumber(vehicle.currentStopSequence) !== null
+  ) {
+    const stopId = String(vehicle.stopId || "");
+    const indexes = mapped
+      .filter(item => item.stopId === stopId)
+      .map(item => item.patternIndex);
+    anchors.push({
+      source: "VEHICLE_POSITION",
+      stopId,
+      patternIndex: indexes.length === 1 ? indexes[0] : null,
+      realtimeSequence: finiteNumber(vehicle.currentStopSequence),
+      staticSequence: finiteNumber(resolveStaticSequence(tripId, stopId))
+    });
+  }
+
+  const base = {
+    classification: COMPATIBILITY_CLASSIFICATIONS.UNRESOLVED,
+    reason: "ZERO_OFFSET_NOT_PROVEN",
+    contradictionReason: null,
+    zeroOffsetProven: false,
+    routeEvidenceAgreement:
+      !tripUpdateRouteAmbiguous && !routeIdMismatch,
+    targetStaticSequence,
+    targetRealtimePatternIndex: targetPatternIndex,
+    establishedStartingSequence: null,
+    anchorCount: anchors.length,
+    anchors: boundedAnchors(anchors),
+    feedTimestamp: finiteNumber(feedTimestamp)
+  };
+
+  if (tripUpdateRouteAmbiguous) {
+    return {
+      ...base,
+      classification: COMPATIBILITY_CLASSIFICATIONS.CONFLICT,
+      reason: "SIMULTANEOUS_TRIP_UPDATE_ROUTES",
+      contradictionReason: "SIMULTANEOUS_TRIP_UPDATE_ROUTES"
+    };
+  }
+  if (routeIdMismatch) {
+    return {
+      ...base,
+      classification: COMPATIBILITY_CLASSIFICATIONS.CONFLICT,
+      reason: "TRIP_UPDATE_VEHICLE_ROUTE_MISMATCH",
+      contradictionReason: "TRIP_UPDATE_VEHICLE_ROUTE_MISMATCH"
+    };
+  }
+
+  const contradictoryAnchor = anchors.find(anchor =>
+    anchor.staticSequence !== null &&
+    anchor.realtimeSequence !== anchor.staticSequence
+  );
+  if (contradictoryAnchor) {
+    return {
+      ...base,
+      classification: COMPATIBILITY_CLASSIFICATIONS.CONFLICT,
+      reason: "EXPLICIT_ANCHOR_NONZERO_OFFSET",
+      contradictionReason: "EXPLICIT_ANCHOR_NONZERO_OFFSET",
+      anchors: boundedAnchors([contradictoryAnchor, ...anchors])
+    };
+  }
+
+  if (!targetUnique) {
+    return {
+      ...base,
+      reason:
+        targetIndexes.length > 1
+          ? "TARGET_OCCURRENCE_AMBIGUOUS"
+          : "TARGET_OCCURRENCE_UNAVAILABLE"
+    };
+  }
+  if (targetStaticSequence === null) {
+    return {
+      ...base,
+      reason: "STATIC_TARGET_SEQUENCE_UNAVAILABLE"
+    };
+  }
+
+  const targetAnchor = anchors.find(anchor =>
+    anchor.stopId === targetStop &&
+    anchor.patternIndex === targetPatternIndex &&
+    anchor.staticSequence === targetStaticSequence &&
+    anchor.realtimeSequence === targetStaticSequence
+  );
+  if (targetAnchor) {
+    return {
+      ...base,
+      classification: COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE,
+      reason: "EXPLICIT_TARGET_SEQUENCE_ZERO_OFFSET",
+      zeroOffsetProven: true,
+      establishedStartingSequence: targetAnchor.realtimeSequence,
+      anchors: boundedAnchors([targetAnchor, ...anchors])
+    };
+  }
+
+  const usableAnchors = anchors
+    .filter(anchor =>
+      anchor.patternIndex !== null &&
+      anchor.patternIndex <= targetPatternIndex &&
+      anchor.staticSequence !== null &&
+      anchor.realtimeSequence === anchor.staticSequence &&
+      occurrenceCounts.get(anchor.stopId) === 1
+    )
+    .sort((a, b) => a.patternIndex - b.patternIndex);
+  if (!usableAnchors.length) {
+    return {
+      ...base,
+      reason: "EXPLICIT_ZERO_OFFSET_ANCHOR_UNAVAILABLE"
+    };
+  }
+
+  for (const anchor of usableAnchors) {
+    const throughTarget = mapped.slice(
+      anchor.patternIndex,
+      targetPatternIndex + 1
+    );
+    if (
+      throughTarget.some(item =>
+        !item.stopId ||
+        item.staticSequence === null ||
+        occurrenceCounts.get(item.stopId) !== 1
+      )
+    ) {
+      continue;
+    }
+
+    const everyOccurrenceExplicitAndMatching =
+      throughTarget.every(item =>
+        item.explicitRealtimeSequence !== null &&
+        item.explicitRealtimeSequence === item.staticSequence
+      );
+    const staticallyConsecutive =
+      throughTarget.every((item, index) =>
+        index === 0 ||
+        item.staticSequence === throughTarget[index - 1].staticSequence + 1
+      );
+
+    if (everyOccurrenceExplicitAndMatching || staticallyConsecutive) {
+      return {
+        ...base,
+        classification: COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE,
+        reason:
+          everyOccurrenceExplicitAndMatching
+            ? "MULTIPLE_EXPLICIT_ANCHORS_ZERO_OFFSET"
+            : "EXPLICIT_ANCHOR_WITH_FULL_STATIC_PROGRESSION",
+        zeroOffsetProven: true,
+        establishedStartingSequence: anchor.realtimeSequence,
+        anchors: boundedAnchors(
+          everyOccurrenceExplicitAndMatching
+            ? throughTarget.map(item => ({
+                source: item.explicitSource,
+                stopId: item.stopId,
+                patternIndex: item.patternIndex,
+                realtimeSequence: item.explicitRealtimeSequence,
+                staticSequence: item.staticSequence
+              }))
+            : [anchor]
+        )
+      };
+    }
+  }
+
+  return {
+    ...base,
+    reason: "STATIC_NUMERIC_PROGRESSION_NOT_PROVEN",
+    establishedStartingSequence: usableAnchors[0].realtimeSequence
+  };
+}
+
+export function reconcileCompatibilityState(previous, evidence) {
+  const prior =
+    previous || {
+      classification: COMPATIBILITY_CLASSIFICATIONS.UNRESOLVED,
+      reason: "NO_COMPATIBILITY_EVIDENCE",
+      contradictionReason: null,
+      zeroOffsetProven: false,
+      lastObservation: null
+    };
+  if (prior.classification === COMPATIBILITY_CLASSIFICATIONS.CONFLICT) {
+    return prior;
+  }
+
+  const observation = evidence?.compatibility || null;
+  if (!observation) return prior;
+  if (observation.classification === COMPATIBILITY_CLASSIFICATIONS.CONFLICT) {
+    return {
+      ...observation,
+      lastObservation: observation
+    };
+  }
+  if (
+    observation.classification ===
+      COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE &&
+    observation.zeroOffsetProven
+  ) {
+    return {
+      ...observation,
+      lastObservation: observation
+    };
+  }
+  if (prior.classification === COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE) {
+    return {
+      ...prior,
+      lastObservation: observation
+    };
+  }
+  return {
+    ...observation,
+    classification: COMPATIBILITY_CLASSIFICATIONS.UNRESOLVED,
+    zeroOffsetProven: false,
+    lastObservation: observation
+  };
 }
 
 export function exactEvidenceIdentityMatches(subject, evidence) {
@@ -12,8 +288,52 @@ export function exactEvidenceIdentityMatches(subject, evidence) {
     subject.identityKey === evidence?.identityKey &&
     subject.tripId &&
     subject.tripId === evidence?.tripId &&
-    String(subject.startDate || "") === String(evidence?.startDate || "")
+    String(subject.startDate || "") === String(evidence?.startDate || "") &&
+    !evidence?.tripUpdateRouteAmbiguous &&
+    !evidence?.routeIdMismatch
   );
+}
+
+export function reconcileExactIdentityRoute(
+  subject,
+  evidence,
+  arrivals = []
+) {
+  const observedRoutes = new Set(
+    arrivals
+      .filter(arrival => arrival?.identityKey === subject?.identityKey)
+      .map(arrival => String(arrival?.route || ""))
+      .filter(Boolean)
+  );
+  if (evidence?.route) observedRoutes.add(String(evidence.route));
+
+  const routes = [...observedRoutes].sort();
+  const ambiguous =
+    Boolean(evidence?.tripUpdateRouteAmbiguous) ||
+    Boolean(evidence?.routeIdMismatch) ||
+    routes.length > 1;
+  const previousRoute = String(subject?.route || "");
+  const route =
+    !ambiguous && routes.length === 1
+      ? routes[0]
+      : previousRoute || routes[0] || "";
+
+  return {
+    route,
+    previousRoute,
+    observedRoutes: routes,
+    changed:
+      Boolean(previousRoute) &&
+      Boolean(route) &&
+      previousRoute !== route,
+    ambiguous,
+    reason:
+      ambiguous
+        ? "SIMULTANEOUS_ROUTE_LABELS_AMBIGUOUS"
+        : previousRoute && route !== previousRoute
+          ? "EXACT_IDENTITY_ROUTE_UPDATED"
+          : "EXACT_IDENTITY_ROUTE_STABLE"
+  };
 }
 
 export function freshExactVehicle(subject, evidence) {
@@ -57,7 +377,9 @@ export function realtimeStoppingPattern(evidence) {
   if (
     !evidence?.tripUpdatePresent ||
     !evidence?.identityKey ||
-    !evidence?.tripId
+    !evidence?.tripId ||
+    evidence?.tripUpdateRouteAmbiguous ||
+    evidence?.routeIdMismatch
   ) {
     return null;
   }
@@ -77,6 +399,7 @@ export function realtimeStoppingPattern(evidence) {
     identityKey: evidence.identityKey,
     tripId: evidence.tripId,
     startDate: String(evidence.startDate || ""),
+    route: String(evidence.route || ""),
     targetStop,
     stopIds,
     targetIndexes,

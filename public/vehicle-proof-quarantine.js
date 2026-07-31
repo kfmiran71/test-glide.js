@@ -58,6 +58,8 @@ export function hasFreshQualifyingVehicle(evidence) {
   return Boolean(
     evidence?.vehiclePositionPresent &&
     !evidence?.vehiclePositionAmbiguous &&
+    !evidence?.tripUpdateRouteAmbiguous &&
+    !evidence?.routeIdMismatch &&
     evidence?.vehicle &&
     timestamp !== null &&
     age !== null &&
@@ -101,12 +103,41 @@ export function reconcileVehicleProofQuarantine(state, snapshot, nowMs) {
   const quarantined = {};
   const currentDisposition = {};
 
+  const arrivalsByIdentity = new Map();
   for (const arrival of snapshot?.arrivals || []) {
+    if (!arrival?.identityKey) continue;
+    if (!arrivalsByIdentity.has(arrival.identityKey)) {
+      arrivalsByIdentity.set(arrival.identityKey, []);
+    }
+    arrivalsByIdentity.get(arrival.identityKey).push(arrival);
+  }
+
+  for (const identityArrivals of arrivalsByIdentity.values()) {
+    const observedRoutes = [
+      ...new Set(
+        identityArrivals
+          .map(arrival => String(arrival.route || ""))
+          .filter(Boolean)
+      )
+    ].sort();
+    const previousRecord =
+      next.admitted[identityArrivals[0].identityKey] ||
+      next.quarantined[identityArrivals[0].identityKey];
+    const routeAmbiguous = observedRoutes.length > 1;
+    const selectedRoute =
+      routeAmbiguous
+        ? String(previousRecord?.route || observedRoutes[0] || "")
+        : observedRoutes[0] || "";
+    const arrival = {
+      ...identityArrivals[0],
+      route: selectedRoute
+    };
     const countdown = finiteNumber(arrival.time);
     if (countdown === null || countdown < 0) continue;
 
     const evidence = evidenceByIdentity.get(arrival.identityKey);
     const currentFresh =
+      !routeAmbiguous &&
       exactIdentityMatchesEvidence(arrival, evidence) &&
       hasFreshQualifyingVehicle(evidence);
 
@@ -139,6 +170,8 @@ export function reconcileVehicleProofQuarantine(state, snapshot, nowMs) {
       tripId: arrival.tripId,
       startDate: arrival.startDate || "",
       route: arrival.route,
+      routeAmbiguous,
+      observedRoutes,
       platformId: arrival.platformId,
       rawCountdown: countdown,
       disposition,

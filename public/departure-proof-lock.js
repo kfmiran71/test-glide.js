@@ -1,8 +1,12 @@
 import {
+  COMPATIBILITY_CLASSIFICATIONS,
+  buildCompatibilityObservation,
   downstreamStopDecision,
   exactEvidenceIdentityMatches,
   freshExactVehicle,
   newerConclusivePattern,
+  reconcileCompatibilityState,
+  reconcileExactIdentityRoute,
   realtimeStoppingPattern,
   staticRealtimeSequenceMismatch
 } from "./station-state-proof.js";
@@ -68,9 +72,12 @@ export function buildGtfsEvidence(
     if (entity.tripUpdate) {
       const identity = exactTripIdentity(entity.tripUpdate.trip);
       if (identity) {
-        tripUpdates.set(identity.identityKey, {
+        const route = String(entity.tripUpdate.trip?.routeId || "");
+        const existing = tripUpdates.get(identity.identityKey);
+        const record = {
           identity,
           trip: entity.tripUpdate.trip,
+          route,
           progressionStopSequence:
             Object.prototype.hasOwnProperty.call(
               entity.tripUpdate,
@@ -80,7 +87,26 @@ export function buildGtfsEvidence(
               : null,
           stopUpdates: (entity.tripUpdate.stopTimeUpdate || [])
             .map(normalizeStopUpdate)
-        });
+        };
+        if (!existing) {
+          tripUpdates.set(identity.identityKey, {
+            ...record,
+            observedRoutes: route ? [route] : [],
+            routeAmbiguous: false
+          });
+        } else {
+          const observedRoutes = [
+            ...new Set([
+              ...(existing.observedRoutes || []),
+              ...(route ? [route] : [])
+            ])
+          ].sort();
+          tripUpdates.set(identity.identityKey, {
+            ...existing,
+            observedRoutes,
+            routeAmbiguous: observedRoutes.length > 1
+          });
+        }
       }
     }
 
@@ -99,6 +125,7 @@ export function buildGtfsEvidence(
             "currentStopSequence"
           );
         const vehicle = {
+          routeId: String(entity.vehicle.trip?.routeId || ""),
           stopId: String(entity.vehicle.stopId || ""),
           currentStopSequence: numberValue(entity.vehicle.currentStopSequence),
           currentStopSequenceExplicit: sequenceExplicit,
@@ -120,16 +147,51 @@ export function buildGtfsEvidence(
   return [...identityKeys].map(identityKey => {
     const update = tripUpdates.get(identityKey);
     const vehicleMatch = vehicles.get(identityKey);
+    const tripUpdateRoute = String(update?.route || "");
+    const vehicleRoute = String(vehicleMatch?.vehicle?.routeId || "");
+    const routeIdMismatch = Boolean(
+      tripUpdateRoute &&
+      vehicleRoute &&
+      tripUpdateRoute !== vehicleRoute
+    );
     const targetUpdate = update?.stopUpdates
       .find(stop => stop.stopId === targetStop) || null;
+    const tripId =
+      update?.identity.tripId ||
+      exactTripIdentity(update?.trip || {})?.tripId ||
+      identityKey.split("|")[0];
+    const compatibility =
+      buildCompatibilityObservation({
+        tripId,
+        startDate:
+          update?.identity.startDate ||
+          identityKey.split("|")[1] ||
+          "",
+        route: update?.routeAmbiguous
+          ? ""
+          : tripUpdateRoute || vehicleRoute,
+        targetStop,
+        stopUpdates: update?.stopUpdates || [],
+        vehicle: vehicleMatch?.vehicle || null,
+        tripUpdateRouteAmbiguous: Boolean(update?.routeAmbiguous),
+        routeIdMismatch,
+        feedTimestamp,
+        resolveStaticSequence: resolveTargetStopSequence
+      });
 
     return {
       identityKey,
-      tripId: update?.identity.tripId ||
-        exactTripIdentity(update?.trip || {})?.tripId ||
-        identityKey.split("|")[0],
+      tripId,
       startDate: update?.identity.startDate || identityKey.split("|")[1] || "",
-      route: String(update?.trip?.routeId || ""),
+      route: update?.routeAmbiguous
+        ? ""
+        : tripUpdateRoute || vehicleRoute,
+      tripUpdateRoute,
+      vehicleRoute,
+      tripUpdateObservedRoutes: update?.observedRoutes || [],
+      tripUpdateRouteAmbiguous: Boolean(update?.routeAmbiguous),
+      routeIdMismatch,
+      compatibility,
       targetStop,
       targetStopPresent: Boolean(targetUpdate),
       targetStopSequence:
@@ -201,6 +263,45 @@ function legacyReleaseClassification(lock, evidence) {
   };
 }
 
+function vehicleStillNamesExactTarget(lock, evidence) {
+  if (
+    !lock?.targetStop ||
+    !exactEvidenceIdentityMatches(lock, evidence) ||
+    !evidence?.vehiclePositionPresent ||
+    evidence?.vehiclePositionAmbiguous ||
+    !evidence?.vehicle
+  ) {
+    return null;
+  }
+  const vehicle = evidence.vehicle;
+  return vehicle?.stopId === lock.targetStop ? vehicle : null;
+}
+
+function targetStopRetentionClassification(lock, evidence) {
+  if (!vehicleStillNamesExactTarget(lock, evidence)) return null;
+  const mismatch = staticRealtimeSequenceMismatch(lock, evidence);
+  return {
+    classification: "AT_TARGET",
+    releaseReason: null,
+    lastConclusiveStoppingPattern:
+      newerConclusivePattern(
+        lock,
+        evidence,
+        lock.lastConclusiveStoppingPattern
+      ),
+    releaseDecision: {
+      stationStateProofEnabled: true,
+      staticRealtimeSequenceMismatch: mismatch,
+      sequenceOnlyEvidenceRejected: mismatch,
+      predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
+      outcome: "NEGATIVE",
+      reason: "VEHICLE_STILL_NAMES_TARGET",
+      proposedDownstreamStop: evidence.vehicle.stopId,
+      evaluatedPredicates: []
+    }
+  };
+}
+
 function correctedReleaseClassification(lock, evidence) {
   const currentRealtimeStoppingPattern =
     realtimeStoppingPattern(evidence);
@@ -241,19 +342,16 @@ function correctedReleaseClassification(lock, evidence) {
     }
   ];
 
-  if (
-    evidence?.vehicle?.stopId &&
-    evidence.vehicle.stopId === lock.targetStop
-  ) {
+  if (!exactEvidenceIdentityMatches(lock, evidence)) {
     return {
-      classification: "AT_TARGET",
+      classification: "EVIDENCE_UNAVAILABLE",
       releaseReason: null,
       lastConclusiveStoppingPattern,
       releaseDecision: {
         ...base,
         predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
-        outcome: "NEGATIVE",
-        reason: "VEHICLE_STILL_NAMES_TARGET",
+        outcome: "UNKNOWN",
+        reason: "EXACT_IDENTITY_EVIDENCE_UNAVAILABLE",
         evaluatedPredicates
       }
     };
@@ -271,20 +369,6 @@ function correctedReleaseClassification(lock, evidence) {
         predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
         outcome: "UNKNOWN",
         reason: "TARGET_OCCURRENCE_AMBIGUOUS",
-        evaluatedPredicates
-      }
-    };
-  }
-  if (!exactEvidenceIdentityMatches(lock, evidence)) {
-    return {
-      classification: "EVIDENCE_UNAVAILABLE",
-      releaseReason: null,
-      lastConclusiveStoppingPattern,
-      releaseDecision: {
-        ...base,
-        predicate: RELEASE_REASONS.VEHICLE_DOWNSTREAM,
-        outcome: "UNKNOWN",
-        reason: "EXACT_IDENTITY_EVIDENCE_UNAVAILABLE",
         evaluatedPredicates
       }
     };
@@ -366,6 +450,46 @@ function correctedReleaseClassification(lock, evidence) {
   };
 }
 
+function adaptiveReleaseClassification(lock, evidence) {
+  const invariant = targetStopRetentionClassification(lock, evidence);
+  if (invariant) return invariant;
+
+  if (
+    lock.compatibilityState?.classification ===
+    COMPATIBILITY_CLASSIFICATIONS.COMPATIBLE
+  ) {
+    const deployed = legacyReleaseClassification(lock, evidence);
+    return {
+      ...deployed,
+      lastConclusiveStoppingPattern:
+        newerConclusivePattern(
+          lock,
+          evidence,
+          lock.lastConclusiveStoppingPattern
+        ),
+      releaseDecision: {
+        stationStateProofEnabled: true,
+        mode: "DEPLOYED_COMPATIBLE",
+        predicate: deployed.releaseReason,
+        outcome: deployed.releaseReason ? "AFFIRMATIVE" : "UNKNOWN",
+        reason: deployed.classification
+      }
+    };
+  }
+
+  const strict = correctedReleaseClassification(lock, evidence);
+  return {
+    ...strict,
+    releaseDecision: {
+      ...strict.releaseDecision,
+      mode: "STRICT_STATION_STATE_PROOF",
+      compatibilityClassification:
+        lock.compatibilityState?.classification ||
+        COMPATIBILITY_CLASSIFICATIONS.UNRESOLVED
+    }
+  };
+}
+
 function cloneState(state) {
   return {
     active: { ...(state?.active || {}) },
@@ -395,8 +519,16 @@ export function reconcileDepartureProofLocks(
       !next.suppressionTombstones[arrival.identityKey] &&
       Number(arrival.time) === 0 &&
       evidence?.tripUpdatePresent &&
+      !evidence.tripUpdateRouteAmbiguous &&
+      !evidence.routeIdMismatch &&
       evidence.targetStopPresent &&
-      numberValue(evidence.targetStopSequence) !== null
+      (
+        numberValue(evidence.targetStopSequence) !== null ||
+        (
+          stationStateProofEnabled &&
+          Boolean(newerConclusivePattern(arrival, evidence, null))
+        )
+      )
     ) {
       next.active[arrival.identityKey] = {
         identityKey: arrival.identityKey,
@@ -406,11 +538,14 @@ export function reconcileDepartureProofLocks(
         direction: arrival.direction,
         platformId: arrival.platformId,
         selectedStop: arrival.platformId,
+        targetStop: evidence.targetStop,
         targetStopSequence: evidence.targetStopSequence,
         ...(stationStateProofEnabled
           ? {
               stationStateProofEnabled: true,
-              targetStop: evidence.targetStop,
+              compatibilityState:
+                arrival.stationStateCompatibility ||
+                reconcileCompatibilityState(null, evidence),
               lastConclusiveStoppingPattern:
                 newerConclusivePattern(arrival, evidence, null),
               releaseDecision: null
@@ -435,18 +570,40 @@ export function reconcileDepartureProofLocks(
 
   for (const [identityKey, lock] of Object.entries(next.active)) {
     const evidence = evidenceByIdentity.get(identityKey);
-    const classification =
+    const routeDecision =
+      reconcileExactIdentityRoute(lock, evidence, arrivals);
+    const compatibilityState =
       stationStateProofEnabled
-        ? correctedReleaseClassification(lock, evidence)
-        : legacyReleaseClassification(lock, evidence);
+        ? reconcileCompatibilityState(lock.compatibilityState, evidence)
+        : null;
+    const classifiedLock =
+      stationStateProofEnabled
+        ? { ...lock, compatibilityState }
+        : lock;
+    const invariant =
+      vehicleStillNamesExactTarget(classifiedLock, evidence)
+        ? targetStopRetentionClassification(classifiedLock, evidence)
+        : null;
+    const classification =
+      invariant ||
+      (
+        stationStateProofEnabled
+          ? adaptiveReleaseClassification(classifiedLock, evidence)
+          : legacyReleaseClassification(classifiedLock, evidence)
+      );
     const updated = {
       ...lock,
+      route: routeDecision.route,
+      routeDecision,
       tripUpdatePresent: Boolean(evidence?.tripUpdatePresent),
       vehiclePositionPresent: Boolean(evidence?.vehiclePositionPresent),
       evidenceClassification: classification.classification,
+      releaseDecision:
+        classification.releaseDecision ?? lock.releaseDecision ?? null,
       ...(stationStateProofEnabled
         ? {
             stationStateProofEnabled: true,
+            compatibilityState,
             lastConclusiveStoppingPattern:
               classification.lastConclusiveStoppingPattern,
             releaseDecision: classification.releaseDecision
@@ -462,6 +619,10 @@ export function reconcileDepartureProofLocks(
               vehicle: evidence.vehicle || null
             }
           : lock.lastSupportingEvidence
+    };
+    updated.arrival = {
+      ...updated.arrival,
+      route: routeDecision.route
     };
 
     if (classification.releaseReason) {

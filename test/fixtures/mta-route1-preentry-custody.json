@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-07-31T06:16:00-04:00",
+  "station": "34 St-Penn Station",
+  "platform": "128N",
+  "identityKey": "005650_1..N15X010|20260731",
+  "tripId": "005650_1..N15X010",
+  "startDate": "20260731",
+  "routeId": "1",
+  "rawCountdownHistory": [4, 3, 2],
+  "targetPrediction": 1785473790,
+  "staticTargetSequence": null,
+  "vehiclePositionPresent": false,
+  "realtimeStops": [
+    "128N", "127N", "126N", "125N", "124N", "123N", "122N",
+    "121N", "120N", "119N", "118N", "117N", "116N", "115N",
+    "114N", "113N", "112N", "111N", "110N", "109N", "108N",
+    "107N", "106N", "104N", "103N", "101N"
+  ]
+}
