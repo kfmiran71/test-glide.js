@@ -1178,6 +1178,12 @@ transform: translateY(-6px);
 
 <script>
 const params = new URLSearchParams(window.location.search);
+const arrivalEngineMode = (() => {
+  const requested = params.get("arrivalEngine");
+  return requested === "forever" || requested === "shadow"
+    ? requested
+    : "legacy";
+})();
 const foreverEngineTraceEnabled =
   params.get("foreverEngineTrace") !== "0";
 const foreverEngineTraceModulePromise =
@@ -1199,6 +1205,7 @@ let foreverEngineLabOpen = false;
 function activeForeverEngineFlags() {
   return {
     foreverEngineTrace: foreverEngineTraceEnabled,
+    arrivalEngine: arrivalEngineMode,
     platformAlertSuppression: platformAlertSuppressionEnabled,
     vehicleProofQuarantine: false,
     arrivalProofGate: false,
@@ -1227,10 +1234,12 @@ function isDepartureProofLockEnabled(searchParams) {
 
 const departureProofLockEnabled =
   isDepartureProofLockEnabled(params);
+const legacyDepartureProofEnabled =
+  departureProofLockEnabled && arrivalEngineMode !== "forever";
 const departureProofStates =
-  departureProofLockEnabled ? new Map() : null;
+  legacyDepartureProofEnabled ? new Map() : null;
 const departureProofModulePromise =
-  departureProofLockEnabled
+  legacyDepartureProofEnabled
     ? import("./departure-proof-lock.js")
     : null;
 
@@ -1941,15 +1950,54 @@ async function fetchDirection(platformId) {
     query.set("routeId", selectedRoute);
   }
 
-  if (departureProofLockEnabled) {
+  if (legacyDepartureProofEnabled) {
     query.set("departureProofLock", "1");
   }
   if (foreverEngineTraceEnabled) {
     query.set("foreverEngineTrace", "1");
   }
 
-  const res = await fetch(`/push-arrivals?${query.toString()}`);
-  const data = await res.json();
+  if (foreverEngineTraceEnabled && arrivalEngineMode !== "legacy") {
+    query.set("foreverEngineDiagnostics", "1");
+  }
+
+  const requestJson = async endpoint => {
+    const response = await fetch(`${endpoint}?${query.toString()}`);
+    const payload = await response.json();
+    if (!response.ok || payload.error) {
+      throw new Error(payload.error || `Arrivals request failed (${response.status})`);
+    }
+    return { response, payload };
+  };
+  let res;
+  let data;
+  if (arrivalEngineMode === "forever") {
+    ({ response: res, payload: data } = await requestJson("/forever-arrivals"));
+  } else if (arrivalEngineMode === "shadow") {
+    const [legacy, replacement] = await Promise.all([
+      requestJson("/push-arrivals"),
+      requestJson("/forever-arrivals")
+    ]);
+    res = legacy.response;
+    data = legacy.payload;
+    await recordForeverEngineTrace("SHADOW_ENGINE_COMPARISON", {
+      platform: platformId,
+      legacy: (legacy.payload.arrivals || []).map(item => ({
+        identityKey: item.identityKey,
+        route: item.route,
+        time: item.time
+      })),
+      forever: (replacement.payload.arrivals || []).map(item => ({
+        identityKey: item.identityKey,
+        route: item.route,
+        time: item.time,
+        movementState: item.foreverEngineState
+      })),
+      diagnostics: replacement.payload.foreverEngine || null
+    });
+  } else {
+    ({ response: res, payload: data } = await requestJson("/push-arrivals"));
+  }
 
   if (foreverEngineTraceEnabled) {
     if (!res.ok || data.error) {
@@ -1993,6 +2041,25 @@ async function fetchDirection(platformId) {
       evidence: relevantEvidence,
       responseArrivalCount: (data.arrivals || []).length
     });
+  }
+
+  if (arrivalEngineMode === "forever") {
+    await recordForeverEngineTrace("FOREVER_ENGINE_BOARD", {
+      platform: platformId,
+      arrivals: (data.arrivals || []).map(item => ({
+        identityKey: item.identityKey,
+        route: item.route,
+        time: item.time,
+        movementState: item.foreverEngineState,
+        protected: Boolean(item.foreverEngineProtected)
+      })),
+      diagnostics: data.foreverEngine || null
+    });
+    return {
+      arrivals: data.arrivals || [],
+      evidence: [],
+      foreverEngine: data.foreverEngine || null
+    };
   }
 
   if (departureProofLockEnabled) {
@@ -2134,7 +2201,7 @@ async function departureProofArrivals(
 
 }
 
-if (departureProofLockEnabled) {
+if (legacyDepartureProofEnabled) {
   departureProofModulePromise.then(({ createDepartureProofDiagnostics }) => {
     Object.defineProperty(window, "__departureProofLock", {
       configurable: false,
@@ -2144,7 +2211,10 @@ if (departureProofLockEnabled) {
     });
     document.documentElement.dataset.departureProofLock = "enabled";
   });
+} else if (arrivalEngineMode === "forever" && departureProofLockEnabled) {
+  document.documentElement.dataset.departureProofLock = "enabled";
 }
+document.documentElement.dataset.arrivalEngine = arrivalEngineMode;
 
 if (platformAlertSuppressionEnabled) {
   platformAlertModulePromise.then(({ createPlatformAlertDiagnostics }) => {
@@ -3301,7 +3371,7 @@ async function loadArrivals(options = {}) {
         platformAvailabilityState(downtownStop, downtownAlerts)
       ]);
 
-    if (departureProofLockEnabled) {
+    if (legacyDepartureProofEnabled) {
       [uptownArrivals, downtownArrivals] = await Promise.all([
         departureProofArrivals(
           uptownStop,

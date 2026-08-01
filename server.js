@@ -10,6 +10,12 @@ import {
 import {
   evaluatePlatformAlertEntity
 } from "./public/platform-alert-suppression.js";
+import {
+  createForeverEngine
+} from "./forever-engine/engine.js";
+import {
+  normalizeGtfsEntities
+} from "./forever-engine/gtfs-normalizer.js";
 
 
 
@@ -93,6 +99,7 @@ const CLUSTER_WINDOW_MS =
 const CLUSTER_MAX_AGE_MS =
   Number(process.env.ALERT_CLUSTER_MAX_AGE_MINUTES || 120) * 60 * 1000;
 const alertsClusters = new Map();
+const foreverEngine = createForeverEngine();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -1792,8 +1799,88 @@ glideArrivals.forEach((a, i) => {
   }
 }
 
+async function handleForeverArrivals(req, res) {
+  try {
+    const targetPlatform = String(req.query.stop || req.query.platformId || "");
+    const routeId = String(req.query.routeId || "");
+    if (!targetPlatform) {
+      return res.status(400).json({ error: "Missing exact platform" });
+    }
+
+    const platformRoutes = getRoutesForPlatform(targetPlatform);
+    const routesForFeeds = platformRoutes.length
+      ? platformRoutes
+      : routeId ? [routeId] : [];
+    const feeds = getFeedUrlsForRoutes(routesForFeeds);
+    const observations = new Map();
+    let newestFeedTimestamp = null;
+
+    for (const url of feeds) {
+      const mtaRes = await fetch(url, {
+        headers: { "x-api-key": process.env.MTA_API_KEY }
+      });
+      if (!mtaRes.ok) {
+        throw new Error(`MTA realtime request failed with ${mtaRes.status}`);
+      }
+      const buffer = await mtaRes.arrayBuffer();
+      const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(buffer)
+      );
+      const feedTimestamp = toSeconds(feed.header?.timestamp) || null;
+      if (feedTimestamp !== null) {
+        newestFeedTimestamp = Math.max(newestFeedTimestamp || 0, feedTimestamp);
+      }
+      const normalized = normalizeGtfsEntities({
+        entities: feed.entity,
+        feedTimestamp,
+        destinationForTrip: tripUpdate =>
+          destinationNameForTripUpdate(tripUpdate, targetPlatform),
+        directionForPlatform: () => {
+          const suffix = targetPlatform.slice(-1);
+          return suffix === "N" ? "Northbound" :
+            suffix === "S" ? "Southbound" : suffix;
+        }
+      });
+      for (const observation of normalized) {
+        const key = `${observation.trip.tripId}|${observation.trip.startDate}`;
+        observations.set(key, observation);
+      }
+    }
+
+    const result = foreverEngine.reconcile({
+      platform: targetPlatform,
+      observedAt: Date.now(),
+      feedTimestamp: newestFeedTimestamp,
+      trips: [...observations.values()]
+    });
+    const stopDetails = STOP_DETAIL_MAP.get(targetPlatform);
+    const arrivals = result.arrivals.map(arrival => ({
+      ...arrival,
+      lat: stopDetails?.lat || "",
+      lon: stopDetails?.lon || ""
+    }));
+    const diagnosticsEnabled = req.query.foreverEngineDiagnostics === "1";
+
+    res.json({
+      status: 200,
+      engine: "forever",
+      platform: targetPlatform,
+      feedTimestamp: newestFeedTimestamp,
+      arrivals,
+      departureProofLock: {
+        enabled: true,
+        implementation: "forever-engine"
+      },
+      ...(diagnosticsEnabled ? { foreverEngine: result.diagnostics } : {})
+    });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+}
+
 app.get("/push-arrivals", handleArrivals);
 app.get("/arrivals", handleArrivals);
+app.get("/forever-arrivals", handleForeverArrivals);
 app.get("/transfers", async (req, res) => {
 
   try {

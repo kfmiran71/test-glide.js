@@ -191,7 +191,9 @@ test("refresh, selection, reload, visibility and stale-response events are wired
 
 test("baseline response shape is gated and server diagnostics carry no feed URL", () => {
   assert.match(server, /foreverEngineTraceEnabled\s*\?\s*\{/);
-  assert.doesNotMatch(server.slice(server.indexOf("foreverEngineTrace: {")), /feedUrl|x-api-key/);
+  const start = server.indexOf("foreverEngineTrace: {");
+  const end = server.indexOf("async function handleForeverArrivals", start);
+  assert.doesNotMatch(server.slice(start, end), /feedUrl|x-api-key/);
 });
 
 test("classic inline script parses and trace module stays a separate dynamic import", () => {

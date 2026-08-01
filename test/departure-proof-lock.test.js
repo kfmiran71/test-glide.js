@@ -407,15 +407,15 @@ test("enabled embed requests experimental API and disabled mode loads no experim
 
   assert.match(
     html,
-    /departureProofLockEnabled\s*\? import\("\.\/departure-proof-lock\.js"\)\s*:\s*null/
+    /legacyDepartureProofEnabled\s*\? import\("\.\/departure-proof-lock\.js"\)\s*:\s*null/
   );
   assert.match(
     html,
-    /if \(departureProofLockEnabled\) \{\s*query\.set\("departureProofLock", "1"\);/
+    /if \(legacyDepartureProofEnabled\) \{\s*query\.set\("departureProofLock", "1"\);/
   );
   assert.match(
     html,
-    /const departureProofStates =\s*departureProofLockEnabled \? new Map\(\) : null;/
+    /const departureProofStates =\s*legacyDepartureProofEnabled \? new Map\(\) : null;/
   );
 });
 
