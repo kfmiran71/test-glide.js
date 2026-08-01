@@ -305,6 +305,81 @@ test("an upstream or unmapped target-free TripUpdate cannot release custody", ()
   }
 });
 
+test("target-free exact suffix progression releases a lock created after a mid-trip restart", () => {
+  const engine = createForeverEngine();
+  const initial = reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 240 },
+      { stopId: "708N", eventTime: NOW_SECONDS + 360 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  assert.equal(initial.arrivals[0].time, "0");
+  assert.equal(initial.diagnostics.active[0].lastPattern.length, 0);
+
+  const progressed = reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "707N", eventTime: NOW_SECONDS + 90 },
+      { stopId: "708N", eventTime: NOW_SECONDS + 210 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(progressed.arrivals.length, 0);
+  assert.equal(
+    progressed.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION
+  );
+});
+
+test("unchanged, reordered, or ambiguous target-free suffixes cannot manufacture progression", () => {
+  for (const nextPattern of [
+    ["706N", "707N", "708N"],
+    ["708N", "706N", "707N"],
+    ["707N", "706N", "707N"]
+  ]) {
+    const engine = createForeverEngine();
+    reconcile(engine, [trip({
+      stopUpdates: ["706N", "707N", "708N"].map((stopId, index) => ({
+        stopId,
+        eventTime: NOW_SECONDS + (index + 1) * 120
+      })),
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+    })]);
+    const held = reconcile(engine, [trip({
+      stopUpdates: nextPattern.map((stopId, index) => ({
+        stopId,
+        eventTime: NOW_SECONDS + (index + 1) * 120
+      })),
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      feedTimestamp: NOW_SECONDS + 15
+    })], NOW + 15_000);
+    assert.equal(held.arrivals[0].time, "0");
+  }
+});
+
+test("fresh target VehiclePosition vetoes target-free suffix progression", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: ["706N", "707N", "708N"].map((stopId, index) => ({
+      stopId,
+      eventTime: NOW_SECONDS + (index + 1) * 120
+    })),
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const held = reconcile(engine, [trip({
+    stopUpdates: ["707N", "708N"].map((stopId, index) => ({
+      stopId,
+      eventTime: NOW_SECONDS + (index + 1) * 120
+    })),
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
+});
+
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({

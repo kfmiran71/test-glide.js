@@ -23,6 +23,7 @@ export const DECISION_REASONS = Object.freeze({
   DEPARTURE_PROOF_HOLD: "DEPARTURE_PROOF_HOLD",
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
+  EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
@@ -129,6 +130,18 @@ function tripUpdateProvesDownstream(observation, conclusivePattern) {
   ) === "DOWNSTREAM";
 }
 
+function tripUpdateSuffixAdvanced(previousPattern, currentPattern, targetStop) {
+  if (!previousPattern.length || !currentPattern.length) return false;
+  if (uniqueIndex(previousPattern, targetStop) !== null ||
+      uniqueIndex(currentPattern, targetStop) !== null) return false;
+  const currentFirstInPrevious = uniqueIndex(previousPattern, currentPattern[0].stopId);
+  if (currentFirstInPrevious === null || currentFirstInPrevious <= 0) return false;
+  return currentPattern.every((stop, index) =>
+    uniqueIndex(currentPattern, stop.stopId) !== null &&
+    previousPattern[currentFirstInPrevious + index]?.stopId === stop.stopId
+  );
+}
+
 function vehicleEvidence(observation, nowSeconds, options) {
   const vehicle = observation.vehicle;
   if (!vehicle || observation.vehicleAmbiguous) {
@@ -213,6 +226,7 @@ function createRecord(observation, nowMs) {
     lastDisplayedCountdown: null,
     lastRawCountdown: null,
     lastPattern: [],
+    lastRealtimePattern: [],
     history: []
   };
 }
@@ -241,13 +255,21 @@ function updateRecord(previous, observation, nowMs, options) {
   }
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
+  const previousRealtimePattern = record.lastRealtimePattern || [];
   if (uniqueIndex(observation.pattern, observation.targetStop) !== null) {
     record.lastPattern = observation.pattern;
   }
+  if (observation.pattern.length) record.lastRealtimePattern = observation.pattern;
   if (distinctSnapshot) record.lastDistinctFeedTimestamp = observation.feedTimestamp;
 
   const tripUpdateDownstream = distinctSnapshot &&
     tripUpdateProvesDownstream(observation, record.lastPattern);
+  const tripUpdateProgressed = distinctSnapshot && observation.tripUpdatePresent &&
+    tripUpdateSuffixAdvanced(
+      previousRealtimePattern,
+      observation.pattern,
+      observation.targetStop
+    );
   const freshVehicleStillAtTarget = vehicle.present && vehicle.fresh &&
     vehicle.position === "TARGET";
 
@@ -269,6 +291,12 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
+  } else if (tripUpdateProgressed && !freshVehicleStillAtTarget) {
+    record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
+    record.released = true;
+    record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
+    record.departureLocked = false;
+    decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
   } else {
     const eligiblePrediction = observation.targetPresent && countdown !== null &&
       countdown <= options.boardWindowMinutes;
