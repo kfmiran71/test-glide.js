@@ -7,12 +7,14 @@ classification, departure proof, and board composition.
 
 ## Modes
 
-- `arrivalEngine=legacy` (and no parameter): the deployed Glide engine remains
-  the control.
+- No parameter (or `arrivalEngine=forever`): the replacement endpoint and
+  state machine supply the board for the Glide field test.
+- `arrivalEngine=legacy`: the previously deployed Glide engine remains an
+  explicit emergency comparison control.
 - `arrivalEngine=shadow`: both engines run, the legacy board is rendered, and
   the trace records a comparison.
-- `arrivalEngine=forever`: the replacement endpoint and state machine supply
-  the board. The legacy Departure-Proof module is not imported or executed.
+  The legacy Departure-Proof module is not imported or executed in replacement
+  mode.
 
 No mode writes replacement arrivals to Glide tables. Platform-alert
 suppression remains a separate publication policy applied by the page.

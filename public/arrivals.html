@@ -1180,9 +1180,9 @@ transform: translateY(-6px);
 const params = new URLSearchParams(window.location.search);
 const arrivalEngineMode = (() => {
   const requested = params.get("arrivalEngine");
-  return requested === "forever" || requested === "shadow"
+  return requested === "legacy" || requested === "shadow"
     ? requested
-    : "legacy";
+    : "forever";
 })();
 const foreverEngineTraceEnabled =
   params.get("foreverEngineTrace") !== "0";

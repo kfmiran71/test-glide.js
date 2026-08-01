@@ -300,9 +300,9 @@ test("an out-of-order feed snapshot cannot move the shared registry backward", (
   assert.equal(stale.arrivals[0].time, "2");
 });
 
-test("legacy remains the parameter-free control while shadow and forever are explicit", () => {
-  assert.match(html, /requested === "forever" \|\| requested === "shadow"/);
-  assert.match(html, /:\s*"legacy";/);
+test("forever is the parameter-free field mode while legacy remains an explicit emergency control", () => {
+  assert.match(html, /requested === "legacy" \|\| requested === "shadow"/);
+  assert.match(html, /:\s*"forever";/);
   assert.match(html, /arrivalEngineMode === "shadow"/);
   assert.match(html, /arrivalEngineMode === "forever"/);
   assert.match(html, /requestJson\("\/forever-arrivals"\)/);
