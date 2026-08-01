@@ -1495,9 +1495,21 @@ async function handleArrivals(req, res) {
  const targetPlatform = req.query.stop || req.query.platformId; 
  const departureProofLockEnabled =
    req.query.departureProofLock === "1";
+ const foreverEngineTraceEnabled =
+   req.query.foreverEngineTrace === "1";
+ const traceRequestStartedAt =
+   foreverEngineTraceEnabled ? Date.now() : 0;
+ const traceRequestId =
+   foreverEngineTraceEnabled
+     ? `${traceRequestStartedAt}-${Math.random().toString(36).slice(2, 10)}`
+     : "";
     console.log("BACKEND VERSION: station-string-v2");
   let arrivals = [];
   let departureProofEvidence = [];
+  let traceEvidence = [];
+  const traceFeeds = [];
+  const traceCandidates = [];
+  const traceVehiclePositions = [];
 
 const routeId = req.query.routeId;
 
@@ -1522,14 +1534,59 @@ for (const url of feeds) {
     new Uint8Array(buffer)
   );
 
-  if (departureProofLockEnabled) {
-    departureProofEvidence.push(
-      ...buildGtfsEvidence(
-        feed.entity,
-        targetPlatform,
-        feed.header?.timestamp
+  const decodedAt = Date.now();
+  const feedEvidence =
+    (foreverEngineTraceEnabled || departureProofLockEnabled)
+      ? buildGtfsEvidence(
+      feed.entity,
+      targetPlatform,
+      feed.header?.timestamp
       )
-    );
+      : [];
+  if (foreverEngineTraceEnabled) {
+    traceEvidence.push(...feedEvidence);
+    const headerTimestamp = Number(feed.header?.timestamp || 0);
+    traceFeeds.push({
+      feedHeaderTimestamp: headerTimestamp || null,
+      decodedAt,
+      freshnessSeconds: headerTimestamp
+        ? Math.max(0, Math.round(decodedAt / 1000) - headerTimestamp)
+        : null,
+      entityCount: (feed.entity || []).length
+    });
+    for (const entity of feed.entity || []) {
+      if (!entity.vehicle) continue;
+      const identity = exactTripIdentity(entity.vehicle.trip);
+      if (!identity) continue;
+      const timestamp = Number(entity.vehicle.timestamp || 0) || null;
+      traceVehiclePositions.push({
+        identityKey: identity.identityKey,
+        tripId: identity.tripId,
+        startDate: identity.startDate,
+        routeId: String(entity.vehicle.trip?.routeId || ""),
+        stopId: String(entity.vehicle.stopId || ""),
+        currentStopSequence:
+          Object.prototype.hasOwnProperty.call(entity.vehicle, "currentStopSequence")
+            ? Number(entity.vehicle.currentStopSequence)
+            : null,
+        currentStopSequenceExplicit:
+          Object.prototype.hasOwnProperty.call(entity.vehicle, "currentStopSequence"),
+        currentStatus:
+          Object.prototype.hasOwnProperty.call(entity.vehicle, "currentStatus")
+            ? Number(entity.vehicle.currentStatus)
+            : null,
+        currentStatusExplicit:
+          Object.prototype.hasOwnProperty.call(entity.vehicle, "currentStatus"),
+        timestamp,
+        ageSeconds: timestamp
+          ? Math.max(0, Math.round(decodedAt / 1000) - timestamp)
+          : null
+      });
+    }
+  }
+
+  if (departureProofLockEnabled) {
+    departureProofEvidence.push(...feedEvidence);
   }
 
   for (const entity of feed.entity) {
@@ -1553,6 +1610,30 @@ if (!eventTime) continue;
 const arrivalTime = eventTime * 1000;
   const now = Date.now();
   const minutes = Math.round((arrivalTime - now) / 60000);
+
+  if (foreverEngineTraceEnabled) {
+    const traceIdentity = exactTripIdentity(entity.tripUpdate.trip);
+    traceCandidates.push({
+      identityKey: traceIdentity?.identityKey || null,
+      tripId: traceIdentity?.tripId || null,
+      startDate: traceIdentity?.startDate || "",
+      routeId: String(entity.tripUpdate.trip?.routeId || ""),
+      targetPlatform: String(stopId || ""),
+      targetPredictionTimestamp: Number(eventTime),
+      arrivalTimestamp: Number(stopTimeUpdate.arrival?.time || 0) || null,
+      departureTimestamp: Number(stopTimeUpdate.departure?.time || 0) || null,
+      rawCountdown: minutes,
+      negative: minutes < 0,
+      beyondWindow: minutes > 60,
+      candidateArrayMembership:
+        (departureProofLockEnabled || minutes >= 0) && minutes <= 60,
+      rejectionReason:
+        minutes > 60 ? "BEYOND_60_MINUTE_WINDOW" :
+        (!departureProofLockEnabled && minutes < 0)
+          ? "NEGATIVE_CANDIDATE_FILTER"
+          : ""
+    });
+  }
 
   if (
     (!departureProofLockEnabled && minutes < 0) ||
@@ -1675,6 +1756,33 @@ glideArrivals.forEach((a, i) => {
         departureProofLock: {
           enabled: true,
           evidence: departureProofEvidence
+        }
+      }
+    : {}),
+  ...(foreverEngineTraceEnabled
+    ? {
+        foreverEngineTrace: {
+          schemaVersion: 1,
+          requestId: traceRequestId,
+          requestStartedAt: traceRequestStartedAt,
+          responseCreatedAt: Date.now(),
+          deployedCommitSha: process.env.RENDER_GIT_COMMIT || "unknown",
+          platform: String(targetPlatform || ""),
+          routeId: String(routeId || ""),
+          feeds: traceFeeds,
+          candidates: traceCandidates,
+          vehiclePositions: traceVehiclePositions.filter(vehicle =>
+            traceCandidates.some(candidate =>
+              candidate.identityKey &&
+              candidate.identityKey === vehicle.identityKey
+            )
+          ),
+          evidenceSource:
+            departureProofLockEnabled
+              ? "departureProofLock.evidence"
+              : "foreverEngineTrace.evidence",
+          evidence:
+            departureProofLockEnabled ? [] : traceEvidence
         }
       }
     : {})

@@ -1102,6 +1102,43 @@ transform: translateY(-6px);
         font-size: 9px;
       }
     }
+
+    .forever-engine-lab {
+      margin: 18px 0 4px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.04);
+      color: #334155;
+      font-size: 12px;
+    }
+
+    .forever-engine-lab summary {
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 700;
+    }
+
+    .forever-engine-lab-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 14px 14px;
+    }
+
+    .forever-engine-lab-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .forever-engine-lab button {
+      border: 1px solid #94a3b8;
+      border-radius: 999px;
+      background: #fff;
+      color: #0f172a;
+      padding: 8px 12px;
+      font: inherit;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -1141,6 +1178,46 @@ transform: translateY(-6px);
 
 <script>
 const params = new URLSearchParams(window.location.search);
+const foreverEngineTraceEnabled =
+  params.get("foreverEngineTrace") === "1";
+const foreverEngineTraceModulePromise =
+  foreverEngineTraceEnabled
+    ? import("./forever-engine-trace.js")
+    : null;
+const foreverEngineTraceRecorderPromise =
+  foreverEngineTraceEnabled
+    ? foreverEngineTraceModulePromise.then(module =>
+        {
+          document.documentElement.dataset.foreverEngineTrace = "enabled";
+          return module.createBrowserTraceRecorder();
+        }
+      )
+    : null;
+let foreverEngineDeployedCommitSha = "unknown";
+let foreverEngineLabOpen = false;
+
+function activeForeverEngineFlags() {
+  return {
+    foreverEngineTrace: foreverEngineTraceEnabled,
+    platformAlertSuppression: platformAlertSuppressionEnabled,
+    vehicleProofQuarantine: false,
+    arrivalProofGate: false,
+    stationStateProof: false,
+    departureProofLock: departureProofLockEnabled
+  };
+}
+
+async function recordForeverEngineTrace(type, details = {}) {
+  if (!foreverEngineTraceEnabled) return null;
+  try {
+    const recorder = await foreverEngineTraceRecorderPromise;
+    const event = recorder.record(type, details);
+    updateForeverEngineTraceStatus(recorder.inspect());
+    return event;
+  } catch {
+    return null;
+  }
+}
 
 function isDepartureProofLockEnabled(searchParams) {
 
@@ -1298,6 +1375,7 @@ function navigateToSelection(selection) {
     return;
   }
 
+  const priorSelection = currentSelection();
   previousSelection =
     null;
   selectedStopBase =
@@ -1310,7 +1388,12 @@ function navigateToSelection(selection) {
     selection.branch || "";
 
   applySelectionToUrl();
-  loadArrivals();
+  recordForeverEngineTrace("STATION_ROUTE_SELECTION", {
+    priorSelection,
+    selectedContext: currentSelection(),
+    source: "NAVIGATE_TO_SELECTION"
+  });
+  loadArrivals({ refreshReason: "STATION_OR_ROUTE_SELECTION" });
 
 }
 
@@ -1519,9 +1602,15 @@ function populateStationRouteButtons(id, routes) {
       routeWasProvided = true;
       selectedBranchKey = "";
 
+      recordForeverEngineTrace("ROUTE_SELECTION", {
+        routeId,
+        selectedContext: currentSelection(),
+        source: "ROUTE_SWITCHER"
+      });
+
       applySelectionToUrl();
 
-      loadArrivals().then(() => {
+      loadArrivals({ refreshReason: "ROUTE_SELECTION" }).then(() => {
         if (nextSelectId) {
           openStationSelect(nextSelectId);
         }
@@ -1816,6 +1905,13 @@ function selectStationFromPicker(id, stopId, stationName) {
   rememberCurrentSelection();
   selectedStopBase = nextStopBase;
 
+  recordForeverEngineTrace("STATION_SELECTION", {
+    stationName,
+    platformBase: nextStopBase,
+    selectedContext: currentSelection(),
+    source: id
+  });
+
   const label =
     document.getElementById(`${id}Label`);
 
@@ -1827,7 +1923,7 @@ function selectStationFromPicker(id, stopId, stationName) {
   applySelectionToUrl();
 
   closeStationMenus();
-  loadArrivals();
+  loadArrivals({ refreshReason: "STATION_SELECTION" });
 
 }
 
@@ -1848,14 +1944,72 @@ async function fetchDirection(platformId) {
   if (departureProofLockEnabled) {
     query.set("departureProofLock", "1");
   }
+  if (foreverEngineTraceEnabled) {
+    query.set("foreverEngineTrace", "1");
+  }
 
   const res = await fetch(`/push-arrivals?${query.toString()}`);
   const data = await res.json();
 
+  if (foreverEngineTraceEnabled) {
+    if (!res.ok || data.error) {
+      await recordForeverEngineTrace("RESPONSE_ERROR", {
+        platform: platformId,
+        status: res.status,
+        message: String(data.error || `Arrivals request failed (${res.status})`)
+      });
+    }
+    const allEvidence =
+      data.departureProofLock?.evidence ||
+      data.foreverEngineTrace?.evidence || [];
+    const relevantIdentityKeys = new Set(
+      (data.foreverEngineTrace?.candidates || [])
+        .map(item => item.identityKey)
+        .filter(Boolean)
+    );
+    const relevantEvidence = allEvidence.filter(item =>
+      relevantIdentityKeys.has(item.identityKey) || item.targetStopPresent
+    );
+    const traceServer = data.foreverEngineTrace || null;
+    const relevantServer = traceServer
+      ? {
+          ...traceServer,
+          candidates: (traceServer.candidates || []).filter(item =>
+            !item.identityKey || relevantIdentityKeys.has(item.identityKey)
+          ),
+          vehiclePositions: (traceServer.vehiclePositions || []).filter(item =>
+            relevantIdentityKeys.has(item.identityKey)
+          ),
+          evidence: []
+        }
+      : null;
+    foreverEngineDeployedCommitSha =
+      data.foreverEngineTrace?.deployedCommitSha ||
+      foreverEngineDeployedCommitSha;
+    await recordForeverEngineTrace("SERVER_SNAPSHOT", {
+      platform: platformId,
+      requestId: data.foreverEngineTrace?.requestId || null,
+      server: relevantServer,
+      evidence: relevantEvidence,
+      responseArrivalCount: (data.arrivals || []).length
+    });
+  }
+
   if (departureProofLockEnabled) {
     return {
       arrivals: data.arrivals || [],
-      evidence: data.departureProofLock?.evidence || []
+      evidence: data.departureProofLock?.evidence || [],
+      ...(foreverEngineTraceEnabled
+        ? { trace: data.foreverEngineTrace || null }
+        : {})
+    };
+  }
+
+  if (foreverEngineTraceEnabled) {
+    return {
+      arrivals: data.arrivals || [],
+      evidence: data.foreverEngineTrace?.evidence || [],
+      trace: data.foreverEngineTrace || null
     };
   }
 
@@ -1882,6 +2036,15 @@ async function platformAvailabilityState(platformId, alertPayload) {
     );
 
   platformAvailabilityStates.set(platformId, next);
+  await recordForeverEngineTrace("PLATFORM_AVAILABILITY_DECISION", {
+    platform: platformId,
+    unavailable: Boolean(next?.unavailable),
+    decisionReason:
+      next?.activeEvidence?.[0]?.decisionReason ||
+      next?.restorationReason ||
+      "NO_ACTIVE_SUPPRESSION_EVIDENCE",
+    activeEvidence: next?.activeEvidence || []
+  });
   return next;
 
 }
@@ -1926,6 +2089,12 @@ async function departureProofArrivals(
       availabilityState,
       snapshot.arrivals
     );
+  await recordForeverEngineTrace("PLATFORM_FILTER_RESULT", {
+    platform: platformId,
+    inputIdentityKeys: (snapshot.arrivals || []).map(item => item.identityKey).filter(Boolean),
+    outputIdentityKeys: filteredArrivals.map(item => item.identityKey).filter(Boolean),
+    unavailable: Boolean(availabilityState?.unavailable)
+  });
   const nextState =
     reconcileDepartureProofLocks(
       currentState,
@@ -1937,10 +2106,31 @@ async function departureProofArrivals(
     );
 
   departureProofStates.set(platformId, nextState);
-  return filterPlatformUnavailableArrivals(
+  const boardArrivals = filterPlatformUnavailableArrivals(
     availabilityState,
     experimentalBoardArrivals(nextState, filteredArrivals)
   );
+  await recordForeverEngineTrace("DEPARTURE_PROOF_DECISION", {
+    platform: platformId,
+    activeLocks: Object.values(nextState.active || {}).map(lock => ({
+      identityKey: lock.identityKey,
+      routeId: lock.route,
+      state: "LOCKED_AT_ZERO",
+      evidenceClassification: lock.evidenceClassification,
+      retained: true
+    })),
+    released: (nextState.released || []).map(lock => ({
+      identityKey: lock.identityKey,
+      releaseReason: lock.releaseReason,
+      releasedAt: lock.releasedAt
+    })),
+    tombstones: Object.values(nextState.tombstones || {}),
+    suppressionTombstones: Object.values(nextState.suppressionTombstones || {}),
+    inputIdentityKeys: filteredArrivals.map(item => item.identityKey).filter(Boolean),
+    outputIdentityKeys: boardArrivals.map(item => item.identityKey).filter(Boolean),
+    routeSlotProtection: boardArrivals.filter(item => item.departureProofLocked).map(item => item.identityKey)
+  });
+  return boardArrivals;
 
 }
 
@@ -2757,6 +2947,95 @@ function renderDirection(title, direction, groups, transferGroups, alertData) {
 
 }
 
+function renderForeverEngineLab() {
+  if (!foreverEngineTraceEnabled) return "";
+  return `
+    <details class="forever-engine-lab" id="foreverEngineLab"${foreverEngineLabOpen ? " open" : ""}>
+      <summary>Forever Engine Lab</summary>
+      <div class="forever-engine-lab-body">
+        <div id="foreverEngineTraceStatus">Trace enabled · loading status</div>
+        <div class="forever-engine-lab-actions">
+          <button type="button" id="exportForeverEngineTrace">Export Arrival Trace</button>
+          <button type="button" id="clearForeverEngineTrace">Clear Arrival Trace</button>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function updateForeverEngineTraceStatus(status) {
+  const element = document.getElementById("foreverEngineTraceStatus");
+  if (!element || !status) return;
+  const oldest = status.oldestTimestamp
+    ? new Date(status.oldestTimestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "--";
+  const newest = status.newestTimestamp
+    ? new Date(status.newestTimestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "--";
+  element.textContent =
+    `Trace enabled · ${status.eventCount} events · ${oldest}–${newest}`;
+}
+
+async function attachForeverEngineLabHandlers() {
+  if (!foreverEngineTraceEnabled) return;
+  try {
+    const recorder = await foreverEngineTraceRecorderPromise;
+    updateForeverEngineTraceStatus(recorder.inspect());
+    const clearButton = document.getElementById("clearForeverEngineTrace");
+    const exportButton = document.getElementById("exportForeverEngineTrace");
+    const lab = document.getElementById("foreverEngineLab");
+    lab?.addEventListener("toggle", () => {
+      foreverEngineLabOpen = Boolean(lab.open);
+    });
+    clearButton?.addEventListener("click", () => {
+      recorder.clear();
+      recorder.record("TRACE_CLEARED", {
+        selectedContext: currentSelection()
+      });
+      updateForeverEngineTraceStatus(recorder.inspect());
+    });
+    exportButton?.addEventListener("click", async () => {
+      try {
+        recorder.record("TRACE_EXPORT_REQUESTED", {
+          selectedContext: currentSelection()
+        });
+        const payload = recorder.exportPayload({
+          deployedCommitSha: foreverEngineDeployedCommitSha,
+          activeExperimentFlags: activeForeverEngineFlags(),
+          selectedContext: currentSelection()
+        });
+        const json = JSON.stringify(payload, null, 2);
+        const fileName = `commuter-eye-arrival-trace-${Date.now()}.json`;
+        const file = typeof File === "function"
+          ? new File([json], fileName, { type: "application/json" })
+          : null;
+        if (file && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: "Commuter Eye Arrival Trace"
+          });
+          updateForeverEngineTraceStatus(recorder.inspect());
+          return;
+        }
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        updateForeverEngineTraceStatus(recorder.inspect());
+      } catch {
+        // Diagnostics must never affect the rider-facing board.
+      }
+    });
+  } catch {
+    // Diagnostics must never affect the rider-facing board.
+  }
+}
+
 function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirection, routeAlertData) {
 
   const updatedAt = new Date().toLocaleTimeString([], {
@@ -2812,6 +3091,7 @@ function renderShell(uptownGroups, downtownGroups, transferGroups, alertsByDirec
 
   ${renderRouteAlertsFooter(routeAlertData)}
   ${renderLookAheadFooter(routeAlertData)}
+  ${renderForeverEngineLab()}
 
 </div>
   `;
@@ -2841,9 +3121,14 @@ function attachTransferHandlers() {
       routeWasProvided = true;
       selectedBranchKey = "";
 
+      recordForeverEngineTrace("STATION_ROUTE_SELECTION", {
+        selectedContext: currentSelection(),
+        source: "TRANSFER_BLOCK"
+      });
+
       applySelectionToUrl();
 
-      loadArrivals();
+      loadArrivals({ refreshReason: "TRANSFER_SELECTION" });
     });
   });
 
@@ -2921,9 +3206,14 @@ function attachRouteAlertHandlers() {
       selectedBranchKey =
         "";
 
+      recordForeverEngineTrace("STATION_ROUTE_SELECTION", {
+        selectedContext: currentSelection(),
+        source: "ROUTE_ALERT"
+      });
+
       applySelectionToUrl();
 
-      loadArrivals();
+      loadArrivals({ refreshReason: "ROUTE_ALERT_SELECTION" });
     });
   });
 
@@ -2933,6 +3223,16 @@ async function loadArrivals(options = {}) {
 
   const preserveScroll =
     options.preserveScroll === true;
+  const refreshReason =
+    options.refreshReason ||
+    (preserveScroll ? "NORMAL_15_SECOND_REFRESH" : "SELECTION_OR_PAGE_REFRESH");
+
+  recordForeverEngineTrace("REFRESH_STARTED", {
+    refreshReason,
+    selectedContext: currentSelection(),
+    loadInFlight,
+    visibilityState: document.visibilityState
+  });
 
   if (loadInFlight) {
     queuedLoadOptions =
@@ -2987,9 +3287,13 @@ async function loadArrivals(options = {}) {
     ]);
 
     let uptownArrivals =
-      uptownPayload;
+      Array.isArray(uptownPayload)
+        ? uptownPayload
+        : uptownPayload.arrivals || [];
     let downtownArrivals =
-      downtownPayload;
+      Array.isArray(downtownPayload)
+        ? downtownPayload
+        : downtownPayload.arrivals || [];
 
     const [uptownAvailability, downtownAvailability] =
       await Promise.all([
@@ -3034,6 +3338,12 @@ async function loadArrivals(options = {}) {
       groupArrivals(downtownArrivals);
 
     if (loadId !== loadSequence) {
+      recordForeverEngineTrace("STALE_RESPONSE_REJECTED", {
+        refreshReason,
+        loadId,
+        currentLoadSequence: loadSequence,
+        stage: "AFTER_ENGINE_RECONCILIATION"
+      });
       restoreScroll();
       return;
     }
@@ -3045,6 +3355,10 @@ async function loadArrivals(options = {}) {
       !groupedUptown.length &&
       !groupedDowntown.length
     ) {
+      recordForeverEngineTrace("EMPTY_RESPONSE_BOARD_PRESERVED", {
+        refreshReason,
+        selectedContext: currentSelection()
+      });
       restoreScroll();
       return;
     }
@@ -3061,6 +3375,12 @@ const [uptownStationData, downtownStationData] =
   ]);
 
 if (loadId !== loadSequence) {
+  recordForeverEngineTrace("STALE_RESPONSE_REJECTED", {
+    refreshReason,
+    loadId,
+    currentLoadSequence: loadSequence,
+    stage: "AFTER_STATION_METADATA"
+  });
   restoreScroll();
   return;
 }
@@ -3107,6 +3427,12 @@ const routeAlertDataRaw =
   await fetchRouteAlerts(selectedRoute);
 
 if (loadId !== loadSequence) {
+  recordForeverEngineTrace("STALE_RESPONSE_REJECTED", {
+    refreshReason,
+    loadId,
+    currentLoadSequence: loadSequence,
+    stage: "AFTER_ROUTE_ALERTS"
+  });
   restoreScroll();
   return;
 }
@@ -3169,14 +3495,90 @@ attachTransferHandlers();
 attachDirectionsHandlers();
 attachAlertHandlers();
 attachRouteAlertHandlers();
+attachForeverEngineLabHandlers();
 hasRenderedArrivals =
   true;
 lastSuccessfulSelectionKey =
   selectionKey();
+if (foreverEngineTraceEnabled) {
+  try {
+    const recorder = await foreverEngineTraceRecorderPromise;
+    const reconcile = (platform, payload, arrivals) => {
+      const evidence = payload?.evidence || [];
+      const candidates = payload?.trace?.candidates || [];
+      const candidateByIdentity = Object.fromEntries(
+        candidates.filter(item => item.identityKey).map(item => [item.identityKey, item])
+      );
+      const evidenceByIdentity = Object.fromEntries(
+        evidence.filter(item => item.identityKey).map(item => [item.identityKey, {
+          ...item,
+          rawCountdown: candidateByIdentity[item.identityKey]?.rawCountdown ?? null
+        }])
+      );
+      const state = departureProofStates?.get(platform) || {};
+      const lockStateByIdentity = {};
+      for (const identityKey of Object.keys(state.active || {})) {
+        lockStateByIdentity[identityKey] = { active: true };
+      }
+      for (const item of state.released || []) {
+        lockStateByIdentity[item.identityKey] = { released: true, releaseReason: item.releaseReason };
+      }
+      for (const identityKey of Object.keys(state.tombstones || {})) {
+        lockStateByIdentity[identityKey] = { tombstoned: true };
+      }
+      const records = arrivals.map(item => ({
+        identityKey: item.identityKey,
+        tripId: item.tripId,
+        startDate: item.startDate || "",
+        routeId: item.route,
+        targetPlatform: item.platformId,
+        direction: item.direction,
+        destination: item.station,
+        finalDisplayedCountdown: Number(item.time),
+        finalBoard: true,
+        tripUpdatePresent: evidenceByIdentity[item.identityKey]?.tripUpdatePresent ?? null,
+        vehiclePositionPresent: evidenceByIdentity[item.identityKey]?.vehiclePositionPresent ?? null,
+        clientDisplayKey: item.identityKey
+      }));
+      recorder.reconcileBoard(platform, records, {
+        refreshReason,
+        evidenceByIdentity,
+        candidateByIdentity,
+        afterEngineByIdentity: Object.fromEntries(records.map(item => [item.identityKey, item])),
+        lockStateByIdentity,
+        platformUnavailable: Boolean(platformAvailabilityStates?.get(platform)?.unavailable)
+      });
+    };
+    reconcile(uptownStop, uptownPayload, uptownArrivals);
+    reconcile(downtownStop, downtownPayload, downtownArrivals);
+    recorder.record("FULL_BOARD_COMMIT", {
+      refreshReason,
+      selectedContext: currentSelection(),
+      platforms: [uptownStop, downtownStop],
+      finalBoard: {
+        uptown: uptownArrivals.map(item => ({ identityKey: item.identityKey, routeId: item.route, countdown: Number(item.time) })),
+        downtown: downtownArrivals.map(item => ({ identityKey: item.identityKey, routeId: item.route, countdown: Number(item.time) }))
+      }
+    });
+    updateForeverEngineTraceStatus(recorder.inspect());
+  } catch {
+    // Diagnostics must never affect the rider-facing board.
+  }
+}
 restoreScroll();
   }
 
   catch(err) {
+
+    recordForeverEngineTrace(
+      hasRenderedArrivals ? "ERROR_BOARD_PRESERVED" : "RESPONSE_ERROR",
+      {
+      refreshReason,
+      selectedContext: currentSelection(),
+      boardPreserved: hasRenderedArrivals,
+      message: String(err?.message || err)
+      }
+    );
 
     if (!hasRenderedArrivals) {
       resultsEl.innerHTML = `
@@ -3221,13 +3623,39 @@ window.addEventListener("touchcancel", () => {
   markTouchScrollActive();
 }, { passive: true });
 
-loadArrivals();
+if (foreverEngineTraceEnabled) {
+  foreverEngineTraceRecorderPromise.then(recorder => {
+    const priorEvents = recorder.inspect().eventCount;
+    recorder.record(
+      priorEvents ? "DOCUMENT_RESET" : "DOCUMENT_LOADED",
+      {
+        refreshReason: "PAGE_LOAD",
+        selectedContext: currentSelection(),
+        activeExperimentFlags: activeForeverEngineFlags(),
+        referrerPresent: Boolean(document.referrer),
+        priorTraceEvents: priorEvents
+      }
+    );
+  }).catch(() => {});
+}
+
+document.addEventListener("visibilitychange", () => {
+  recordForeverEngineTrace("VISIBILITY_CHANGED", {
+    visibilityState: document.visibilityState,
+    selectedContext: currentSelection()
+  });
+});
+
+loadArrivals({ refreshReason: "PAGE_LOAD" });
 
 setInterval(() => {
   // Glide/iOS scroll stability: avoid background refresh scroll restoration while
   // the user's finger is actively driving the iframe scroll surface.
   if (!isStationMenuOpen() && !isTouchScrollActive()) {
-    loadArrivals({ preserveScroll: true });
+    loadArrivals({
+      preserveScroll: true,
+      refreshReason: "NORMAL_15_SECOND_REFRESH"
+    });
   }
 }, 15000);
 </script>
