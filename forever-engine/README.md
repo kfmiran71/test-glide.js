@@ -35,6 +35,12 @@ suppression remains a separate publication policy applied by the page.
 8. Protected trips are composed before ordinary per-route limits.
 9. Diagnostics are detached from live state.
 10. Registries and per-trip histories are bounded.
+11. A conclusive realtime pattern classifies each exact trip once as an
+    intermediate arrival, terminal arrival, or origin departure; a later
+    shrinking pattern cannot change that role.
+12. Terminal arrivals remain visible while current target evidence exists but
+    do not create downstream-dependent locks. Origin departures retain their
+    departure countdown and cannot masquerade as arrivals at zero.
 
 ## Runtime boundary
 

@@ -5,7 +5,8 @@ import vm from "node:vm";
 import {
   createForeverEngine,
   DECISION_REASONS,
-  MOVEMENT_STATES
+  MOVEMENT_STATES,
+  SERVICE_ROLES
 } from "../forever-engine/engine.js";
 import { normalizeGtfsEntities } from "../forever-engine/gtfs-normalizer.js";
 import { replaySnapshots } from "../forever-engine/replay.js";
@@ -75,6 +76,78 @@ test("a distant prediction is displayed while current but is not preserved after
   assert.equal(reconcile(engine, [distant]).arrivals[0].time, "20");
   const missing = reconcile(engine, [], NOW + 15_000);
   assert.equal(missing.arrivals.length, 0);
+});
+
+test("terminal arrivals display current evidence but never create an unreleasable downstream lock", () => {
+  const engine = createForeverEngine();
+  const terminal = trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  });
+  const atTerminal = reconcile(engine, [terminal]);
+  assert.equal(atTerminal.arrivals[0].time, "0");
+  assert.equal(atTerminal.arrivals[0].departureProofLocked, false);
+  assert.equal(atTerminal.diagnostics.active[0].serviceRole, SERVICE_ROLES.TERMINAL_ARRIVAL);
+  const completed = reconcile(engine, [], NOW + 15_000);
+  assert.equal(completed.arrivals.length, 0);
+  assert.equal(completed.diagnostics.released[0].releaseReason, DECISION_REASONS.TERMINAL_TRIP_COMPLETED);
+});
+
+test("origin departures retain their timetable countdown and cannot masquerade as arrivals at zero", () => {
+  const engine = createForeverEngine();
+  const origin = trip({
+    destination: "Flushing-Main St",
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS + 60 },
+      { stopId: "706N", eventTime: NOW_SECONDS + 180 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  });
+  const result = reconcile(engine, [origin]);
+  assert.equal(result.arrivals[0].time, "1");
+  assert.equal(result.arrivals[0].departureProofLocked, false);
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+});
+
+test("terminal classification survives a target-only final update using the last conclusive pattern", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS + 60 }
+    ]
+  })]);
+  const targetOnly = reconcile(engine, [trip({
+    stopUpdates: [{ stopId: TARGET, eventTime: NOW_SECONDS }],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })], NOW + 15_000);
+  assert.equal(targetOnly.diagnostics.active[0].serviceRole, SERVICE_ROLES.TERMINAL_ARRIVAL);
+  assert.equal(targetOnly.arrivals[0].departureProofLocked, false);
+});
+
+test("intermediate station entry and departure proof remain unchanged", () => {
+  const engine = createForeverEngine();
+  const stopped = reconcile(engine, [trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    ),
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  assert.equal(stopped.diagnostics.active[0].serviceRole, SERVICE_ROLES.INTERMEDIATE);
+  assert.equal(stopped.arrivals[0].departureProofLocked, true);
 });
 
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {

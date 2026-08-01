@@ -23,7 +23,17 @@ export const DECISION_REASONS = Object.freeze({
   DEPARTURE_PROOF_HOLD: "DEPARTURE_PROOF_HOLD",
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
+  TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
+  TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
+  ORIGIN_DEPARTURE_PREDICTION: "ORIGIN_DEPARTURE_PREDICTION",
   OUTSIDE_BOARD_WINDOW: "OUTSIDE_BOARD_WINDOW"
+});
+
+export const SERVICE_ROLES = Object.freeze({
+  INTERMEDIATE: "INTERMEDIATE",
+  TERMINAL_ARRIVAL: "TERMINAL_ARRIVAL",
+  ORIGIN_DEPARTURE: "ORIGIN_DEPARTURE",
+  UNRESOLVED: "UNRESOLVED"
 });
 
 const DEFAULTS = Object.freeze({
@@ -84,6 +94,20 @@ function normalizedPattern(stopUpdates = []) {
   })).filter(stop => stop.stopId);
 }
 
+function serviceRole(pattern, previousPattern, targetStop) {
+  const candidates = [pattern, previousPattern]
+    .filter(candidate => Array.isArray(candidate) && candidate.length > 1)
+    .sort((a, b) => b.length - a.length);
+  for (const candidate of candidates) {
+    const targetIndex = uniqueIndex(candidate, targetStop);
+    if (targetIndex === null) continue;
+    if (targetIndex === 0) return SERVICE_ROLES.ORIGIN_DEPARTURE;
+    if (targetIndex === candidate.length - 1) return SERVICE_ROLES.TERMINAL_ARRIVAL;
+    return SERVICE_ROLES.INTERMEDIATE;
+  }
+  return SERVICE_ROLES.UNRESOLVED;
+}
+
 function vehicleEvidence(observation, nowSeconds, options) {
   const vehicle = observation.vehicle;
   if (!vehicle || observation.vehicleAmbiguous) {
@@ -130,6 +154,7 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
     rawCountdown,
     pattern,
     previousPattern,
+    serviceRole: serviceRole(pattern, previousPattern, platform),
     cancelled: Boolean(raw.cancelled),
     tripUpdatePresent: Boolean(raw.tripUpdatePresent),
     vehicle: raw.vehicle || null,
@@ -149,6 +174,7 @@ function createRecord(observation, nowMs) {
     route: observation.routeId,
     destination: observation.destination,
     direction: observation.direction,
+    serviceRole: observation.serviceRole,
     movementState: MOVEMENT_STATES.OBSERVED,
     firstObservedAt: nowMs,
     lastObservedAt: nowMs,
@@ -181,6 +207,12 @@ function updateRecord(previous, observation, nowMs, options) {
   record.route = observation.routeId || record.route;
   record.destination = observation.destination || record.destination;
   record.direction = observation.direction || record.direction;
+  if (
+    (!record.serviceRole || record.serviceRole === SERVICE_ROLES.UNRESOLVED) &&
+    observation.serviceRole !== SERVICE_ROLES.UNRESOLVED
+  ) {
+    record.serviceRole = observation.serviceRole;
+  }
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
   if (observation.pattern.length) record.lastPattern = observation.pattern;
@@ -203,7 +235,39 @@ function updateRecord(previous, observation, nowMs, options) {
       countdown <= options.boardWindowMinutes;
     if (eligiblePrediction && countdown >= 0) record.admitted = true;
 
-    if (vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
+    if (record.serviceRole === SERVICE_ROLES.ORIGIN_DEPARTURE) {
+      record.departureLocked = false;
+      record.consecutiveTargetZeroSnapshots = 0;
+      if (eligiblePrediction && countdown >= 0) {
+        record.admitted = true;
+        record.movementState = countdown <= 1
+          ? MOVEMENT_STATES.APPROACHING
+          : MOVEMENT_STATES.MOVING_UPSTREAM;
+        record.lastDisplayedCountdown = Math.max(countdown, 1);
+        decisionReason = DECISION_REASONS.ORIGIN_DEPARTURE_PREDICTION;
+      } else {
+        record.admitted = false;
+        decisionReason = DECISION_REASONS.OUTSIDE_BOARD_WINDOW;
+      }
+    } else if (record.serviceRole === SERVICE_ROLES.TERMINAL_ARRIVAL) {
+      record.departureLocked = false;
+      record.consecutiveTargetZeroSnapshots = 0;
+      if (observation.targetPresent && countdown !== null && countdown <= options.boardWindowMinutes) {
+        record.admitted = true;
+        const atTerminal = countdown <= 0 ||
+          vehicle.present && vehicle.fresh && vehicle.position === "TARGET";
+        record.movementState = atTerminal
+          ? MOVEMENT_STATES.STOPPED_AT_TARGET
+          : countdown <= 1
+            ? MOVEMENT_STATES.APPROACHING
+            : MOVEMENT_STATES.MOVING_UPSTREAM;
+        record.lastDisplayedCountdown = atTerminal ? 0 : Math.max(countdown, 1);
+        decisionReason = DECISION_REASONS.TERMINAL_CURRENT_PREDICTION;
+      } else {
+        record.admitted = false;
+        decisionReason = DECISION_REASONS.OUTSIDE_BOARD_WINDOW;
+      }
+    } else if (vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
       vehicle.currentStatusExplicit && vehicle.currentStatus === 1) {
       record.movementState = MOVEMENT_STATES.STOPPED_AT_TARGET;
       record.departureLocked = true;
@@ -366,6 +430,33 @@ export function createForeverEngine(configuration = {}) {
     }
     for (const [identityKey, record] of registry) {
       if (rawByIdentity.has(identityKey) || record.released) continue;
+      if (
+        record.serviceRole === SERVICE_ROLES.TERMINAL_ARRIVAL ||
+        record.serviceRole === SERVICE_ROLES.ORIGIN_DEPARTURE
+      ) {
+        const completed = {
+          ...record,
+          admitted: false,
+          departureLocked: false,
+          released: true,
+          movementState: MOVEMENT_STATES.WITHDRAWN,
+          releaseReason: DECISION_REASONS.TERMINAL_TRIP_COMPLETED,
+          decisionReason: DECISION_REASONS.TERMINAL_TRIP_COMPLETED
+        };
+        completed.history = appendHistory(completed, {
+          observedAt: nowMs,
+          feedTimestamp: numberOrNull(snapshot.feedTimestamp),
+          rawCountdown: null,
+          displayedCountdown: completed.lastDisplayedCountdown,
+          targetPresent: false,
+          tripUpdatePresent: false,
+          vehicle: { present: false, fresh: false, ageSeconds: null, position: "UNKNOWN" },
+          movementState: completed.movementState,
+          decisionReason: completed.decisionReason
+        });
+        registry.set(identityKey, completed);
+        continue;
+      }
       const custodyEligible = record.departureLocked ||
         record.admitted && record.lastDisplayedCountdown !== null &&
         record.lastDisplayedCountdown <= options.custodyWindowMinutes;
@@ -426,4 +517,4 @@ export function createForeverEngine(configuration = {}) {
   return Object.freeze({ reconcile, inspect, clear, options: Object.freeze({ ...options }) });
 }
 
-export const __test = Object.freeze({ relativePosition, composeBoard, exactIdentity });
+export const __test = Object.freeze({ relativePosition, serviceRole, composeBoard, exactIdentity });
