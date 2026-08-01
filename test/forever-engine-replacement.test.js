@@ -380,6 +380,86 @@ test("fresh target VehiclePosition vetoes target-free suffix progression", () =>
   assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
+test("fresh exact successor occupancy releases an older lock on the same platform", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+    destination: "Inwood-207 St",
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    )
+  })]);
+  const result = reconcile(engine, [
+    trip({
+      trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+      destination: "Inwood-207 St",
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+      ),
+      feedTimestamp: NOW_SECONDS + 15
+    }),
+    trip({
+      trip: { tripId: "successor-d", startDate: "20260801", routeId: "D" },
+      destination: "Norwood-205 St",
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS + 15 } : stop
+      ),
+      feedTimestamp: NOW_SECONDS + 15
+    })
+  ], NOW + 15_000);
+  assert.deepEqual(result.arrivals.map(item => item.identityKey), ["successor-d|20260801"]);
+  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET);
+  assert.equal(older.successorIdentityKey, "successor-d|20260801");
+});
+
+test("approaching or stale successor evidence cannot release an older lock", () => {
+  for (const vehicle of [
+    { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 0, currentStatusExplicit: true },
+    { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true }
+  ]) {
+    const engine = createForeverEngine();
+    reconcile(engine, [trip({
+      trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+      )
+    })]);
+    const result = reconcile(engine, [trip({
+      trip: { tripId: "successor-d", startDate: "20260801", routeId: "D" },
+      vehicle,
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS + 15 } : stop
+      ),
+      feedTimestamp: NOW_SECONDS + 15
+    })], NOW + 15_000);
+    assert.equal(result.diagnostics.active.some(item => item.identityKey === "older-a|20260801"), true);
+  }
+});
+
+test("successor occupancy is isolated by exact platform", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    )
+  })]);
+  reconcile(engine, [trip({
+    trip: { tripId: "other-platform-d", startDate: "20260801", routeId: "D" },
+    vehicle: { stopId: "other-platform", timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: [{ stopId: "other-platform", eventTime: NOW_SECONDS + 15 }],
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000, "other-platform");
+  const original = reconcile(engine, [], NOW + 30_000);
+  assert.equal(original.diagnostics.active.some(item => item.identityKey === "older-a|20260801"), true);
+});
+
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({

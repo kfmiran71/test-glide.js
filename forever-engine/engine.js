@@ -24,6 +24,7 @@ export const DECISION_REASONS = Object.freeze({
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
+  SUCCESSOR_CONFIRMED_AT_TARGET: "SUCCESSOR_CONFIRMED_AT_TARGET",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
@@ -221,6 +222,7 @@ function createRecord(observation, nowMs) {
     consecutiveTargetZeroSnapshots: 0,
     admitted: false,
     departureLocked: false,
+    departureLockedAt: null,
     released: false,
     releaseReason: null,
     lastDisplayedCountdown: null,
@@ -238,6 +240,7 @@ function appendHistory(record, event) {
 
 function updateRecord(previous, observation, nowMs, options) {
   const record = previous ? { ...previous } : createRecord(observation, nowMs);
+  const wasDepartureLocked = Boolean(previous?.departureLocked);
   const distinctSnapshot = observation.feedTimestamp !== null &&
     observation.feedTimestamp !== record.lastDistinctFeedTimestamp;
   const vehicle = observation.vehicleEvidence;
@@ -383,8 +386,47 @@ function updateRecord(previous, observation, nowMs, options) {
     movementState: record.movementState,
     decisionReason
   });
+  if (record.departureLocked && !wasDepartureLocked) record.departureLockedAt = nowMs;
   record.decisionReason = decisionReason;
   return record;
+}
+
+function applySuccessorOccupancy(registry, observations, nowMs, feedTimestamp) {
+  const successors = [...observations.values()].filter(observation => {
+    const vehicle = observation.vehicleEvidence;
+    return vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
+      vehicle.currentStatusExplicit && vehicle.currentStatus === 1;
+  });
+  for (const successor of successors) {
+    for (const [identityKey, record] of registry) {
+      if (identityKey === successor.identityKey || record.released || !record.departureLocked) continue;
+      if (record.departureLockedAt === null || record.departureLockedAt >= nowMs) continue;
+      if (record.direction && successor.direction && record.direction !== successor.direction) continue;
+      const released = {
+        ...record,
+        admitted: false,
+        departureLocked: false,
+        released: true,
+        movementState: MOVEMENT_STATES.CONFIRMED_DOWNSTREAM,
+        releaseReason: DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET,
+        decisionReason: DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET,
+        successorIdentityKey: successor.identityKey
+      };
+      released.history = appendHistory(released, {
+        observedAt: nowMs,
+        feedTimestamp,
+        rawCountdown: released.lastRawCountdown,
+        displayedCountdown: released.lastDisplayedCountdown,
+        targetPresent: false,
+        tripUpdatePresent: false,
+        vehicle: clone(successor.vehicleEvidence),
+        successorIdentityKey: successor.identityKey,
+        movementState: released.movementState,
+        decisionReason: released.decisionReason
+      });
+      registry.set(identityKey, released);
+    }
+  }
 }
 
 function arrivalFromRecord(record) {
@@ -479,6 +521,7 @@ export function createForeverEngine(configuration = {}) {
       );
     }
     const rawByIdentity = new Map();
+    const observations = new Map();
     for (const raw of snapshot.trips || []) {
       const identity = exactIdentity(raw.trip);
       if (identity) rawByIdentity.set(identity.identityKey, raw);
@@ -493,6 +536,7 @@ export function createForeverEngine(configuration = {}) {
         options
       );
       if (!observation) continue;
+      observations.set(identityKey, observation);
       registry.set(identityKey, updateRecord(previous, observation, nowMs, options));
     }
     for (const [identityKey, record] of registry) {
@@ -549,6 +593,12 @@ export function createForeverEngine(configuration = {}) {
       });
       registry.set(identityKey, preserved);
     }
+    applySuccessorOccupancy(
+      registry,
+      observations,
+      nowMs,
+      numberOrNull(snapshot.feedTimestamp)
+    );
     if (registry.size > options.maxRegistryRecords) {
       const removable = [...registry.values()]
         .filter(record => record.released || !record.admitted)
