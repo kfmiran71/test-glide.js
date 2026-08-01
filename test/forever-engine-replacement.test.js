@@ -239,6 +239,72 @@ test("a VehiclePosition still naming the target never releases after the target 
   assert.equal(held.diagnostics.active[0].history.at(-1).vehicle.position, "TARGET");
 });
 
+test("an exact downstream-only TripUpdate releases when target VehiclePosition is stale", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 240 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const released = reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "706N", eventTime: NOW_SECONDS + 30 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 150 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM
+  );
+});
+
+test("fresh exact target VehiclePosition overrides a downstream-only TripUpdate suffix", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const held = reconcile(engine, [trip({
+    stopUpdates: [{ stopId: "706N", eventTime: NOW_SECONDS + 30 }],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
+});
+
+test("an upstream or unmapped target-free TripUpdate cannot release custody", () => {
+  for (const firstStop of ["704N", "unmapped-stop"]) {
+    const engine = createForeverEngine();
+    reconcile(engine, [trip({
+      stopUpdates: [
+        { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+        { stopId: TARGET, eventTime: NOW_SECONDS },
+        { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+      ],
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+    })]);
+    const held = reconcile(engine, [trip({
+      stopUpdates: [{ stopId: firstStop, eventTime: NOW_SECONDS + 30 }],
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      feedTimestamp: NOW_SECONDS + 15
+    })], NOW + 15_000);
+    assert.equal(held.arrivals[0].time, "0");
+    assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
+  }
+});
+
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({

@@ -22,6 +22,7 @@ export const DECISION_REASONS = Object.freeze({
   REPEATED_TARGET_ZERO: "REPEATED_TARGET_ZERO",
   DEPARTURE_PROOF_HOLD: "DEPARTURE_PROOF_HOLD",
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
+  EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
@@ -112,6 +113,20 @@ function targetConclusivePattern(pattern, previousPattern, targetStop) {
   if (uniqueIndex(pattern, targetStop) !== null) return pattern;
   if (uniqueIndex(previousPattern, targetStop) !== null) return previousPattern;
   return [];
+}
+
+function tripUpdateProvesDownstream(observation, conclusivePattern) {
+  if (!observation.tripUpdatePresent || observation.targetPresent || !observation.pattern.length) {
+    return false;
+  }
+  // GTFS-RT commonly emits only the remaining suffix after a served stop. The
+  // first remaining occurrence is affirmative downstream evidence only when
+  // the last target-containing pattern locates it uniquely after the target.
+  return relativePosition(
+    conclusivePattern,
+    observation.targetStop,
+    observation.pattern[0].stopId
+  ) === "DOWNSTREAM";
 }
 
 function vehicleEvidence(observation, nowSeconds, options) {
@@ -231,6 +246,11 @@ function updateRecord(previous, observation, nowMs, options) {
   }
   if (distinctSnapshot) record.lastDistinctFeedTimestamp = observation.feedTimestamp;
 
+  const tripUpdateDownstream = distinctSnapshot &&
+    tripUpdateProvesDownstream(observation, record.lastPattern);
+  const freshVehicleStillAtTarget = vehicle.present && vehicle.fresh &&
+    vehicle.position === "TARGET";
+
   if (observation.cancelled) {
     record.movementState = MOVEMENT_STATES.WITHDRAWN;
     record.released = true;
@@ -243,6 +263,12 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
+  } else if (tripUpdateDownstream && !freshVehicleStillAtTarget) {
+    record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
+    record.released = true;
+    record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
+    record.departureLocked = false;
+    decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
   } else {
     const eligiblePrediction = observation.targetPresent && countdown !== null &&
       countdown <= options.boardWindowMinutes;
