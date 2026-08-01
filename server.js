@@ -1496,7 +1496,7 @@ async function handleArrivals(req, res) {
  const departureProofLockEnabled =
    req.query.departureProofLock === "1";
  const foreverEngineTraceEnabled =
-   req.query.foreverEngineTrace === "1";
+   req.query.foreverEngineTrace !== "0";
  const traceRequestStartedAt =
    foreverEngineTraceEnabled ? Date.now() : 0;
  const traceRequestId =

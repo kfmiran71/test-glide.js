@@ -1179,7 +1179,7 @@ transform: translateY(-6px);
 <script>
 const params = new URLSearchParams(window.location.search);
 const foreverEngineTraceEnabled =
-  params.get("foreverEngineTrace") === "1";
+  params.get("foreverEngineTrace") !== "0";
 const foreverEngineTraceModulePromise =
   foreverEngineTraceEnabled
     ? import("./forever-engine-trace.js")

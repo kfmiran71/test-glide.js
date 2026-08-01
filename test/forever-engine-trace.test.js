@@ -22,12 +22,26 @@ function immediateTimer(callback) {
   return 1;
 }
 
-test("trace activation is exact and disabled mode imports no module", () => {
-  assert.match(html, /params\.get\("foreverEngineTrace"\) === "1"/);
+test("trace defaults on, exact zero disables it, and disabled mode imports no module", () => {
+  assert.match(html, /params\.get\("foreverEngineTrace"\) !== "0"/);
   assert.match(html, /foreverEngineTraceEnabled\s*\? import\("\.\/forever-engine-trace\.js"\)\s*:\s*null/);
+  assert.match(html, /foreverEngineTraceEnabled\s*\? foreverEngineTraceModulePromise\.then/);
   assert.match(html, /if \(!foreverEngineTraceEnabled\) return ""/);
-  assert.match(server, /req\.query\.foreverEngineTrace === "1"/);
+  assert.match(server, /req\.query\.foreverEngineTrace !== "0"/);
   assert.match(server, /\.\.\.\(foreverEngineTraceEnabled\s*\?\s*\{/);
+});
+
+test("existing parameter-free Glide URLs enable trace and emergency zero is trace-free", () => {
+  const enabledByDefault = new URLSearchParams();
+  const explicitlyEnabled = new URLSearchParams("foreverEngineTrace=1");
+  const emergencyOff = new URLSearchParams("foreverEngineTrace=0");
+  const isEnabled = searchParams => searchParams.get("foreverEngineTrace") !== "0";
+
+  assert.equal(isEnabled(enabledByDefault), true);
+  assert.equal(isEnabled(explicitlyEnabled), true);
+  assert.equal(isEnabled(emergencyOff), false);
+  assert.doesNotMatch(html, /foreverEngineTraceEnabled\s*\|\|/);
+  assert.match(html, /if \(foreverEngineTraceEnabled\) \{\s*query\.set\("foreverEngineTrace", "1"\)/);
 });
 
 test("observer emits a decision and returns the identical engine result", () => {
