@@ -289,13 +289,13 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
-  } else if (tripUpdateDownstream && !freshVehicleStillAtTarget) {
+  } else if (record.departureLocked && tripUpdateDownstream && !freshVehicleStillAtTarget) {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
-  } else if (tripUpdateProgressed && !freshVehicleStillAtTarget) {
+  } else if (record.departureLocked && tripUpdateProgressed && !freshVehicleStillAtTarget) {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
@@ -406,6 +406,13 @@ function applySuccessorOccupancy(registry, observations, nowMs, feedTimestamp) {
       if (record.direction && successor.direction && record.direction !== successor.direction) continue;
       const olderObservation = observations.get(identityKey);
       const olderVehicle = olderObservation?.vehicleEvidence;
+      // A different train at the station cannot override fresh, exact evidence
+      // that the locked identity still names this target. This is especially
+      // important at stations where local and express services share a stop ID
+      // but occupy separate tracks.
+      if (olderVehicle?.present && olderVehicle.fresh && olderVehicle.position === "TARGET") {
+        continue;
+      }
       const successorIncomingWithIndependentDepartureEvidence = !successorStopped &&
         olderObservation?.tripUpdatePresent && !olderObservation.targetPresent &&
         olderVehicle?.present && !olderVehicle.fresh && olderVehicle.position === "TARGET";

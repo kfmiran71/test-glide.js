@@ -380,7 +380,7 @@ test("fresh target VehiclePosition vetoes target-free suffix progression", () =>
   assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
-test("fresh exact successor occupancy releases an older lock on the same platform", () => {
+test("fresh exact successor occupancy cannot override the older trip's fresh target evidence", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
@@ -410,10 +410,51 @@ test("fresh exact successor occupancy releases an older lock on the same platfor
       feedTimestamp: NOW_SECONDS + 15
     })
   ], NOW + 15_000);
-  assert.deepEqual(result.arrivals.map(item => item.identityKey), ["successor-d|20260801"]);
-  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(result.arrivals.some(item => item.identityKey === "older-a|20260801"), true);
+  const older = result.diagnostics.active.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.departureLocked, true);
+  assert.equal(older.decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
+});
+
+test("fresh successor occupancy can release an older lock after its own exact target evidence disappears", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    )
+  })]);
+  const result = reconcile(engine, [trip({
+    trip: { tripId: "successor-express", startDate: "20260801", routeId: "A" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS + 15 } : stop
+    ),
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  const older = result.diagnostics.released.find(item => item.identityKey === "older-local|20260801");
   assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET);
-  assert.equal(older.successorIdentityKey, "successor-d|20260801");
+  assert.equal(older.successorIdentityKey, "successor-express|20260801");
+});
+
+test("TripUpdate progression cannot release an identity that never entered departure custody", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "outside-window", startDate: "20260801", routeId: "C" },
+    stopUpdates: [
+      { stopId: "706N", eventTime: NOW_SECONDS + 3600 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 3720 }
+    ],
+    vehicle: null
+  })]);
+  const result = reconcile(engine, [trip({
+    trip: { tripId: "outside-window", startDate: "20260801", routeId: "C" },
+    stopUpdates: [{ stopId: "707N", eventTime: NOW_SECONDS + 3660 }],
+    vehicle: null,
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(result.diagnostics.released.some(item => item.identityKey === "outside-window|20260801"), false);
 });
 
 test("approaching or stale successor evidence cannot release an older lock", () => {
