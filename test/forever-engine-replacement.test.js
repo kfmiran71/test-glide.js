@@ -809,6 +809,24 @@ test("classic client script still parses after adding the replacement selector",
   assert.doesNotMatch(html, /<script\s+type=["']module["']/);
 });
 
+test("Glide refresh requests bypass caches and cannot hold the refresh loop indefinitely", () => {
+  assert.match(html, /const realtimeRequestTimeoutMs = 12000/);
+  assert.match(html, /requestUrl\.searchParams\.set\("_refresh"/);
+  assert.match(html, /cache: "no-store"/);
+  assert.match(html, /signal: controller\.signal/);
+  assert.match(html, /controller\.abort\(\)/);
+  assert.match(html, /fetchRealtime\(`\$\{endpoint\}\?\$\{query\.toString\(\)\}`\)/);
+  assert.doesNotMatch(html, /const response = await fetch\(`\$\{endpoint\}/);
+});
+
+test("Glide refresh recovers from lost touches, foreground restore, and bfcache restore", () => {
+  assert.match(html, /const touchScrollHardResetMs = 5000/);
+  assert.match(html, /activeTouchCount = event\.touches\.length/);
+  assert.match(html, /refreshReason: "VISIBILITY_RESTORED"/);
+  assert.match(html, /refreshReason: "BFCACHE_RESTORED"/);
+  assert.match(html, /if \(!event\.persisted\) return/);
+});
+
 test("recorded snapshot sequences replay deterministically", () => {
   const snapshots = [
     { platform: TARGET, observedAt: NOW, feedTimestamp: NOW_SECONDS, trips: [trip()] },

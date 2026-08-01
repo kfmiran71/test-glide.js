@@ -1294,6 +1294,28 @@ const openAlertDirections = new Set();
 let activeTouchCount = 0;
 let lastTouchScrollAt = 0;
 const touchScrollQuietMs = 900;
+const touchScrollHardResetMs = 5000;
+const realtimeRequestTimeoutMs = 12000;
+let realtimeRequestCounter = 0;
+
+async function fetchRealtime(url, options = {}) {
+
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), realtimeRequestTimeoutMs);
+  const requestUrl = new URL(url, window.location.origin);
+  requestUrl.searchParams.set("_refresh", `${Date.now()}-${++realtimeRequestCounter}`);
+
+  try {
+    return await fetch(`${requestUrl.pathname}${requestUrl.search}`, {
+      ...options,
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } finally {
+    window.clearTimeout(timer);
+  }
+
+}
 
 function markTouchScrollActive() {
 
@@ -1304,6 +1326,9 @@ function markTouchScrollActive() {
 
 function isTouchScrollActive() {
 
+  if (activeTouchCount > 0 && Date.now() - lastTouchScrollAt >= touchScrollHardResetMs) {
+    activeTouchCount = 0;
+  }
   return activeTouchCount > 0 || Date.now() - lastTouchScrollAt < touchScrollQuietMs;
 
 }
@@ -1549,7 +1574,7 @@ async function fetchStations(direction, currentStop) {
   }
 
   const res =
-    await fetch(`/stations?${query.toString()}`);
+    await fetchRealtime(`/stations?${query.toString()}`);
 
   const data =
     await res.json();
@@ -1962,7 +1987,7 @@ async function fetchDirection(platformId) {
   }
 
   const requestJson = async endpoint => {
-    const response = await fetch(`${endpoint}?${query.toString()}`);
+    const response = await fetchRealtime(`${endpoint}?${query.toString()}`);
     const payload = await response.json();
     if (!response.ok || payload.error) {
       throw new Error(payload.error || `Arrivals request failed (${response.status})`);
@@ -2234,7 +2259,7 @@ if (platformAlertSuppressionEnabled) {
 async function fetchTransfers(stopId) {
 
   const query = new URLSearchParams({ stopId });
-  const res = await fetch(`/transfers?${query.toString()}`);
+  const res = await fetchRealtime(`/transfers?${query.toString()}`);
   const data = await res.json();
 
   return data.transfers || [];
@@ -2255,7 +2280,7 @@ async function fetchServiceAlerts(direction, stopId) {
     }
 
     const res =
-      await fetch(`/service-alerts?${query.toString()}`, {
+      await fetchRealtime(`/service-alerts?${query.toString()}`, {
         cache: "no-store"
       });
     const data =
@@ -2316,7 +2341,7 @@ async function fetchRouteAlerts(routeId) {
       routeId
     });
   const res =
-    await fetch(`/route-alerts?${query.toString()}`, {
+    await fetchRealtime(`/route-alerts?${query.toString()}`, {
       cache: "no-store"
     });
   const data =
@@ -3678,16 +3703,15 @@ restoreScroll();
 
 }
 
-window.addEventListener("touchstart", () => {
-  activeTouchCount += 1;
+window.addEventListener("touchstart", event => {
+  activeTouchCount = event.touches.length;
   markTouchScrollActive();
 }, { passive: true });
 
 window.addEventListener("touchmove", markTouchScrollActive, { passive: true });
 
-window.addEventListener("touchend", () => {
-  activeTouchCount =
-    Math.max(0, activeTouchCount - 1);
+window.addEventListener("touchend", event => {
+  activeTouchCount = event.touches.length;
   markTouchScrollActive();
 }, { passive: true });
 
@@ -3717,6 +3741,24 @@ document.addEventListener("visibilitychange", () => {
   recordForeverEngineTrace("VISIBILITY_CHANGED", {
     visibilityState: document.visibilityState,
     selectedContext: currentSelection()
+  });
+  if (document.visibilityState === "visible") {
+    activeTouchCount = 0;
+    lastTouchScrollAt = 0;
+    loadArrivals({
+      preserveScroll: true,
+      refreshReason: "VISIBILITY_RESTORED"
+    });
+  }
+});
+
+window.addEventListener("pageshow", event => {
+  if (!event.persisted) return;
+  activeTouchCount = 0;
+  lastTouchScrollAt = 0;
+  loadArrivals({
+    preserveScroll: true,
+    refreshReason: "BFCACHE_RESTORED"
   });
 });
 
