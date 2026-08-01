@@ -174,6 +174,71 @@ test("intermediate station entry and departure proof remain unchanged", () => {
   assert.equal(stopped.arrivals[0].departureProofLocked, true);
 });
 
+test("a target-free TripUpdate suffix uses the last target-containing pattern to release downstream", () => {
+  const engine = createForeverEngine();
+  const stopped = trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 240 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  });
+  assert.equal(reconcile(engine, [stopped]).arrivals[0].time, "0");
+
+  const downstream = trip({
+    stopUpdates: [
+      { stopId: "706N", eventTime: NOW_SECONDS + 30 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 150 }
+    ],
+    vehicle: { stopId: "706N", timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  });
+  const released = reconcile(engine, [downstream], NOW + 15_000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(released.diagnostics.released[0].releaseReason, DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM);
+  assert.equal(released.diagnostics.released[0].lastPattern.some(stop => stop.stopId === TARGET), true);
+});
+
+test("a target-free suffix cannot release without an exact stop in the last conclusive pattern", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const ambiguous = reconcile(engine, [trip({
+    stopUpdates: [{ stopId: "unmapped-stop", eventTime: NOW_SECONDS + 30 }],
+    vehicle: { stopId: "unmapped-stop", timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(ambiguous.arrivals[0].time, "0");
+  assert.equal(ambiguous.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
+});
+
+test("a VehiclePosition still naming the target never releases after the target leaves TripUpdate", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const held = reconcile(engine, [trip({
+    stopUpdates: [{ stopId: "706N", eventTime: NOW_SECONDS + 30 }],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.diagnostics.active[0].history.at(-1).vehicle.position, "TARGET");
+});
+
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({

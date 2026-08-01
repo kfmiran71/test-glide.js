@@ -108,6 +108,12 @@ function serviceRole(pattern, previousPattern, targetStop) {
   return SERVICE_ROLES.UNRESOLVED;
 }
 
+function targetConclusivePattern(pattern, previousPattern, targetStop) {
+  if (uniqueIndex(pattern, targetStop) !== null) return pattern;
+  if (uniqueIndex(previousPattern, targetStop) !== null) return previousPattern;
+  return [];
+}
+
 function vehicleEvidence(observation, nowSeconds, options) {
   const vehicle = observation.vehicle;
   if (!vehicle || observation.vehicleAmbiguous) {
@@ -116,9 +122,14 @@ function vehicleEvidence(observation, nowSeconds, options) {
   const timestamp = numberOrNull(vehicle.timestamp);
   const ageSeconds = timestamp === null ? null : Math.max(0, nowSeconds - timestamp);
   const fresh = ageSeconds !== null && ageSeconds <= options.vehicleFreshSeconds;
-  const pattern = observation.pattern.length
-    ? observation.pattern
-    : observation.previousPattern || [];
+  // Realtime stop updates commonly shed stops after the train serves them. A
+  // target-free suffix cannot locate a VehiclePosition relative to the target,
+  // so retain the last exact pattern that contained the target instead.
+  const pattern = targetConclusivePattern(
+    observation.pattern,
+    observation.previousPattern || [],
+    observation.targetStop
+  );
   return {
     present: true,
     fresh,
@@ -215,7 +226,9 @@ function updateRecord(previous, observation, nowMs, options) {
   }
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
-  if (observation.pattern.length) record.lastPattern = observation.pattern;
+  if (uniqueIndex(observation.pattern, observation.targetStop) !== null) {
+    record.lastPattern = observation.pattern;
+  }
   if (distinctSnapshot) record.lastDistinctFeedTimestamp = observation.feedTimestamp;
 
   if (observation.cancelled) {
