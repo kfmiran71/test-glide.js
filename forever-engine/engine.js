@@ -25,6 +25,7 @@ export const DECISION_REASONS = Object.freeze({
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
   SUCCESSOR_CONFIRMED_AT_TARGET: "SUCCESSOR_CONFIRMED_AT_TARGET",
+  SUCCESSOR_INCOMING_WITH_STALE_TARGET: "SUCCESSOR_INCOMING_WITH_STALE_TARGET",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
@@ -395,21 +396,31 @@ function applySuccessorOccupancy(registry, observations, nowMs, feedTimestamp) {
   const successors = [...observations.values()].filter(observation => {
     const vehicle = observation.vehicleEvidence;
     return vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
-      vehicle.currentStatusExplicit && vehicle.currentStatus === 1;
+      vehicle.currentStatusExplicit && (vehicle.currentStatus === 0 || vehicle.currentStatus === 1);
   });
   for (const successor of successors) {
+    const successorStopped = successor.vehicleEvidence.currentStatus === 1;
     for (const [identityKey, record] of registry) {
       if (identityKey === successor.identityKey || record.released || !record.departureLocked) continue;
       if (record.departureLockedAt === null || record.departureLockedAt >= nowMs) continue;
       if (record.direction && successor.direction && record.direction !== successor.direction) continue;
+      const olderObservation = observations.get(identityKey);
+      const olderVehicle = olderObservation?.vehicleEvidence;
+      const successorIncomingWithIndependentDepartureEvidence = !successorStopped &&
+        olderObservation?.tripUpdatePresent && !olderObservation.targetPresent &&
+        olderVehicle?.present && !olderVehicle.fresh && olderVehicle.position === "TARGET";
+      if (!successorStopped && !successorIncomingWithIndependentDepartureEvidence) continue;
+      const releaseReason = successorStopped
+        ? DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET
+        : DECISION_REASONS.SUCCESSOR_INCOMING_WITH_STALE_TARGET;
       const released = {
         ...record,
         admitted: false,
         departureLocked: false,
         released: true,
         movementState: MOVEMENT_STATES.CONFIRMED_DOWNSTREAM,
-        releaseReason: DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET,
-        decisionReason: DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET,
+        releaseReason,
+        decisionReason: releaseReason,
         successorIdentityKey: successor.identityKey
       };
       released.history = appendHistory(released, {

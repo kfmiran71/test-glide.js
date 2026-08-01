@@ -460,6 +460,97 @@ test("successor occupancy is isolated by exact platform", () => {
   assert.equal(original.diagnostics.active.some(item => item.identityKey === "older-a|20260801"), true);
 });
 
+test("fresh incoming successor plus target removal and stale target VP releases an older lock", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+    destination: "Inwood-207 St",
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    )
+  })]);
+  const result = reconcile(engine, [
+    trip({
+      trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+      destination: "Inwood-207 St",
+      stopUpdates: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      feedTimestamp: NOW_SECONDS + 15
+    }),
+    trip({
+      trip: { tripId: "incoming-d", startDate: "20260801", routeId: "D" },
+      destination: "Norwood-205 St",
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 0, currentStatusExplicit: true },
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS + 60 } : stop
+      ),
+      feedTimestamp: NOW_SECONDS + 15
+    })
+  ], NOW + 15_000);
+  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_INCOMING_WITH_STALE_TARGET);
+  assert.equal(older.successorIdentityKey, "incoming-d|20260801");
+});
+
+test("incoming successor cannot release unless every independent stale-target condition is present", () => {
+  const cases = [
+    {
+      name: "older target remains",
+      olderStops: trip().stopUpdates,
+      olderVehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      successorVehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 0, currentStatusExplicit: true }
+    },
+    {
+      name: "older target VP remains fresh",
+      olderStops: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      olderVehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+      successorVehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 0, currentStatusExplicit: true }
+    },
+    {
+      name: "successor is stale",
+      olderStops: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      olderVehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      successorVehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 0, currentStatusExplicit: true }
+    },
+    {
+      name: "successor is only in transit",
+      olderStops: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      olderVehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      successorVehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 2, currentStatusExplicit: true }
+    }
+  ];
+  for (const currentCase of cases) {
+    const engine = createForeverEngine();
+    reconcile(engine, [trip({
+      trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: trip().stopUpdates.map(stop =>
+        stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+      )
+    })]);
+    const result = reconcile(engine, [
+      trip({
+        trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+        stopUpdates: currentCase.olderStops,
+        vehicle: currentCase.olderVehicle,
+        feedTimestamp: NOW_SECONDS + 15
+      }),
+      trip({
+        trip: { tripId: "incoming-d", startDate: "20260801", routeId: "D" },
+        vehicle: currentCase.successorVehicle,
+        stopUpdates: trip().stopUpdates,
+        feedTimestamp: NOW_SECONDS + 15
+      })
+    ], NOW + 15_000);
+    assert.equal(
+      result.diagnostics.active.some(item => item.identityKey === "older-a|20260801"),
+      true,
+      currentCase.name
+    );
+  }
+});
+
 test("a fresh exact STOPPED_AT target observation promotes directly to zero", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({
