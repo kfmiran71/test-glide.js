@@ -71,6 +71,47 @@ test("temporary TripUpdate disappearance preserves a train already in pre-entry 
   assert.equal(result.diagnostics.active[0].decisionReason, DECISION_REASONS.PRE_ENTRY_CUSTODY);
 });
 
+test("pre-entry custody expires after two distinct missing feed snapshots", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip()]);
+  assert.equal(reconcile(engine, [], NOW + 15_000).arrivals.length, 1);
+  assert.equal(reconcile(engine, [], NOW + 30_000).arrivals.length, 1);
+  const expired = reconcile(engine, [], NOW + 45_000);
+  assert.equal(expired.arrivals.length, 0);
+});
+
+test("pre-entry custody cannot preserve a prediction after its bounded arrival grace", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS + 60 }
+      : stop)
+  })]);
+  const expired = reconcile(engine, [], NOW + 120_000);
+  assert.equal(expired.arrivals.length, 0);
+});
+
+test("pre-entry bounds never expire an established Departure-Proof lock", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS }
+      : stop),
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 7,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  const held = reconcile(engine, [], NOW + 4 * 60 * 60 * 1000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.arrivals[0].departureProofLocked, true);
+  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
+});
+
 test("a distant prediction is displayed while current but is not preserved after disappearance", () => {
   const engine = createForeverEngine({ custodyWindowMinutes: 10 });
   const distant = trip({
@@ -111,12 +152,14 @@ test("origin departures retain their timetable countdown and cannot masquerade a
   const origin = trip({
     destination: "Flushing-Main St",
     stopUpdates: [
-      { stopId: TARGET, eventTime: NOW_SECONDS + 60 },
-      { stopId: "706N", eventTime: NOW_SECONDS + 180 }
+      { stopId: TARGET, stopSequence: 1, eventTime: NOW_SECONDS + 60 },
+      { stopId: "706N", stopSequence: 2, eventTime: NOW_SECONDS + 180 }
     ],
     vehicle: {
       stopId: TARGET,
       timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
       currentStatus: 1,
       currentStatusExplicit: true
     }
@@ -125,6 +168,48 @@ test("origin departures retain their timetable countdown and cannot masquerade a
   assert.equal(result.arrivals[0].time, "1");
   assert.equal(result.arrivals[0].departureProofLocked, false);
   assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+});
+
+test("target-first truncated realtime pattern with in-progress sequence remains an intermediate arrival", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    trip: { tripId: "borough-hall-held-4", startDate: "20260801", routeId: "4" },
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 17,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(result.arrivals[0].time, "0");
+  assert.equal(result.arrivals[0].departureProofLocked, true);
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.INTERMEDIATE);
+  assert.equal(result.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
+});
+
+test("target-first pattern without affirmative first-stop sequence cannot manufacture an origin", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 120 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(result.arrivals[0].time, "0");
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.UNRESOLVED);
+  assert.equal(result.arrivals[0].departureProofLocked, true);
 });
 
 test("replacement presentation keeps same-route destinations on independent cards", () => {

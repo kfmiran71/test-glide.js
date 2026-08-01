@@ -43,6 +43,8 @@ export const SERVICE_ROLES = Object.freeze({
 const DEFAULTS = Object.freeze({
   boardWindowMinutes: 60,
   custodyWindowMinutes: 10,
+  preEntryMissingSnapshotLimit: 2,
+  preEntryPredictionGraceSeconds: 45,
   vehicleFreshSeconds: 90,
   routeLimit: 3,
   zeroConfirmationSnapshots: 2,
@@ -98,14 +100,33 @@ function normalizedPattern(stopUpdates = []) {
   })).filter(stop => stop.stopId);
 }
 
-function serviceRole(pattern, previousPattern, targetStop) {
+function serviceRole(pattern, previousPattern, targetStop, vehicle = null) {
   const candidates = [pattern, previousPattern]
     .filter(candidate => Array.isArray(candidate) && candidate.length > 1)
     .sort((a, b) => b.length - a.length);
   for (const candidate of candidates) {
     const targetIndex = uniqueIndex(candidate, targetStop);
     if (targetIndex === null) continue;
-    if (targetIndex === 0) return SERVICE_ROLES.ORIGIN_DEPARTURE;
+    if (targetIndex === 0) {
+      const targetSequence = numberOrNull(candidate[targetIndex]?.stopSequence);
+      const vehicleSequence = vehicle?.stopId === targetStop &&
+        vehicle?.currentStopSequenceExplicit
+        ? numberOrNull(vehicle.currentStopSequence)
+        : null;
+      // Realtime arrays shed served stops, so target-first is not proof that
+      // this trip originated here. An explicit sequence above one proves the
+      // train was already in progress; only an explicit first sequence proves
+      // origin behavior without an earlier conclusive pattern.
+      if ((targetSequence !== null && targetSequence > 1) ||
+          (vehicleSequence !== null && vehicleSequence > 1)) {
+        return SERVICE_ROLES.INTERMEDIATE;
+      }
+      if ((targetSequence !== null && targetSequence <= 1) ||
+          (vehicleSequence !== null && vehicleSequence <= 1)) {
+        return SERVICE_ROLES.ORIGIN_DEPARTURE;
+      }
+      continue;
+    }
     if (targetIndex === candidate.length - 1) return SERVICE_ROLES.TERMINAL_ARRIVAL;
     return SERVICE_ROLES.INTERMEDIATE;
   }
@@ -195,7 +216,7 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
     rawCountdown,
     pattern,
     previousPattern,
-    serviceRole: serviceRole(pattern, previousPattern, platform),
+    serviceRole: serviceRole(pattern, previousPattern, platform, raw.vehicle),
     cancelled: Boolean(raw.cancelled),
     tripUpdatePresent: Boolean(raw.tripUpdatePresent),
     vehicle: raw.vehicle || null,
@@ -220,6 +241,9 @@ function createRecord(observation, nowMs) {
     firstObservedAt: nowMs,
     lastObservedAt: nowMs,
     lastDistinctFeedTimestamp: null,
+    lastTargetTime: null,
+    preEntryMissingSnapshots: 0,
+    lastPreEntryMissingFeedTimestamp: null,
     consecutiveTargetZeroSnapshots: 0,
     admitted: false,
     departureLocked: false,
@@ -265,6 +289,14 @@ function updateRecord(previous, observation, nowMs, options) {
   }
   if (observation.pattern.length) record.lastRealtimePattern = observation.pattern;
   if (distinctSnapshot) record.lastDistinctFeedTimestamp = observation.feedTimestamp;
+  if (observation.targetPresent && observation.targetTime !== null) {
+    record.lastTargetTime = observation.targetTime;
+    record.preEntryMissingSnapshots = 0;
+    record.lastPreEntryMissingFeedTimestamp = null;
+  } else if (!record.departureLocked && distinctSnapshot) {
+    record.preEntryMissingSnapshots = (record.preEntryMissingSnapshots || 0) + 1;
+    record.lastPreEntryMissingFeedTimestamp = observation.feedTimestamp;
+  }
 
   const tripUpdateDownstream = distinctSnapshot &&
     tripUpdateProvesDownstream(observation, record.lastPattern);
@@ -368,7 +400,10 @@ function updateRecord(previous, observation, nowMs, options) {
         : MOVEMENT_STATES.MOVING_UPSTREAM;
       record.lastDisplayedCountdown = Math.max(countdown, 1);
     } else if (record.admitted && record.lastDisplayedCountdown !== null &&
-      record.lastDisplayedCountdown <= options.custodyWindowMinutes) {
+      record.lastDisplayedCountdown <= options.custodyWindowMinutes &&
+      record.preEntryMissingSnapshots <= options.preEntryMissingSnapshotLimit &&
+      record.lastTargetTime !== null &&
+      nowMs <= record.lastTargetTime * 1000 + options.preEntryPredictionGraceSeconds * 1000) {
       decisionReason = DECISION_REASONS.PRE_ENTRY_CUSTODY;
     } else {
       record.admitted = false;
@@ -586,11 +621,26 @@ export function createForeverEngine(configuration = {}) {
         registry.set(identityKey, completed);
         continue;
       }
-      const custodyEligible = record.departureLocked ||
-        record.admitted && record.lastDisplayedCountdown !== null &&
-        record.lastDisplayedCountdown <= options.custodyWindowMinutes;
+      const missingFeedTimestamp = numberOrNull(snapshot.feedTimestamp);
+      const missingSnapshotAdvanced = !record.departureLocked &&
+        missingFeedTimestamp !== null &&
+        missingFeedTimestamp !== record.lastPreEntryMissingFeedTimestamp;
+      const preEntryMissingSnapshots = missingSnapshotAdvanced
+        ? (record.preEntryMissingSnapshots || 0) + 1
+        : (record.preEntryMissingSnapshots || 0);
+      const preEntryCustodyEligible = record.admitted &&
+        record.lastDisplayedCountdown !== null &&
+        record.lastDisplayedCountdown <= options.custodyWindowMinutes &&
+        preEntryMissingSnapshots <= options.preEntryMissingSnapshotLimit &&
+        record.lastTargetTime !== null &&
+        nowMs <= record.lastTargetTime * 1000 + options.preEntryPredictionGraceSeconds * 1000;
+      const custodyEligible = record.departureLocked || preEntryCustodyEligible;
       const preserved = {
         ...record,
+        preEntryMissingSnapshots,
+        lastPreEntryMissingFeedTimestamp: missingSnapshotAdvanced
+          ? missingFeedTimestamp
+          : record.lastPreEntryMissingFeedTimestamp,
         admitted: custodyEligible,
         decisionReason: record.departureLocked
           ? DECISION_REASONS.DEPARTURE_PROOF_HOLD
