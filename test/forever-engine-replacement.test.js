@@ -13,6 +13,11 @@ import { replaySnapshots } from "../forever-engine/replay.js";
 
 const html = fs.readFileSync(new URL("../public/arrivals.html", import.meta.url), "utf8");
 const server = fs.readFileSync(new URL("../server.js", import.meta.url), "utf8");
+const groupArrivalsSource = html.slice(
+  html.indexOf("function groupArrivals"),
+  html.indexOf("function routeColor")
+);
+const groupArrivals = vm.runInNewContext(`(${groupArrivalsSource.trim()})`);
 
 const NOW = Date.UTC(2026, 7, 1, 12, 0, 0);
 const NOW_SECONDS = NOW / 1000;
@@ -120,6 +125,25 @@ test("origin departures retain their timetable countdown and cannot masquerade a
   assert.equal(result.arrivals[0].time, "1");
   assert.equal(result.arrivals[0].departureProofLocked, false);
   assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+});
+
+test("replacement presentation keeps same-route destinations on independent cards", () => {
+  const arrivals = [
+    { route: "4", station: "167 St", time: "6", platformId: "257N" },
+    { route: "4", station: "Woodlawn", time: "14", platformId: "257N" },
+    { route: "4", station: "167 St", time: "22", platformId: "257N" }
+  ];
+  const replacementGroups = groupArrivals(arrivals, true);
+  assert.deepEqual(
+    Array.from(replacementGroups, group => ({ station: group.station, times: Array.from(group.times) })),
+    [
+      { station: "167 St", times: [6, 22] },
+      { station: "Woodlawn", times: [14] }
+    ]
+  );
+  const legacyGroups = groupArrivals(arrivals, false);
+  assert.equal(legacyGroups.length, 1);
+  assert.equal(legacyGroups[0].station, "167 St");
 });
 
 test("terminal classification survives a target-only final update using the last conclusive pattern", () => {

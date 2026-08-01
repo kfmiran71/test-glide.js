@@ -2343,14 +2343,18 @@ async function fetchRouteAlerts(routeId) {
 
 }
 
-function groupArrivals(arrivals) {
+function groupArrivals(arrivals, separateDestinations = false) {
 
   const grouped = {};
 
   arrivals.forEach(arrival => {
 
-    if (!grouped[arrival.route]) {
-      grouped[arrival.route] = {
+    const groupKey = separateDestinations
+      ? `${arrival.route}\u0000${arrival.station || ""}`
+      : arrival.route;
+
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = {
         route: arrival.route,
         lat: arrival.lat,
         lon: arrival.lon,
@@ -2360,22 +2364,22 @@ function groupArrivals(arrivals) {
       };
     }
 
-    grouped[arrival.route].times.push(Number(arrival.time));
+    grouped[groupKey].times.push(Number(arrival.time));
 
-    if (!grouped[arrival.route].station && arrival.station) {
-      grouped[arrival.route].station = arrival.station;
+    if (!grouped[groupKey].station && arrival.station) {
+      grouped[groupKey].station = arrival.station;
     }
 
-    if (!grouped[arrival.route].lat && arrival.lat) {
-      grouped[arrival.route].lat = arrival.lat;
+    if (!grouped[groupKey].lat && arrival.lat) {
+      grouped[groupKey].lat = arrival.lat;
     }
 
-    if (!grouped[arrival.route].lon && arrival.lon) {
-      grouped[arrival.route].lon = arrival.lon;
+    if (!grouped[groupKey].lon && arrival.lon) {
+      grouped[groupKey].lon = arrival.lon;
     }
 
-    if (!grouped[arrival.route].platformId && arrival.platformId) {
-      grouped[arrival.route].platformId = arrival.platformId;
+    if (!grouped[groupKey].platformId && arrival.platformId) {
+      grouped[groupKey].platformId = arrival.platformId;
     }
 
   });
@@ -3402,10 +3406,10 @@ async function loadArrivals(options = {}) {
     }
 
     const groupedUptown =
-      groupArrivals(uptownArrivals);
+      groupArrivals(uptownArrivals, arrivalEngineMode === "forever");
 
     const groupedDowntown =
-      groupArrivals(downtownArrivals);
+      groupArrivals(downtownArrivals, arrivalEngineMode === "forever");
 
     if (loadId !== loadSequence) {
       recordForeverEngineTrace("STALE_RESPONSE_REJECTED", {
