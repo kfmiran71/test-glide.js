@@ -22,11 +22,15 @@ export const MOVEMENT_STATES = Object.freeze({
 
 export const DECISION_REASONS = Object.freeze({
   CURRENT_PREDICTION: "CURRENT_PREDICTION",
+  RECOVERED_FEED_CONSISTENT_FUTURE: "RECOVERED_FEED_CONSISTENT_FUTURE",
+  RECOVERED_PERSISTENT_FUTURE: "RECOVERED_PERSISTENT_FUTURE",
   SUPPRESSED_ORPHAN_TRIP_UPDATE: "SUPPRESSED_ORPHAN_TRIP_UPDATE",
+  SUPPRESSED_CANCELED_OR_NO_DATA: "SUPPRESSED_CANCELED_OR_NO_DATA",
   PRE_ENTRY_CUSTODY: "PRE_ENTRY_CUSTODY",
   EXACT_STOPPED_AT_TARGET: "EXACT_STOPPED_AT_TARGET",
   REPEATED_TARGET_ZERO: "REPEATED_TARGET_ZERO",
   DEPARTURE_PROOF_HOLD: "DEPARTURE_PROOF_HOLD",
+  FIRST_MISSING_EXACT_VEHICLE_POSITION: "FIRST_MISSING_EXACT_VEHICLE_POSITION",
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
@@ -49,6 +53,10 @@ const DEFAULTS = Object.freeze({
   boardWindowMinutes: 60,
   custodyWindowMinutes: 10,
   nearArrivalStrictWindowMinutes: 5,
+  futureObservationMaxAgeMs: 3 * 60 * 1000,
+  futureObservationPurgeAgeMs: 10 * 60 * 1000,
+  futureObservationMaxTimeShiftSeconds: 3 * 60,
+  realtimeFeedFreshnessSeconds: 3 * 60,
   preEntryMissingSnapshotLimit: 2,
   preEntryPredictionGraceSeconds: 45,
   vehicleFreshSeconds: 90,
@@ -103,8 +111,24 @@ function normalizedPattern(stopUpdates = []) {
     stopId: String(stop.stopId || ""),
     stopSequence: numberOrNull(stop.stopSequence),
     eventTime: numberOrNull(stop.eventTime),
+    confidenceTime: numberOrNull(stop.arrivalTime ?? stop.departureTime ?? stop.eventTime),
     realtimeIndex: index
   })).filter(stop => stop.stopId);
+}
+
+function coherentStopTimeOrdering(pattern = []) {
+  let previousTime = null;
+  for (const stop of pattern) {
+    if (stop.confidenceTime === null) continue;
+    if (previousTime !== null && stop.confidenceTime < previousTime) return false;
+    previousTime = stop.confidenceTime;
+  }
+  return true;
+}
+
+function timestampFresh(timestamp, nowSeconds, freshnessSeconds) {
+  return timestamp !== null &&
+    Math.abs(nowSeconds - timestamp) <= freshnessSeconds;
 }
 
 function serviceRole(pattern, previousPattern, targetStop, vehicle = null) {
@@ -208,6 +232,7 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
   const targetUpdates = pattern.filter(stop => stop.stopId === platform);
   const targetUpdate = targetUpdates.length === 1 ? targetUpdates[0] : null;
   const targetTime = numberOrNull(targetUpdate?.eventTime);
+  const confidenceTargetTime = numberOrNull(targetUpdate?.confidenceTime);
   const rawCountdown = targetTime === null
     ? null
     : Math.round((targetTime - nowSeconds) / 60);
@@ -220,12 +245,21 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
     targetPresent: Boolean(targetUpdate),
     targetAmbiguous: targetUpdates.length > 1,
     targetTime,
+    confidenceTargetTime,
     rawCountdown,
     pattern,
     previousPattern,
     serviceRole: serviceRole(pattern, previousPattern, platform, raw.vehicle),
     cancelled: Boolean(raw.cancelled),
+    targetScheduleRelationship: numberOrNull(
+      raw.stopUpdates?.find(stop => stop.stopId === platform)?.scheduleRelationship
+    ),
     tripUpdatePresent: Boolean(raw.tripUpdatePresent),
+    tripUpdateTimestamp: numberOrNull(raw.tripUpdateTimestamp),
+    tripUpdateVehicleId: String(raw.tripUpdateVehicleId || ""),
+    vehiclePositionMatched: raw.vehiclePositionMatched === undefined
+      ? Boolean(raw.vehicle && !raw.vehicleAmbiguous)
+      : Boolean(raw.vehiclePositionMatched),
     vehicle: raw.vehicle || null,
     vehicleAmbiguous: Boolean(raw.vehicleAmbiguous),
     feedTimestamp: numberOrNull(raw.feedTimestamp)
@@ -254,6 +288,12 @@ function createRecord(observation, nowMs) {
     consecutiveTargetZeroSnapshots: 0,
     approachContinuityEstablished: false,
     freshVehicleContinuityEstablished: false,
+    futureObservationConsecutiveSeenCount: 0,
+    futureObservationFirstSeenAt: null,
+    futureObservationLastArrivalTimestamp: null,
+    futureObservationLastFeedTimestamp: null,
+    futureObservationLastSeenAt: null,
+    hasRecoveredFutureConfidence: false,
     admitted: false,
     departureLocked: false,
     departureLockedAt: null,
@@ -270,6 +310,78 @@ function createRecord(observation, nowMs) {
 function appendHistory(record, event) {
   const history = [...record.history, event];
   return history.slice(-24);
+}
+
+function recoveredFutureConfidence(record, observation, nowMs, options) {
+  if (!observation.targetPresent || observation.confidenceTargetTime === null ||
+      !observation.tripUpdatePresent || !observation.tripId) return null;
+
+  if (record.futureObservationLastSeenAt !== null &&
+      nowMs - record.futureObservationLastSeenAt > options.futureObservationPurgeAgeMs) {
+    record.futureObservationConsecutiveSeenCount = 0;
+    record.futureObservationFirstSeenAt = null;
+    record.futureObservationLastArrivalTimestamp = null;
+    record.futureObservationLastFeedTimestamp = null;
+    record.futureObservationLastSeenAt = null;
+    record.hasRecoveredFutureConfidence = false;
+  }
+
+  const nowSeconds = Math.floor(nowMs / 1000);
+  const countdown = Math.floor(
+    (observation.confidenceTargetTime * 1000 - nowMs) / 60000
+  );
+  const priorRecoveryFresh = record.hasRecoveredFutureConfidence &&
+    record.futureObservationLastSeenAt !== null &&
+    nowMs - record.futureObservationLastSeenAt <= options.futureObservationPurgeAgeMs;
+
+  if (countdown <= options.nearArrivalStrictWindowMinutes && !priorRecoveryFresh) {
+    return null;
+  }
+  if (!timestampFresh(
+    observation.feedTimestamp,
+    nowSeconds,
+    options.realtimeFeedFreshnessSeconds
+  )) return null;
+  if (observation.tripUpdateTimestamp !== null && !timestampFresh(
+    observation.tripUpdateTimestamp,
+    nowSeconds,
+    options.realtimeFeedFreshnessSeconds
+  )) return null;
+  if (observation.tripUpdateVehicleId || !coherentStopTimeOrdering(observation.pattern)) {
+    return null;
+  }
+
+  const lastSeenAt = record.futureObservationLastSeenAt;
+  const lastArrival = record.futureObservationLastArrivalTimestamp;
+  const stablePrediction = lastArrival === null ||
+    Math.abs(observation.confidenceTargetTime - lastArrival) <=
+      options.futureObservationMaxTimeShiftSeconds;
+  const consecutive = lastSeenAt !== null &&
+    nowMs - lastSeenAt <= options.futureObservationMaxAgeMs &&
+    observation.feedTimestamp !== record.futureObservationLastFeedTimestamp &&
+    stablePrediction;
+  const sameFeed = lastSeenAt !== null &&
+    record.futureObservationConsecutiveSeenCount > 0 &&
+    observation.feedTimestamp === record.futureObservationLastFeedTimestamp;
+
+  record.futureObservationConsecutiveSeenCount = consecutive
+    ? record.futureObservationConsecutiveSeenCount + 1
+    : sameFeed
+      ? record.futureObservationConsecutiveSeenCount
+      : 1;
+  record.futureObservationFirstSeenAt ??= nowMs;
+  record.futureObservationLastArrivalTimestamp = observation.confidenceTargetTime;
+  record.futureObservationLastFeedTimestamp = observation.feedTimestamp;
+  record.futureObservationLastSeenAt = nowMs;
+  if (record.futureObservationConsecutiveSeenCount >= 2) {
+    record.hasRecoveredFutureConfidence = true;
+  }
+
+  return record.hasRecoveredFutureConfidence
+    ? DECISION_REASONS.RECOVERED_PERSISTENT_FUTURE
+    : countdown > options.nearArrivalStrictWindowMinutes
+      ? DECISION_REASONS.RECOVERED_FEED_CONSISTENT_FUTURE
+      : null;
 }
 
 function updateRecord(previous, observation, nowMs, options) {
@@ -290,14 +402,16 @@ function updateRecord(previous, observation, nowMs, options) {
   ) {
     record.serviceRole = observation.serviceRole;
   }
-  const nearArrivalOrphan = !record.departureLocked &&
-    observation.targetPresent &&
-    countdown !== null &&
-    countdown >= 0 &&
-    countdown <= options.nearArrivalStrictWindowMinutes &&
-    record.serviceRole !== SERVICE_ROLES.ORIGIN_DEPARTURE &&
-    !(vehicle.present && vehicle.fresh) &&
-    !record.freshVehicleContinuityEstablished;
+  const terminalOriginConfidence = observation.targetPresent &&
+    observation.pattern[0]?.stopId === observation.targetStop;
+  const recoveredConfidence = !observation.vehiclePositionMatched &&
+    !terminalOriginConfidence
+    ? recoveredFutureConfidence(record, observation, nowMs, options)
+    : null;
+  const orphanTripUpdate = !record.departureLocked &&
+    observation.targetPresent && countdown !== null && countdown >= 0 &&
+    !observation.vehiclePositionMatched && !terminalOriginConfidence &&
+    !recoveredConfidence;
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
   if (observation.targetPresent && countdown !== null && countdown >= 0) {
@@ -342,6 +456,24 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXPLICIT_TRIP_CANCELLED;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXPLICIT_TRIP_CANCELLED;
+  } else if (wasDepartureLocked && !vehicle.present) {
+    // Experimental emergency key: once an exact identity is already in
+    // departure custody, the first refresh without its exact VehiclePosition
+    // releases it. A stale but still exact VehiclePosition remains present and
+    // does not satisfy this rule.
+    record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
+    record.released = true;
+    record.releaseReason = DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION;
+    record.departureLocked = false;
+    decisionReason = DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION;
+  } else if (!record.departureLocked && [1, 2].includes(
+    observation.targetScheduleRelationship
+  )) {
+    record.admitted = false;
+    record.consecutiveTargetZeroSnapshots = 0;
+    record.lastDisplayedCountdown = null;
+    record.movementState = MOVEMENT_STATES.WITHDRAWN;
+    decisionReason = DECISION_REASONS.SUPPRESSED_CANCELED_OR_NO_DATA;
   } else if (vehicle.present && vehicle.fresh && vehicle.position === "DOWNSTREAM") {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
@@ -371,14 +503,11 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
-  } else if (nearArrivalOrphan) {
-    // TestFlight's proven near-arrival discipline: a TripUpdate that has never
-    // been correlated with the exact trip's VehiclePosition cannot enter the
-    // final five-minute window. Suppress it before it can consume a route slot,
-    // enter pre-entry custody, or manufacture a Departure-Proof lock. Exact
-    // identities that earned VehiclePosition confidence earlier retain it
-    // through a temporary VP gap; terminal-origin departures are handled by
-    // their dedicated branch below.
+  } else if (orphanTripUpdate) {
+    // The native classifier is transferred as a complete unit: current
+    // VehiclePosition correlation, terminal-origin evidence, or validated
+    // future recovery is required before a TripUpdate-only prediction reaches
+    // the board.
     record.admitted = false;
     record.departureLocked = false;
     record.consecutiveTargetZeroSnapshots = 0;
@@ -399,7 +528,8 @@ function updateRecord(previous, observation, nowMs, options) {
           ? MOVEMENT_STATES.APPROACHING
           : MOVEMENT_STATES.MOVING_UPSTREAM;
         record.lastDisplayedCountdown = Math.max(countdown, 1);
-        decisionReason = DECISION_REASONS.ORIGIN_DEPARTURE_PREDICTION;
+        decisionReason = recoveredConfidence ||
+          DECISION_REASONS.ORIGIN_DEPARTURE_PREDICTION;
       } else {
         record.admitted = false;
         decisionReason = DECISION_REASONS.OUTSIDE_BOARD_WINDOW;
@@ -417,7 +547,8 @@ function updateRecord(previous, observation, nowMs, options) {
             ? MOVEMENT_STATES.APPROACHING
             : MOVEMENT_STATES.MOVING_UPSTREAM;
         record.lastDisplayedCountdown = atTerminal ? 0 : Math.max(countdown, 1);
-        decisionReason = DECISION_REASONS.TERMINAL_CURRENT_PREDICTION;
+        decisionReason = recoveredConfidence ||
+          DECISION_REASONS.TERMINAL_CURRENT_PREDICTION;
       } else {
         record.admitted = false;
         decisionReason = DECISION_REASONS.OUTSIDE_BOARD_WINDOW;
@@ -464,6 +595,7 @@ function updateRecord(previous, observation, nowMs, options) {
         ? MOVEMENT_STATES.APPROACHING
         : MOVEMENT_STATES.MOVING_UPSTREAM;
       record.lastDisplayedCountdown = Math.max(countdown, 1);
+      decisionReason = recoveredConfidence || DECISION_REASONS.CURRENT_PREDICTION;
     } else if (record.admitted && record.lastDisplayedCountdown !== null &&
       record.lastDisplayedCountdown <= options.custodyWindowMinutes &&
       record.preEntryMissingSnapshots <= options.preEntryMissingSnapshotLimit &&
@@ -643,6 +775,30 @@ export function createForeverEngine(configuration = {}) {
           decisionReason: completed.decisionReason
         });
         registry.set(identityKey, completed);
+        continue;
+      }
+      if (record.departureLocked) {
+        const released = {
+          ...record,
+          admitted: false,
+          departureLocked: false,
+          released: true,
+          movementState: MOVEMENT_STATES.CONFIRMED_DOWNSTREAM,
+          releaseReason: DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION,
+          decisionReason: DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION
+        };
+        released.history = appendHistory(released, {
+          observedAt: nowMs,
+          feedTimestamp: numberOrNull(snapshot.feedTimestamp),
+          rawCountdown: null,
+          displayedCountdown: released.lastDisplayedCountdown,
+          targetPresent: false,
+          tripUpdatePresent: false,
+          vehicle: { present: false, fresh: false, ageSeconds: null, position: "UNKNOWN" },
+          movementState: released.movementState,
+          decisionReason: released.decisionReason
+        });
+        registry.set(identityKey, released);
         continue;
       }
       const missingFeedTimestamp = numberOrNull(snapshot.feedTimestamp);

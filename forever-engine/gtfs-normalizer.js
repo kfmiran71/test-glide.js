@@ -39,6 +39,10 @@ function normalizeVehicle(entity) {
   };
 }
 
+function vehicleId(entity = {}) {
+  return String(entity.vehicle?.vehicle?.id || "").trim();
+}
+
 export function normalizeGtfsEntities({
   entities = [],
   feedTimestamp = null,
@@ -47,9 +51,15 @@ export function normalizeGtfsEntities({
 } = {}) {
   const records = new Map();
   const vehicles = new Map();
+  const vehicleTripIds = new Set();
+  const vehicleIds = new Set();
 
   for (const entity of entities) {
     if (!entity.vehicle) continue;
+    const vehicleTripId = String(entity.vehicle.trip?.tripId || "").trim();
+    if (vehicleTripId) vehicleTripIds.add(vehicleTripId);
+    const exactVehicleId = vehicleId(entity);
+    if (exactVehicleId) vehicleIds.add(exactVehicleId);
     const key = identityKey(entity.vehicle.trip);
     if (!key) continue;
     const existing = vehicles.get(key);
@@ -63,6 +73,7 @@ export function normalizeGtfsEntities({
     const trip = entity.tripUpdate.trip || {};
     const key = identityKey(trip);
     if (!key) continue;
+    const tripUpdateVehicleId = String(entity.tripUpdate.vehicle?.id || "").trim();
     const stopUpdates = (entity.tripUpdate.stopTimeUpdate || []).map(update => ({
       stopId: String(update.stopId || ""),
       stopSequence: hasOwn(update, "stopSequence")
@@ -71,17 +82,25 @@ export function normalizeGtfsEntities({
       stopSequenceExplicit: hasOwn(update, "stopSequence"),
       eventTime: eventTime(update),
       arrivalTime: numberValue(update.arrival?.time),
-      departureTime: numberValue(update.departure?.time)
+      departureTime: numberValue(update.departure?.time),
+      scheduleRelationship: numberValue(update.scheduleRelationship)
     }));
     const vehicleMatch = vehicles.get(key);
+    const tripId = String(trip.tripId || "").trim();
     records.set(key, {
       trip: {
-        tripId: String(trip.tripId || ""),
+        tripId,
         startDate: String(trip.startDate || ""),
         routeId: String(trip.routeId || "")
       },
       tripUpdatePresent: true,
-      cancelled: Number(trip.scheduleRelationship) === 3,
+      cancelled: [3, 7].includes(Number(trip.scheduleRelationship)),
+      tripScheduleRelationship: numberValue(trip.scheduleRelationship),
+      tripUpdateTimestamp: numberValue(entity.tripUpdate.timestamp),
+      tripUpdateVehicleId,
+      vehiclePositionMatched: tripId
+        ? vehicleTripIds.has(tripId)
+        : Boolean(tripUpdateVehicleId && vehicleIds.has(tripUpdateVehicleId)),
       destination: destinationForTrip(entity.tripUpdate),
       direction: directionForPlatform(stopUpdates),
       stopUpdates,
@@ -105,6 +124,10 @@ export function normalizeGtfsEntities({
       },
       tripUpdatePresent: false,
       cancelled: false,
+      tripScheduleRelationship: null,
+      tripUpdateTimestamp: null,
+      tripUpdateVehicleId: "",
+      vehiclePositionMatched: true,
       destination: "",
       direction: "",
       stopUpdates: [],

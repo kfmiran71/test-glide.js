@@ -75,16 +75,107 @@ test("a never-validated TripUpdate-only prediction is suppressed inside five min
   assert.equal(inspected[0].departureLocked, false);
 });
 
-test("a TripUpdate-only future prediction remains visible outside the strict window", () => {
+test("a feed-consistent future TripUpdate is recovered on its first snapshot", () => {
   const engine = createForeverEngine();
   const result = reconcile(engine, [trip({
     vehicle: null,
-    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
-      ? { ...stop, eventTime: NOW_SECONDS + 6 * 60 }
-      : stop)
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 6 * 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 8 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 10 * 60 }
+    ]
   })]);
   assert.equal(result.arrivals.length, 1);
-  assert.equal(result.arrivals[0].time, "6");
+  assert.equal(result.arrivals[0].time, "8");
+  assert.equal(
+    result.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_FEED_CONSISTENT_FUTURE
+  );
+});
+
+test("future recovery becomes persistent and follows the identity into the strict window", () => {
+  const engine = createForeverEngine();
+  const future = trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 6 * 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 8 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 10 * 60 }
+    ]
+  });
+  const first = reconcile(engine, [future]);
+  assert.equal(first.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_FEED_CONSISTENT_FUTURE);
+  const second = reconcile(engine, [{
+    ...future,
+    feedTimestamp: NOW_SECONDS + 30
+  }], NOW + 30_000);
+  assert.equal(second.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_PERSISTENT_FUTURE);
+  const near = reconcile(engine, [trip({
+    vehicle: null,
+    feedTimestamp: NOW_SECONDS + 60,
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 4 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 6 * 60 }
+    ]
+  })], NOW + 60_000);
+  assert.equal(near.arrivals.length, 1);
+  assert.equal(near.arrivals[0].time, "3");
+  assert.equal(near.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_PERSISTENT_FUTURE);
+});
+
+test("same-feed repetition cannot manufacture persistent future recovery", () => {
+  const engine = createForeverEngine();
+  const future = trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 6 * 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 8 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 10 * 60 }
+    ]
+  });
+  reconcile(engine, [future]);
+  const repeated = reconcile(engine, [future], NOW + 15_000);
+  assert.equal(repeated.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_FEED_CONSISTENT_FUTURE);
+  assert.equal(repeated.diagnostics.active[0].hasRecoveredFutureConfidence, false);
+});
+
+test("stale, incoherent, and vehicle-tagged orphan TripUpdates cannot recover", () => {
+  const cases = [
+    trip({ vehicle: null, feedTimestamp: NOW_SECONDS - 600 }),
+    trip({
+      vehicle: null,
+      stopUpdates: [
+        { stopId: "704N", eventTime: NOW_SECONDS + 8 * 60 },
+        { stopId: TARGET, eventTime: NOW_SECONDS + 6 * 60 },
+        { stopId: "706N", eventTime: NOW_SECONDS + 9 * 60 }
+      ]
+    }),
+    trip({ vehicle: null, tripUpdateVehicleId: "unmatched-vehicle" })
+  ];
+  for (const candidate of cases) {
+    const result = reconcile(createForeverEngine(), [candidate]);
+    assert.equal(result.arrivals.length, 0);
+  }
+});
+
+test("target SKIPPED and NO_DATA relationships suppress before admission", () => {
+  for (const scheduleRelationship of [1, 2]) {
+    const result = reconcile(createForeverEngine(), [trip({
+      stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+        ? { ...stop, scheduleRelationship }
+        : stop)
+    })]);
+    assert.equal(result.arrivals.length, 0);
+    assert.equal(
+      result.diagnostics.counts.active,
+      0
+    );
+  }
 });
 
 test("fresh exact VehiclePosition admits a prediction inside five minutes", () => {
@@ -94,7 +185,7 @@ test("fresh exact VehiclePosition admits a prediction inside five minutes", () =
   assert.equal(result.arrivals[0].identityKey, "trip-a|20260801");
 });
 
-test("exact VehiclePosition confidence survives a temporary near-arrival VP gap", () => {
+test("a current VehiclePosition match does not create native future-recovery state", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
@@ -108,8 +199,9 @@ test("exact VehiclePosition confidence survives a temporary near-arrival VP gap"
       ? { ...stop, eventTime: NOW_SECONDS + 4 * 60 }
       : stop)
   })], NOW + 15_000);
-  assert.equal(result.arrivals.length, 1);
-  assert.equal(result.arrivals[0].time, "4");
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(engine.inspect(TARGET)[TARGET][0].decisionReason,
+    DECISION_REASONS.SUPPRESSED_ORPHAN_TRIP_UPDATE);
 });
 
 test("suppressed orphan cannot enter pre-entry custody or Departure-Proof Lock", () => {
@@ -171,7 +263,7 @@ test("pre-entry custody cannot preserve a prediction after its bounded arrival g
   assert.equal(expired.arrivals.length, 0);
 });
 
-test("pre-entry bounds never expire an established Departure-Proof lock", () => {
+test("an established Departure-Proof lock releases on its first missing-VP refresh", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
@@ -186,10 +278,10 @@ test("pre-entry bounds never expire an established Departure-Proof lock", () => 
       currentStatusExplicit: true
     }
   })]);
-  const held = reconcile(engine, [], NOW + 4 * 60 * 60 * 1000);
-  assert.equal(held.arrivals[0].time, "0");
-  assert.equal(held.arrivals[0].departureProofLocked, true);
-  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
+  const released = reconcile(engine, [], NOW + 4 * 60 * 60 * 1000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION);
 });
 
 test("a distant prediction is displayed while current but is not preserved after disappearance", () => {
@@ -406,6 +498,75 @@ test("an exact downstream TripUpdate overrides a lagging target VehiclePosition 
     DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET
   );
   assert.equal(released.diagnostics.released[0].history.at(-1).vehicle.position, "TARGET");
+});
+
+test("the first refresh missing an exact VehiclePosition releases an existing lock", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+
+  const released = reconcile(engine, [trip({
+    vehicle: null,
+    vehiclePositionMatched: false,
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION
+  );
+});
+
+test("complete exact-trip disappearance releases a lock on the first refresh", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+
+  const released = reconcile(engine, [], NOW + 15_000);
+
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION
+  );
+});
+
+test("a stale but still exact VehiclePosition does not use the missing-VP emergency key", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+
+  const held = reconcile(engine, [trip({
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS - 600,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
 });
 
 test("an exact downstream-only TripUpdate releases when target VehiclePosition is stale", () => {
@@ -650,7 +811,7 @@ test("fresh successor on a different local or express lane cannot release the ol
   assert.equal(older.decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
-test("a stopped different identity cannot release a lock after target evidence disappears", () => {
+test("a stopped different identity cannot release a lock while its stale exact VP remains visible", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
@@ -660,6 +821,11 @@ test("a stopped different identity cannot release a lock after target evidence d
     )
   })]);
   const result = reconcile(engine, [trip({
+    trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+    feedTimestamp: NOW_SECONDS + 15
+  }), trip({
     trip: { tripId: "successor-express", startDate: "20260801", routeId: "A" },
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
     stopUpdates: trip().stopUpdates.map(stop =>
@@ -706,6 +872,11 @@ test("approaching or stale successor evidence cannot release an older lock", () 
       )
     })]);
     const result = reconcile(engine, [trip({
+      trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      feedTimestamp: NOW_SECONDS + 15
+    }), trip({
       trip: { tripId: "successor-d", startDate: "20260801", routeId: "D" },
       vehicle,
       stopUpdates: trip().stopUpdates.map(stop =>
@@ -732,7 +903,12 @@ test("successor occupancy is isolated by exact platform", () => {
     stopUpdates: [{ stopId: "other-platform", eventTime: NOW_SECONDS + 15 }],
     feedTimestamp: NOW_SECONDS + 15
   })], NOW + 15_000, "other-platform");
-  const original = reconcile(engine, [], NOW + 30_000);
+  const original = reconcile(engine, [trip({
+    trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+    feedTimestamp: NOW_SECONDS + 30
+  })], NOW + 30_000);
   assert.equal(original.diagnostics.active.some(item => item.identityKey === "older-a|20260801"), true);
 });
 
@@ -848,7 +1024,7 @@ test("a fresh exact STOPPED_AT target observation promotes directly to zero", ()
   assert.equal(result.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
-test("fresh non-stopped statuses do not prove entry and stale orphan evidence is suppressed", () => {
+test("non-stopped statuses do not prove entry and native confidence ignores VP age", () => {
   for (const vehicle of [
     { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 0, currentStatusExplicit: true },
     { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 2, currentStatusExplicit: true },
@@ -875,12 +1051,23 @@ test("fresh non-stopped statuses do not prove entry and stale orphan evidence is
       currentStatusExplicit: true
     }
   })]);
-  assert.equal(stale.arrivals.length, 0);
+  assert.equal(stale.arrivals.length, 1);
+  assert.equal(stale.arrivals[0].time, "1");
 });
 
 test("two distinct target-zero snapshots require established approach and fresh exact vehicle continuity", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip()]);
+  const recoveredFuture = trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 5 * 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 7 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 9 * 60 }
+    ]
+  });
+  reconcile(engine, [{ ...recoveredFuture, feedTimestamp: NOW_SECONDS + 5 }], NOW + 5_000);
+  reconcile(engine, [{ ...recoveredFuture, feedTimestamp: NOW_SECONDS + 10 }], NOW + 10_000);
   const zero = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
       stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
@@ -985,6 +1172,16 @@ test("an uncertain expired identity can return when fresh current evidence reapp
 test("the same feed snapshot cannot manufacture repeated-zero confirmation", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip()]);
+  const recoveredFuture = trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 4, eventTime: NOW_SECONDS + 5 * 60 },
+      { stopId: TARGET, stopSequence: 7, eventTime: NOW_SECONDS + 7 * 60 },
+      { stopId: "706N", stopSequence: 11, eventTime: NOW_SECONDS + 9 * 60 }
+    ]
+  });
+  reconcile(engine, [{ ...recoveredFuture, feedTimestamp: NOW_SECONDS + 5 }], NOW + 5_000);
+  reconcile(engine, [{ ...recoveredFuture, feedTimestamp: NOW_SECONDS + 10 }], NOW + 10_000);
   const zero = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
       stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
@@ -997,7 +1194,7 @@ test("the same feed snapshot cannot manufacture repeated-zero confirmation", () 
   assert.equal(result.arrivals[0].time, "1");
 });
 
-test("Departure-Proof custody survives prediction expiry, disappearance, stale feeds and errors represented by no observation", () => {
+test("Departure-Proof custody releases immediately when the exact trip and VP disappear", () => {
   const engine = createForeverEngine();
   const stopped = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
@@ -1006,20 +1203,13 @@ test("Departure-Proof custody survives prediction expiry, disappearance, stale f
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
   });
   reconcile(engine, [stopped]);
-  let result = reconcile(engine, [], NOW + 10 * 60_000);
-  assert.equal(result.arrivals[0].time, "0");
-  assert.equal(result.arrivals[0].departureProofLocked, true);
-  result = reconcile(engine, [trip({
-    stopUpdates: trip().stopUpdates.map(stop =>
-      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS - 600 } : stop
-    ),
-    vehicle: null,
-    feedTimestamp: NOW_SECONDS - 600
-  })], NOW + 20 * 60_000);
-  assert.equal(result.arrivals[0].time, "0");
+  const result = reconcile(engine, [], NOW + 10 * 60_000);
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(result.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION);
 });
 
-test("longhaul shadow diagnostics continue through complete feed disappearance without changing the board", () => {
+test("the first missing-VP emergency key acts before the longhaul shadow fallback", () => {
   const engine = createForeverEngine();
   const stopped = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
@@ -1029,10 +1219,9 @@ test("longhaul shadow diagnostics continue through complete feed disappearance w
   });
   reconcile(engine, [stopped]);
   const result = reconcile(engine, [], NOW + 4 * 60_000);
-  assert.equal(result.arrivals[0].time, "0");
-  assert.equal(result.arrivals[0].departureProofLocked, true);
-  assert.equal(result.diagnostics.active[0].longhaulFallback.mode, "SHADOW");
-  assert.equal(result.diagnostics.active[0].longhaulFallback.boardEffect, false);
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(result.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.FIRST_MISSING_EXACT_VEHICLE_POSITION);
 });
 
 test("a VehiclePosition still naming the exact target can never release, regardless of sequence", () => {
@@ -1120,7 +1309,14 @@ test("protected arrivals cannot be displaced by sorting or same-route limits", (
       currentStatusExplicit: true
     }
   }));
-  const result = reconcile(engine, ordinary, NOW + 15_000);
+  const result = reconcile(engine, [
+    trip({
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS - 120, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: [{ stopId: "unmapped-after-target", eventTime: NOW_SECONDS + 60 }],
+      feedTimestamp: NOW_SECONDS + 15
+    }),
+    ...ordinary
+  ], NOW + 15_000);
   assert.equal(result.arrivals.filter(item => item.route === "7").length, 2);
   assert.equal(result.arrivals.some(item => item.identityKey === "trip-a|20260801"), true);
 });
@@ -1146,6 +1342,20 @@ test("normalizer preserves field presence and correlates only exact identities",
   assert.equal(exact.vehicle.currentStatusExplicit, true);
   assert.equal(exact.vehicle.currentStopSequenceExplicit, false);
   assert.equal(different.tripUpdatePresent, false);
+});
+
+test("native confidence may match VehiclePosition by tripId without weakening exact movement identity", () => {
+  const normalized = normalizeGtfsEntities({
+    feedTimestamp: NOW_SECONDS,
+    entities: [
+      { tripUpdate: { trip: { tripId: "shared-trip", startDate: "20260801", routeId: "1" }, stopTimeUpdate: [{ stopId: "101N", arrival: { time: NOW_SECONDS + 180 } }] } },
+      { vehicle: { trip: { tripId: "shared-trip", startDate: "20260802", routeId: "1" }, stopId: "102N", timestamp: NOW_SECONDS } }
+    ]
+  });
+  const update = normalized.find(item => item.trip.startDate === "20260801");
+
+  assert.equal(update.vehiclePositionMatched, true);
+  assert.equal(update.vehicle, null);
 });
 
 test("diagnostics are detached from live registry state", () => {
