@@ -496,7 +496,7 @@ test("an express trip may prove departure at its next served stop without sequen
   );
 });
 
-test("fresh exact same-lane successor occupancy overrides lagging fresh target evidence", () => {
+test("a stopped same-lane train cannot release another exact identity", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
@@ -526,10 +526,10 @@ test("fresh exact same-lane successor occupancy overrides lagging fresh target e
       feedTimestamp: NOW_SECONDS + 15
     })
   ], NOW + 15_000);
-  assert.equal(result.arrivals.some(item => item.identityKey === "older-a|20260801"), false);
-  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
-  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET);
-  assert.equal(older.successorIdentityKey, "successor-d|20260801");
+  const older = result.diagnostics.active.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.departureLocked, true);
+  assert.equal(older.released, false);
+  assert.equal(older.successorIdentityKey, undefined);
 });
 
 test("fresh successor on a different local or express lane cannot release the older lock", () => {
@@ -570,7 +570,7 @@ test("fresh successor on a different local or express lane cannot release the ol
   assert.equal(older.decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
-test("fresh successor occupancy can release an older lock after its own exact target evidence disappears", () => {
+test("a stopped different identity cannot release a lock after target evidence disappears", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
@@ -587,9 +587,10 @@ test("fresh successor occupancy can release an older lock after its own exact ta
     ),
     feedTimestamp: NOW_SECONDS + 15
   })], NOW + 15_000);
-  const older = result.diagnostics.released.find(item => item.identityKey === "older-local|20260801");
-  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET);
-  assert.equal(older.successorIdentityKey, "successor-express|20260801");
+  const older = result.diagnostics.active.find(item => item.identityKey === "older-local|20260801");
+  assert.equal(older.departureLocked, true);
+  assert.equal(older.released, false);
+  assert.equal(older.successorIdentityKey, undefined);
 });
 
 test("TripUpdate progression cannot release an identity that never entered departure custody", () => {
@@ -655,7 +656,7 @@ test("successor occupancy is isolated by exact platform", () => {
   assert.equal(original.diagnostics.active.some(item => item.identityKey === "older-a|20260801"), true);
 });
 
-test("fresh incoming successor plus target removal and stale target VP releases an older lock", () => {
+test("an incoming different identity cannot release a stale exact lock", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
@@ -683,9 +684,10 @@ test("fresh incoming successor plus target removal and stale target VP releases 
       feedTimestamp: NOW_SECONDS + 15
     })
   ], NOW + 15_000);
-  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
-  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_INCOMING_WITH_STALE_TARGET);
-  assert.equal(older.successorIdentityKey, "incoming-d|20260801");
+  const older = result.diagnostics.active.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.departureLocked, true);
+  assert.equal(older.released, false);
+  assert.equal(older.successorIdentityKey, undefined);
 });
 
 test("incoming successor cannot release unless every independent stale-target condition is present", () => {

@@ -30,8 +30,6 @@ export const DECISION_REASONS = Object.freeze({
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
   EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET: "EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET",
-  SUCCESSOR_CONFIRMED_AT_TARGET: "SUCCESSOR_CONFIRMED_AT_TARGET",
-  SUCCESSOR_INCOMING_WITH_STALE_TARGET: "SUCCESSOR_INCOMING_WITH_STALE_TARGET",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
@@ -272,27 +270,6 @@ function appendHistory(record, event) {
   return history.slice(-24);
 }
 
-function laneNeighbors(pattern, targetStop) {
-  const targetIndex = uniqueIndex(pattern || [], targetStop);
-  if (targetIndex === null) return null;
-  return {
-    upstream: targetIndex > 0 ? pattern[targetIndex - 1]?.stopId || null : null,
-    downstream: targetIndex < pattern.length - 1
-      ? pattern[targetIndex + 1]?.stopId || null
-      : null
-  };
-}
-
-function sameOperationalLane(olderRecord, successorRecord, targetStop) {
-  const older = laneNeighbors(olderRecord.lastPattern, targetStop);
-  const successor = laneNeighbors(successorRecord.lastPattern, targetStop);
-  if (!older || !successor) return false;
-  const comparable = ["upstream", "downstream"].filter(
-    side => older[side] && successor[side]
-  );
-  return comparable.length > 0 && comparable.every(side => older[side] === successor[side]);
-}
-
 function updateRecord(previous, observation, nowMs, options) {
   const record = previous ? { ...previous } : createRecord(observation, nowMs);
   const wasDepartureLocked = Boolean(previous?.departureLocked);
@@ -505,65 +482,6 @@ function updateRecord(previous, observation, nowMs, options) {
   return record;
 }
 
-function applySuccessorOccupancy(registry, observations, nowMs, feedTimestamp) {
-  const successors = [...observations.values()].filter(observation => {
-    const vehicle = observation.vehicleEvidence;
-    return vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
-      vehicle.currentStatusExplicit && (vehicle.currentStatus === 0 || vehicle.currentStatus === 1);
-  });
-  for (const successor of successors) {
-    const successorStopped = successor.vehicleEvidence.currentStatus === 1;
-    const successorRecord = registry.get(successor.identityKey);
-    for (const [identityKey, record] of registry) {
-      if (identityKey === successor.identityKey || record.released || !record.departureLocked) continue;
-      if (record.departureLockedAt === null || record.departureLockedAt >= nowMs) continue;
-      if (record.direction && successor.direction && record.direction !== successor.direction) continue;
-      const olderObservation = observations.get(identityKey);
-      const olderVehicle = olderObservation?.vehicleEvidence;
-      // Fresh target evidence may lag after physical departure. A newly stopped
-      // exact identity can override it only when both trips' target-containing
-      // stop patterns prove the same operational lane. This permits occupancy
-      // transfer on one physical track without allowing local/express cross-release.
-      if (olderVehicle?.present && olderVehicle.fresh && olderVehicle.position === "TARGET") {
-        if (!successorStopped || !successorRecord ||
-            !sameOperationalLane(record, successorRecord, record.platformId)) {
-          continue;
-        }
-      }
-      const successorIncomingWithIndependentDepartureEvidence = !successorStopped &&
-        olderObservation?.tripUpdatePresent && !olderObservation.targetPresent &&
-        olderVehicle?.present && !olderVehicle.fresh && olderVehicle.position === "TARGET";
-      if (!successorStopped && !successorIncomingWithIndependentDepartureEvidence) continue;
-      const releaseReason = successorStopped
-        ? DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET
-        : DECISION_REASONS.SUCCESSOR_INCOMING_WITH_STALE_TARGET;
-      const released = {
-        ...record,
-        admitted: false,
-        departureLocked: false,
-        released: true,
-        movementState: MOVEMENT_STATES.CONFIRMED_DOWNSTREAM,
-        releaseReason,
-        decisionReason: releaseReason,
-        successorIdentityKey: successor.identityKey
-      };
-      released.history = appendHistory(released, {
-        observedAt: nowMs,
-        feedTimestamp,
-        rawCountdown: released.lastRawCountdown,
-        displayedCountdown: released.lastDisplayedCountdown,
-        targetPresent: false,
-        tripUpdatePresent: false,
-        vehicle: clone(successor.vehicleEvidence),
-        successorIdentityKey: successor.identityKey,
-        movementState: released.movementState,
-        decisionReason: released.decisionReason
-      });
-      registry.set(identityKey, released);
-    }
-  }
-}
-
 function arrivalFromRecord(record) {
   if (!record.admitted || record.released || record.lastDisplayedCountdown === null) return null;
   return {
@@ -756,12 +674,6 @@ export function createForeverEngine(configuration = {}) {
       });
       registry.set(identityKey, preserved);
     }
-    applySuccessorOccupancy(
-      registry,
-      observations,
-      nowMs,
-      numberOrNull(snapshot.feedTimestamp)
-    );
     if (registry.size > options.maxRegistryRecords) {
       const removable = [...registry.values()]
         .filter(record => record.released || !record.admitted)
