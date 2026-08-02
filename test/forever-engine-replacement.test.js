@@ -496,7 +496,7 @@ test("an express trip may prove departure at its next served stop without sequen
   );
 });
 
-test("fresh exact successor occupancy cannot override the older trip's fresh target evidence", () => {
+test("fresh exact same-lane successor occupancy overrides lagging fresh target evidence", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     trip: { tripId: "older-a", startDate: "20260801", routeId: "A" },
@@ -526,8 +526,46 @@ test("fresh exact successor occupancy cannot override the older trip's fresh tar
       feedTimestamp: NOW_SECONDS + 15
     })
   ], NOW + 15_000);
-  assert.equal(result.arrivals.some(item => item.identityKey === "older-a|20260801"), true);
-  const older = result.diagnostics.active.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(result.arrivals.some(item => item.identityKey === "older-a|20260801"), false);
+  const older = result.diagnostics.released.find(item => item.identityKey === "older-a|20260801");
+  assert.equal(older.releaseReason, DECISION_REASONS.SUCCESSOR_CONFIRMED_AT_TARGET);
+  assert.equal(older.successorIdentityKey, "successor-d|20260801");
+});
+
+test("fresh successor on a different local or express lane cannot release the older lock", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true },
+    stopUpdates: [
+      { stopId: "local-upstream", eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "local-downstream", eventTime: NOW_SECONDS + 120 }
+    ]
+  })]);
+  const result = reconcile(engine, [
+    trip({
+      trip: { tripId: "older-local", startDate: "20260801", routeId: "C" },
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: [
+        { stopId: "local-upstream", eventTime: NOW_SECONDS - 60 },
+        { stopId: TARGET, eventTime: NOW_SECONDS },
+        { stopId: "local-downstream", eventTime: NOW_SECONDS + 120 }
+      ],
+      feedTimestamp: NOW_SECONDS + 15
+    }),
+    trip({
+      trip: { tripId: "successor-express", startDate: "20260801", routeId: "D" },
+      vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+      stopUpdates: [
+        { stopId: "express-upstream", eventTime: NOW_SECONDS - 30 },
+        { stopId: TARGET, eventTime: NOW_SECONDS + 15 },
+        { stopId: "express-downstream", eventTime: NOW_SECONDS + 150 }
+      ],
+      feedTimestamp: NOW_SECONDS + 15
+    })
+  ], NOW + 15_000);
+  const older = result.diagnostics.active.find(item => item.identityKey === "older-local|20260801");
   assert.equal(older.departureLocked, true);
   assert.equal(older.decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });

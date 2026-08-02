@@ -272,6 +272,27 @@ function appendHistory(record, event) {
   return history.slice(-24);
 }
 
+function laneNeighbors(pattern, targetStop) {
+  const targetIndex = uniqueIndex(pattern || [], targetStop);
+  if (targetIndex === null) return null;
+  return {
+    upstream: targetIndex > 0 ? pattern[targetIndex - 1]?.stopId || null : null,
+    downstream: targetIndex < pattern.length - 1
+      ? pattern[targetIndex + 1]?.stopId || null
+      : null
+  };
+}
+
+function sameOperationalLane(olderRecord, successorRecord, targetStop) {
+  const older = laneNeighbors(olderRecord.lastPattern, targetStop);
+  const successor = laneNeighbors(successorRecord.lastPattern, targetStop);
+  if (!older || !successor) return false;
+  const comparable = ["upstream", "downstream"].filter(
+    side => older[side] && successor[side]
+  );
+  return comparable.length > 0 && comparable.every(side => older[side] === successor[side]);
+}
+
 function updateRecord(previous, observation, nowMs, options) {
   const record = previous ? { ...previous } : createRecord(observation, nowMs);
   const wasDepartureLocked = Boolean(previous?.departureLocked);
@@ -492,18 +513,22 @@ function applySuccessorOccupancy(registry, observations, nowMs, feedTimestamp) {
   });
   for (const successor of successors) {
     const successorStopped = successor.vehicleEvidence.currentStatus === 1;
+    const successorRecord = registry.get(successor.identityKey);
     for (const [identityKey, record] of registry) {
       if (identityKey === successor.identityKey || record.released || !record.departureLocked) continue;
       if (record.departureLockedAt === null || record.departureLockedAt >= nowMs) continue;
       if (record.direction && successor.direction && record.direction !== successor.direction) continue;
       const olderObservation = observations.get(identityKey);
       const olderVehicle = olderObservation?.vehicleEvidence;
-      // A different train at the station cannot override fresh, exact evidence
-      // that the locked identity still names this target. This is especially
-      // important at stations where local and express services share a stop ID
-      // but occupy separate tracks.
+      // Fresh target evidence may lag after physical departure. A newly stopped
+      // exact identity can override it only when both trips' target-containing
+      // stop patterns prove the same operational lane. This permits occupancy
+      // transfer on one physical track without allowing local/express cross-release.
       if (olderVehicle?.present && olderVehicle.fresh && olderVehicle.position === "TARGET") {
-        continue;
+        if (!successorStopped || !successorRecord ||
+            !sameOperationalLane(record, successorRecord, record.platformId)) {
+          continue;
+        }
       }
       const successorIncomingWithIndependentDepartureEvidence = !successorStopped &&
         olderObservation?.tripUpdatePresent && !olderObservation.targetPresent &&
