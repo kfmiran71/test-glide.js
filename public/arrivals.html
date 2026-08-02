@@ -1186,6 +1186,8 @@ const arrivalEngineMode = (() => {
 })();
 const foreverEngineTraceEnabled =
   params.get("foreverEngineTrace") !== "0";
+const downstreamProofMonitorEnabled =
+  params.get("downstreamProofMonitor") !== "0";
 const foreverEngineTraceModulePromise =
   foreverEngineTraceEnabled
     ? import("./forever-engine-trace.js")
@@ -1210,6 +1212,7 @@ function activeForeverEngineFlags() {
     vehicleProofQuarantine: false,
     arrivalProofGate: false,
     stationStateProof: false,
+    downstreamProofMonitor: downstreamProofMonitorEnabled,
     departureProofLock: departureProofLockEnabled
   };
 }
@@ -1980,6 +1983,9 @@ async function fetchDirection(platformId) {
   }
   if (foreverEngineTraceEnabled) {
     query.set("foreverEngineTrace", "1");
+  }
+  if (!downstreamProofMonitorEnabled) {
+    query.set("downstreamProofMonitor", "0");
   }
 
   if (foreverEngineTraceEnabled && arrivalEngineMode !== "legacy") {

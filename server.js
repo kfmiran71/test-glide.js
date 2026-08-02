@@ -100,6 +100,9 @@ const CLUSTER_MAX_AGE_MS =
   Number(process.env.ALERT_CLUSTER_MAX_AGE_MINUTES || 120) * 60 * 1000;
 const alertsClusters = new Map();
 const foreverEngine = createForeverEngine();
+const strictForeverEngine = createForeverEngine({
+  downstreamProofMonitorEnabled: false
+});
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -1847,7 +1850,11 @@ async function handleForeverArrivals(req, res) {
       }
     }
 
-    const result = foreverEngine.reconcile({
+    const downstreamProofMonitorEnabled = req.query.downstreamProofMonitor !== "0";
+    const selectedForeverEngine = downstreamProofMonitorEnabled
+      ? foreverEngine
+      : strictForeverEngine;
+    const result = selectedForeverEngine.reconcile({
       platform: targetPlatform,
       observedAt: Date.now(),
       feedTimestamp: newestFeedTimestamp,
@@ -1870,6 +1877,9 @@ async function handleForeverArrivals(req, res) {
       departureProofLock: {
         enabled: true,
         implementation: "forever-engine"
+      },
+      downstreamProofMonitor: {
+        enabled: downstreamProofMonitorEnabled
       },
       ...(diagnosticsEnabled ? { foreverEngine: result.diagnostics } : {})
     });

@@ -1,3 +1,8 @@
+import {
+  describeDepartureCorridor,
+  evaluateLonghaulDeparture
+} from "./longhaul-fallback.js";
+
 export const ENGINE_MODES = Object.freeze({
   LEGACY: "legacy",
   SHADOW: "shadow",
@@ -24,6 +29,7 @@ export const DECISION_REASONS = Object.freeze({
   EXACT_VEHICLE_DOWNSTREAM: "EXACT_VEHICLE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_DOWNSTREAM: "EXACT_TRIP_UPDATE_DOWNSTREAM",
   EXACT_TRIP_UPDATE_PROGRESSION: "EXACT_TRIP_UPDATE_PROGRESSION",
+  EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET: "EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET",
   SUCCESSOR_CONFIRMED_AT_TARGET: "SUCCESSOR_CONFIRMED_AT_TARGET",
   SUCCESSOR_INCOMING_WITH_STALE_TARGET: "SUCCESSOR_INCOMING_WITH_STALE_TARGET",
   EXPLICIT_TRIP_CANCELLED: "EXPLICIT_TRIP_CANCELLED",
@@ -46,6 +52,7 @@ const DEFAULTS = Object.freeze({
   preEntryMissingSnapshotLimit: 2,
   preEntryPredictionGraceSeconds: 45,
   vehicleFreshSeconds: 90,
+  downstreamProofMonitorEnabled: true,
   routeLimit: 3,
   zeroConfirmationSnapshots: 2,
   maxRegistryRecords: 5000
@@ -308,6 +315,10 @@ function updateRecord(previous, observation, nowMs, options) {
     );
   const freshVehicleStillAtTarget = vehicle.present && vehicle.fresh &&
     vehicle.position === "TARGET";
+  const downstreamPatternOverridesTarget = record.departureLocked &&
+    options.downstreamProofMonitorEnabled &&
+    freshVehicleStillAtTarget &&
+    (tripUpdateDownstream || tripUpdateProgressed);
 
   if (observation.cancelled) {
     record.movementState = MOVEMENT_STATES.WITHDRAWN;
@@ -321,6 +332,17 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
+  } else if (downstreamPatternOverridesTarget) {
+    // Some realtime feeds lag VehiclePosition at the platform after the exact
+    // TripUpdate has already advanced to an unambiguous downstream suffix.
+    // This applies only to the same identity after it has entered departure
+    // custody; target disappearance, time, and successor pressure are never
+    // sufficient on their own.
+    record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
+    record.released = true;
+    record.releaseReason = DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET;
+    record.departureLocked = false;
+    decisionReason = DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET;
   } else if (record.departureLocked && tripUpdateDownstream && !freshVehicleStillAtTarget) {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
@@ -423,6 +445,20 @@ function updateRecord(previous, observation, nowMs, options) {
     decisionReason
   });
   if (record.departureLocked && !wasDepartureLocked) record.departureLockedAt = nowMs;
+  const corridor = describeDepartureCorridor(
+    record.lastPattern,
+    observation.targetStop
+  );
+  record.longhaulFallback = evaluateLonghaulDeparture({
+    nowMs,
+    lockedAt: record.departureLockedAt,
+    departureLocked: record.departureLocked,
+    corridor,
+    vehicle,
+    tripUpdatePresent: observation.tripUpdatePresent,
+    targetPresent: observation.targetPresent,
+    lastTargetTime: record.lastTargetTime
+  });
   record.decisionReason = decisionReason;
   return record;
 }
@@ -648,6 +684,19 @@ export function createForeverEngine(configuration = {}) {
             ? DECISION_REASONS.PRE_ENTRY_CUSTODY
             : DECISION_REASONS.OUTSIDE_BOARD_WINDOW
       };
+      preserved.longhaulFallback = evaluateLonghaulDeparture({
+        nowMs,
+        lockedAt: preserved.departureLockedAt,
+        departureLocked: preserved.departureLocked,
+        corridor: describeDepartureCorridor(
+          preserved.lastPattern,
+          preserved.platformId
+        ),
+        vehicle: { present: false, fresh: false, position: "UNKNOWN" },
+        tripUpdatePresent: false,
+        targetPresent: false,
+        lastTargetTime: preserved.lastTargetTime
+      });
       preserved.history = appendHistory(preserved, {
         observedAt: nowMs,
         feedTimestamp: numberOrNull(snapshot.feedTimestamp),

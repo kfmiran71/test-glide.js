@@ -305,7 +305,7 @@ test("a target-free suffix cannot release without an exact stop in the last conc
   assert.equal(ambiguous.diagnostics.active[0].decisionReason, DECISION_REASONS.DEPARTURE_PROOF_HOLD);
 });
 
-test("a VehiclePosition still naming the target never releases after the target leaves TripUpdate", () => {
+test("an exact downstream TripUpdate overrides a lagging target VehiclePosition by default", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     stopUpdates: [
@@ -315,13 +315,17 @@ test("a VehiclePosition still naming the target never releases after the target 
     ],
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
   })]);
-  const held = reconcile(engine, [trip({
+  const released = reconcile(engine, [trip({
     stopUpdates: [{ stopId: "706N", eventTime: NOW_SECONDS + 30 }],
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
     feedTimestamp: NOW_SECONDS + 15
   })], NOW + 15_000);
-  assert.equal(held.arrivals[0].time, "0");
-  assert.equal(held.diagnostics.active[0].history.at(-1).vehicle.position, "TARGET");
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET
+  );
+  assert.equal(released.diagnostics.released[0].history.at(-1).vehicle.position, "TARGET");
 });
 
 test("an exact downstream-only TripUpdate releases when target VehiclePosition is stale", () => {
@@ -350,8 +354,8 @@ test("an exact downstream-only TripUpdate releases when target VehiclePosition i
   );
 });
 
-test("fresh exact target VehiclePosition overrides a downstream-only TripUpdate suffix", () => {
-  const engine = createForeverEngine();
+test("emergency-off keeps the strict target VehiclePosition veto", () => {
+  const engine = createForeverEngine({ downstreamProofMonitorEnabled: false });
   reconcile(engine, [trip({
     stopUpdates: [
       { stopId: "704N", eventTime: NOW_SECONDS - 60 },
@@ -444,7 +448,7 @@ test("unchanged, reordered, or ambiguous target-free suffixes cannot manufacture
   }
 });
 
-test("fresh target VehiclePosition vetoes target-free suffix progression", () => {
+test("exact suffix progression overrides a lagging target VehiclePosition", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
     stopUpdates: ["706N", "707N", "708N"].map((stopId, index) => ({
@@ -453,7 +457,7 @@ test("fresh target VehiclePosition vetoes target-free suffix progression", () =>
     })),
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
   })]);
-  const held = reconcile(engine, [trip({
+  const released = reconcile(engine, [trip({
     stopUpdates: ["707N", "708N"].map((stopId, index) => ({
       stopId,
       eventTime: NOW_SECONDS + (index + 1) * 120
@@ -461,8 +465,35 @@ test("fresh target VehiclePosition vetoes target-free suffix progression", () =>
     vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
     feedTimestamp: NOW_SECONDS + 15
   })], NOW + 15_000);
-  assert.equal(held.arrivals[0].time, "0");
-  assert.equal(held.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET
+  );
+});
+
+test("an express trip may prove departure at its next served stop without sequence arithmetic", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "704N", stopSequence: 10, eventTime: NOW_SECONDS - 60 },
+      { stopId: TARGET, stopSequence: 20, eventTime: NOW_SECONDS },
+      { stopId: "709N", stopSequence: 50, eventTime: NOW_SECONDS + 180 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  })]);
+  const released = reconcile(engine, [trip({
+    stopUpdates: [
+      { stopId: "709N", stopSequence: 50, eventTime: NOW_SECONDS + 150 }
+    ],
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS + 15, currentStatus: 1, currentStatusExplicit: true },
+    feedTimestamp: NOW_SECONDS + 15
+  })], NOW + 15_000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(
+    released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET
+  );
 });
 
 test("fresh exact successor occupancy cannot override the older trip's fresh target evidence", () => {
@@ -766,6 +797,22 @@ test("Departure-Proof custody survives prediction expiry, disappearance, stale f
   assert.equal(result.arrivals[0].time, "0");
 });
 
+test("longhaul shadow diagnostics continue through complete feed disappearance without changing the board", () => {
+  const engine = createForeverEngine();
+  const stopped = trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    ),
+    vehicle: { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 1, currentStatusExplicit: true }
+  });
+  reconcile(engine, [stopped]);
+  const result = reconcile(engine, [], NOW + 4 * 60_000);
+  assert.equal(result.arrivals[0].time, "0");
+  assert.equal(result.arrivals[0].departureProofLocked, true);
+  assert.equal(result.diagnostics.active[0].longhaulFallback.mode, "SHADOW");
+  assert.equal(result.diagnostics.active[0].longhaulFallback.boardEffect, false);
+});
+
 test("a VehiclePosition still naming the exact target can never release, regardless of sequence", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip({
@@ -907,6 +954,14 @@ test("forever is the parameter-free field mode while legacy remains an explicit 
   assert.match(html, /arrivalEngineMode === "forever"/);
   assert.match(html, /requestJson\("\/forever-arrivals"\)/);
   assert.match(server, /app\.get\("\/forever-arrivals", handleForeverArrivals\)/);
+});
+
+test("downstream proof monitoring defaults on and exact zero selects isolated strict state", () => {
+  assert.match(html, /params\.get\("downstreamProofMonitor"\) !== "0"/);
+  assert.match(html, /if \(!downstreamProofMonitorEnabled\) \{\s*query\.set\("downstreamProofMonitor", "0"\)/);
+  assert.match(server, /createForeverEngine\(\{\s*downstreamProofMonitorEnabled: false\s*\}\)/);
+  assert.match(server, /req\.query\.downstreamProofMonitor !== "0"/);
+  assert.match(server, /downstreamProofMonitorEnabled\s*\? foreverEngine\s*:\s*strictForeverEngine/);
 });
 
 test("forever mode does not import or execute the legacy Departure-Proof implementation", () => {
