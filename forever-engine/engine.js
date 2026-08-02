@@ -426,7 +426,11 @@ function updateRecord(previous, observation, nowMs, options) {
       } else {
         record.movementState = MOVEMENT_STATES.ENTRY_UNCONFIRMED;
         record.lastDisplayedCountdown = 1;
-        record.admitted = predictionEntryEligible || record.admitted;
+        // A current zero prediction may remain visible at one while entry is
+        // unresolved. Once that prediction is negative, lack of qualifying
+        // exact movement continuity means uncertainty—not station entry—and
+        // the identity must yield its board slot until current evidence returns.
+        record.admitted = predictionEntryEligible || countdown === 0;
       }
     } else if (record.departureLocked) {
       record.movementState = MOVEMENT_STATES.DEPARTURE_UNCONFIRMED;
