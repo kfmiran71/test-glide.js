@@ -87,3 +87,20 @@ test("unresolved and ambiguous corridors fail closed", () => {
   assert.equal(result.wouldRelease, false);
   assert.equal(result.reason, "CORRIDOR_UNRESOLVED");
 });
+
+test("missing lock timestamps and stop sequences remain null instead of numeric zero", () => {
+  const corridor = describeDepartureCorridor([
+    { stopId: "R31N", stopSequence: null, eventTime: 1000 },
+    { stopId: "D22N", stopSequence: undefined, eventTime: 1360 }
+  ], "R31N");
+  assert.equal(corridor.targetStopSequence, null);
+  assert.equal(corridor.nextStopSequence, null);
+  const result = evaluateLonghaulDeparture({
+    nowMs: 400_000,
+    lockedAt: null,
+    departureLocked: false,
+    corridor
+  });
+  assert.equal(result.elapsedSeconds, null);
+  assert.equal(result.wouldRelease, false);
+});
