@@ -39,6 +39,8 @@ export const DECISION_REASONS = Object.freeze({
   TERMINAL_CURRENT_PREDICTION: "TERMINAL_CURRENT_PREDICTION",
   TERMINAL_TRIP_COMPLETED: "TERMINAL_TRIP_COMPLETED",
   ORIGIN_DEPARTURE_PREDICTION: "ORIGIN_DEPARTURE_PREDICTION",
+  ORIGIN_DEPARTURE_CUSTODY: "ORIGIN_DEPARTURE_CUSTODY",
+  ORIGIN_DEPARTURE_HOLD: "ORIGIN_DEPARTURE_HOLD",
   OUTSIDE_BOARD_WINDOW: "OUTSIDE_BOARD_WINDOW"
 });
 
@@ -131,7 +133,16 @@ function timestampFresh(timestamp, nowSeconds, freshnessSeconds) {
     Math.abs(nowSeconds - timestamp) <= freshnessSeconds;
 }
 
-function serviceRole(pattern, previousPattern, targetStop, vehicle = null) {
+function serviceRole(
+  pattern,
+  previousPattern,
+  targetStop,
+  vehicle = null,
+  staticOriginStop = ""
+) {
+  if (staticOriginStop && staticOriginStop === targetStop) {
+    return SERVICE_ROLES.ORIGIN_DEPARTURE;
+  }
   const candidates = [pattern, previousPattern]
     .filter(candidate => Array.isArray(candidate) && candidate.length > 1)
     .sort((a, b) => b.length - a.length);
@@ -249,7 +260,14 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
     rawCountdown,
     pattern,
     previousPattern,
-    serviceRole: serviceRole(pattern, previousPattern, platform, raw.vehicle),
+    serviceRole: serviceRole(
+      pattern,
+      previousPattern,
+      platform,
+      raw.vehicle,
+      String(raw.originStopId || "")
+    ),
+    staticOriginStop: String(raw.originStopId || ""),
     cancelled: Boolean(raw.cancelled),
     targetScheduleRelationship: numberOrNull(
       raw.stopUpdates?.find(stop => stop.stopId === platform)?.scheduleRelationship
@@ -278,6 +296,7 @@ function createRecord(observation, nowMs) {
     destination: observation.destination,
     direction: observation.direction,
     serviceRole: observation.serviceRole,
+    staticOriginStop: observation.staticOriginStop,
     movementState: MOVEMENT_STATES.OBSERVED,
     firstObservedAt: nowMs,
     lastObservedAt: nowMs,
@@ -297,6 +316,8 @@ function createRecord(observation, nowMs) {
     admitted: false,
     departureLocked: false,
     departureLockedAt: null,
+    originDepartureCustody: false,
+    originDepartureCustodyAt: null,
     released: false,
     releaseReason: null,
     lastDisplayedCountdown: null,
@@ -347,7 +368,11 @@ function recoveredFutureConfidence(record, observation, nowMs, options) {
     nowSeconds,
     options.realtimeFeedFreshnessSeconds
   )) return null;
-  if (observation.tripUpdateVehicleId || !coherentStopTimeOrdering(observation.pattern)) {
+  // A TripUpdate may retain a vehicle assignment while the corresponding
+  // VehiclePosition is temporarily absent. That assignment is not, by itself,
+  // evidence that a coherent future prediction is false. Near-arrival trips
+  // still require exact VP or previously established recovery.
+  if (!coherentStopTimeOrdering(observation.pattern)) {
     return null;
   }
 
@@ -387,6 +412,7 @@ function recoveredFutureConfidence(record, observation, nowMs, options) {
 function updateRecord(previous, observation, nowMs, options) {
   const record = previous ? { ...previous } : createRecord(observation, nowMs);
   const wasDepartureLocked = Boolean(previous?.departureLocked);
+  const hadOriginDepartureCustody = Boolean(previous?.originDepartureCustody);
   const distinctSnapshot = observation.feedTimestamp !== null &&
     observation.feedTimestamp !== record.lastDistinctFeedTimestamp;
   const vehicle = observation.vehicleEvidence;
@@ -445,7 +471,8 @@ function updateRecord(previous, observation, nowMs, options) {
     );
   const freshVehicleStillAtTarget = vehicle.present && vehicle.fresh &&
     vehicle.position === "TARGET";
-  const downstreamPatternOverridesTarget = record.departureLocked &&
+  const downstreamPatternOverridesTarget =
+    (record.departureLocked || record.originDepartureCustody) &&
     options.downstreamProofMonitorEnabled &&
     freshVehicleStillAtTarget &&
     (tripUpdateDownstream || tripUpdateProgressed);
@@ -455,6 +482,7 @@ function updateRecord(previous, observation, nowMs, options) {
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXPLICIT_TRIP_CANCELLED;
     record.departureLocked = false;
+    record.originDepartureCustody = false;
     decisionReason = DECISION_REASONS.EXPLICIT_TRIP_CANCELLED;
   } else if (wasDepartureLocked && !vehicle.present) {
     // Experimental emergency key: once an exact identity is already in
@@ -479,6 +507,7 @@ function updateRecord(previous, observation, nowMs, options) {
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
     record.departureLocked = false;
+    record.originDepartureCustody = false;
     decisionReason = DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM;
   } else if (downstreamPatternOverridesTarget) {
     // Some realtime feeds lag VehiclePosition at the platform after the exact
@@ -490,18 +519,23 @@ function updateRecord(previous, observation, nowMs, options) {
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET;
     record.departureLocked = false;
+    record.originDepartureCustody = false;
     decisionReason = DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET;
-  } else if (record.departureLocked && tripUpdateDownstream && !freshVehicleStillAtTarget) {
+  } else if ((record.departureLocked || record.originDepartureCustody) &&
+    tripUpdateDownstream && !freshVehicleStillAtTarget) {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
     record.departureLocked = false;
+    record.originDepartureCustody = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_DOWNSTREAM;
-  } else if (record.departureLocked && tripUpdateProgressed && !freshVehicleStillAtTarget) {
+  } else if ((record.departureLocked || record.originDepartureCustody) &&
+    tripUpdateProgressed && !freshVehicleStillAtTarget) {
     record.movementState = MOVEMENT_STATES.CONFIRMED_DOWNSTREAM;
     record.released = true;
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
     record.departureLocked = false;
+    record.originDepartureCustody = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
   } else if (orphanTripUpdate) {
     // The native classifier is transferred as a complete unit: current
@@ -522,7 +556,24 @@ function updateRecord(previous, observation, nowMs, options) {
     if (record.serviceRole === SERVICE_ROLES.ORIGIN_DEPARTURE) {
       record.departureLocked = false;
       record.consecutiveTargetZeroSnapshots = 0;
-      if (eligiblePrediction && countdown >= 0) {
+      const exactStoppedAtOrigin = vehicle.present && vehicle.fresh &&
+        vehicle.position === "TARGET" &&
+        vehicle.currentStatusExplicit && vehicle.currentStatus === 1;
+      if (exactStoppedAtOrigin) {
+        record.originDepartureCustody = true;
+        record.originDepartureCustodyAt ??= nowMs;
+        record.admitted = true;
+        record.movementState = MOVEMENT_STATES.STOPPED_AT_TARGET;
+        record.lastDisplayedCountdown = 0;
+        decisionReason = DECISION_REASONS.ORIGIN_DEPARTURE_CUSTODY;
+      } else if (record.originDepartureCustody) {
+        // A scheduled clock and missing/stale position cannot prove that a
+        // train physically observed at its origin has departed.
+        record.admitted = true;
+        record.movementState = MOVEMENT_STATES.DEPARTURE_UNCONFIRMED;
+        record.lastDisplayedCountdown = 0;
+        decisionReason = DECISION_REASONS.ORIGIN_DEPARTURE_HOLD;
+      } else if (eligiblePrediction && countdown >= 0) {
         record.admitted = true;
         record.movementState = countdown <= 1
           ? MOVEMENT_STATES.APPROACHING
@@ -537,10 +588,14 @@ function updateRecord(previous, observation, nowMs, options) {
     } else if (record.serviceRole === SERVICE_ROLES.TERMINAL_ARRIVAL) {
       record.departureLocked = false;
       record.consecutiveTargetZeroSnapshots = 0;
-      if (observation.targetPresent && countdown !== null && countdown <= options.boardWindowMinutes) {
+      const freshVehicleAtTerminal = vehicle.present && vehicle.fresh &&
+        vehicle.position === "TARGET";
+      const currentTerminalPrediction = observation.targetPresent &&
+        countdown !== null && countdown >= 0 &&
+        countdown <= options.boardWindowMinutes;
+      if (freshVehicleAtTerminal || currentTerminalPrediction) {
         record.admitted = true;
-        const atTerminal = countdown <= 0 ||
-          vehicle.present && vehicle.fresh && vehicle.position === "TARGET";
+        const atTerminal = freshVehicleAtTerminal;
         record.movementState = atTerminal
           ? MOVEMENT_STATES.STOPPED_AT_TARGET
           : countdown <= 1
@@ -551,6 +606,7 @@ function updateRecord(previous, observation, nowMs, options) {
           DECISION_REASONS.TERMINAL_CURRENT_PREDICTION;
       } else {
         record.admitted = false;
+        record.lastDisplayedCountdown = null;
         decisionReason = DECISION_REASONS.OUTSIDE_BOARD_WINDOW;
       }
     } else if (vehicle.present && vehicle.fresh && vehicle.position === "TARGET" &&
@@ -620,6 +676,9 @@ function updateRecord(previous, observation, nowMs, options) {
     decisionReason
   });
   if (record.departureLocked && !wasDepartureLocked) record.departureLockedAt = nowMs;
+  if (record.originDepartureCustody && !hadOriginDepartureCustody) {
+    record.originDepartureCustodyAt = nowMs;
+  }
   const corridor = describeDepartureCorridor(
     record.lastPattern,
     observation.targetStop
@@ -651,8 +710,10 @@ function arrivalFromRecord(record) {
     startDate: record.startDate,
     foreverEngineState: record.movementState,
     foreverEngineProtected: record.departureLocked ||
+      record.originDepartureCustody ||
       record.decisionReason === DECISION_REASONS.PRE_ENTRY_CUSTODY,
-    departureProofLocked: record.departureLocked
+    departureProofLocked: record.departureLocked,
+    originDepartureCustody: record.originDepartureCustody
   };
 }
 
@@ -694,6 +755,10 @@ export function createForeverEngine(configuration = {}) {
       diagnostics: {
         ...extra,
         active: clone(records.filter(record => record.admitted && !record.released)),
+        suppressed: clone(records.filter(record =>
+          !record.admitted && !record.released &&
+          record.decisionReason === DECISION_REASONS.SUPPRESSED_ORPHAN_TRIP_UPDATE
+        )),
         released: clone(records.filter(record => record.released)),
         counts: {
           registry: records.length,
@@ -750,6 +815,30 @@ export function createForeverEngine(configuration = {}) {
     }
     for (const [identityKey, record] of registry) {
       if (rawByIdentity.has(identityKey) || record.released) continue;
+      if (record.serviceRole === SERVICE_ROLES.ORIGIN_DEPARTURE &&
+        record.originDepartureCustody) {
+        const preserved = {
+          ...record,
+          admitted: true,
+          departureLocked: false,
+          released: false,
+          movementState: MOVEMENT_STATES.DEPARTURE_UNCONFIRMED,
+          decisionReason: DECISION_REASONS.ORIGIN_DEPARTURE_HOLD
+        };
+        preserved.history = appendHistory(preserved, {
+          observedAt: nowMs,
+          feedTimestamp: numberOrNull(snapshot.feedTimestamp),
+          rawCountdown: null,
+          displayedCountdown: 0,
+          targetPresent: false,
+          tripUpdatePresent: false,
+          vehicle: { present: false, fresh: false, ageSeconds: null, position: "UNKNOWN" },
+          movementState: preserved.movementState,
+          decisionReason: preserved.decisionReason
+        });
+        registry.set(identityKey, preserved);
+        continue;
+      }
       if (
         record.serviceRole === SERVICE_ROLES.TERMINAL_ARRIVAL ||
         record.serviceRole === SERVICE_ROLES.ORIGIN_DEPARTURE
@@ -758,6 +847,7 @@ export function createForeverEngine(configuration = {}) {
           ...record,
           admitted: false,
           departureLocked: false,
+          originDepartureCustody: false,
           released: true,
           movementState: MOVEMENT_STATES.WITHDRAWN,
           releaseReason: DECISION_REASONS.TERMINAL_TRIP_COMPLETED,

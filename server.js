@@ -40,6 +40,7 @@ const STATIC_ROUTE_DIRECTION_SUFFIXES =
   buildStaticRouteDirectionSuffixes(
     fs.readFileSync(staticTripsPath, "utf-8")
   );
+const STATIC_ORIGIN_STOPS = buildStaticRouteOrigins(ROUTE_STOP_MAP);
 const routeBranchMapPath = path.resolve("./route-branches.json");
 const ROUTE_BRANCH_MAP = JSON.parse(fs.readFileSync(routeBranchMapPath, "utf-8"));
 const ROUTE_ORDER = [
@@ -179,6 +180,17 @@ function buildStaticRouteDirectionSuffixes(csv) {
       )
     ])
   );
+}
+
+function buildStaticRouteOrigins(routeStopMap) {
+  const origins = new Map();
+  for (const [routeId, directions] of Object.entries(routeStopMap || {})) {
+    for (const [direction, stops] of Object.entries(directions || {})) {
+      const firstStop = Array.isArray(stops) ? stops[0]?.stop_id : "";
+      if (firstStop) origins.set(`${routeId}|${direction}`, String(firstStop));
+    }
+  }
+  return origins;
 }
 
 function sortRoutes(routes) {
@@ -1842,6 +1854,11 @@ async function handleForeverArrivals(req, res) {
           const suffix = targetPlatform.slice(-1);
           return suffix === "N" ? "Northbound" :
             suffix === "S" ? "Southbound" : suffix;
+        },
+        originStopForTrip: trip => {
+          const routeId = String(trip?.routeId || "");
+          const direction = targetPlatform.slice(-1);
+          return STATIC_ORIGIN_STOPS.get(`${routeId}|${direction}`) || "";
         }
       });
       for (const observation of normalized) {

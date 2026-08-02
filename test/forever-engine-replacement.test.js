@@ -144,7 +144,7 @@ test("same-feed repetition cannot manufacture persistent future recovery", () =>
   assert.equal(repeated.diagnostics.active[0].hasRecoveredFutureConfidence, false);
 });
 
-test("stale, incoherent, and vehicle-tagged orphan TripUpdates cannot recover", () => {
+test("stale and incoherent orphan TripUpdates cannot recover", () => {
   const cases = [
     trip({ vehicle: null, feedTimestamp: NOW_SECONDS - 600 }),
     trip({
@@ -154,13 +154,28 @@ test("stale, incoherent, and vehicle-tagged orphan TripUpdates cannot recover", 
         { stopId: TARGET, eventTime: NOW_SECONDS + 6 * 60 },
         { stopId: "706N", eventTime: NOW_SECONDS + 9 * 60 }
       ]
-    }),
-    trip({ vehicle: null, tripUpdateVehicleId: "unmatched-vehicle" })
+    })
   ];
   for (const candidate of cases) {
     const result = reconcile(createForeverEngine(), [candidate]);
     assert.equal(result.arrivals.length, 0);
   }
+});
+
+test("a vehicle-tagged coherent future TripUpdate may recover without its temporary VP", () => {
+  const candidate = trip({
+    vehicle: null,
+    tripUpdateVehicleId: "temporarily-missing-vehicle",
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS + 6 * 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS + 8 * 60 },
+      { stopId: "706N", eventTime: NOW_SECONDS + 10 * 60 }
+    ]
+  });
+  const result = reconcile(createForeverEngine(), [candidate]);
+  assert.equal(result.arrivals[0].time, "8");
+  assert.equal(result.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.RECOVERED_FEED_CONSISTENT_FUTURE);
 });
 
 test("target SKIPPED and NO_DATA relationships suppress before admission", () => {
@@ -232,6 +247,185 @@ test("terminal-origin TripUpdate-only prediction keeps its admission exception",
   assert.equal(result.arrivals.length, 1);
   assert.equal(result.arrivals[0].time, "3");
   assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+});
+
+test("static first-stop evidence identifies an origin when realtime sequences are absent", () => {
+  const result = reconcile(createForeverEngine(), [trip({
+    originStopId: TARGET,
+    vehicle: null,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS + 3 * 60 },
+      { stopId: "706N", eventTime: NOW_SECONDS + 5 * 60 }
+    ]
+  })]);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+  assert.equal(result.diagnostics.active[0].staticOriginStop, TARGET);
+});
+
+test("target-first realtime suffix alone does not manufacture an origin role", () => {
+  const result = reconcile(createForeverEngine(), [trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS + 3 * 60 },
+      { stopId: "706N", eventTime: NOW_SECONDS + 5 * 60 }
+    ]
+  })]);
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.UNRESOLVED);
+});
+
+test("fresh exact STOPPED_AT creates distinct origin-departure custody", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    originStopId: TARGET,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 2 * 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(result.arrivals[0].time, "0");
+  assert.equal(result.arrivals[0].originDepartureCustody, true);
+  assert.equal(result.arrivals[0].departureProofLocked, false);
+  assert.equal(result.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.ORIGIN_DEPARTURE_CUSTODY);
+});
+
+test("origin custody survives the scheduled clock and first missing VehiclePosition", () => {
+  const engine = createForeverEngine();
+  const stopped = trip({
+    originStopId: TARGET,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 2 * 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  });
+  reconcile(engine, [stopped]);
+  const held = reconcile(engine, [{
+    ...stopped,
+    feedTimestamp: NOW_SECONDS + 15,
+    vehicle: null,
+    vehiclePositionMatched: false,
+    stopUpdates: stopped.stopUpdates.map(stop => ({
+      ...stop,
+      eventTime: stop.eventTime - 60
+    }))
+  }], NOW + 15_000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.arrivals[0].originDepartureCustody, true);
+  assert.equal(held.diagnostics.active[0].released, false);
+  assert.equal(held.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.ORIGIN_DEPARTURE_HOLD);
+});
+
+test("origin custody survives complete snapshot disappearance", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    originStopId: TARGET,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 2 * 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  const held = reconcile(engine, [], NOW + 15_000);
+  assert.equal(held.arrivals[0].time, "0");
+  assert.equal(held.diagnostics.active[0].decisionReason,
+    DECISION_REASONS.ORIGIN_DEPARTURE_HOLD);
+});
+
+test("exact downstream VehiclePosition releases origin custody", () => {
+  const engine = createForeverEngine();
+  const stopped = trip({
+    originStopId: TARGET,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 2 * 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  });
+  reconcile(engine, [stopped]);
+  const released = reconcile(engine, [{
+    ...stopped,
+    feedTimestamp: NOW_SECONDS + 15,
+    stopUpdates: [{ stopId: "706N", eventTime: NOW_SECONDS + 90 }],
+    vehicle: {
+      stopId: "706N",
+      timestamp: NOW_SECONDS + 15,
+      currentStopSequence: 2,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  }], NOW + 15_000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_VEHICLE_DOWNSTREAM);
+});
+
+test("exact downstream TripUpdate progression releases origin custody despite lagging target VP", () => {
+  const engine = createForeverEngine();
+  const stopped = trip({
+    originStopId: TARGET,
+    stopUpdates: [
+      { stopId: TARGET, eventTime: NOW_SECONDS },
+      { stopId: "706N", eventTime: NOW_SECONDS + 2 * 60 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 4 * 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 1,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  });
+  reconcile(engine, [stopped]);
+  const released = reconcile(engine, [{
+    ...stopped,
+    feedTimestamp: NOW_SECONDS + 15,
+    stopUpdates: [
+      { stopId: "706N", eventTime: NOW_SECONDS + 90 },
+      { stopId: "707N", eventTime: NOW_SECONDS + 210 }
+    ],
+    vehicle: {
+      ...stopped.vehicle,
+      timestamp: NOW_SECONDS + 15
+    }
+  }], NOW + 15_000);
+  assert.equal(released.arrivals.length, 0);
+  assert.equal(released.diagnostics.released[0].releaseReason,
+    DECISION_REASONS.EXACT_DOWNSTREAM_PATTERN_OVERRIDES_TARGET);
 });
 
 test("temporary TripUpdate disappearance preserves a train already in pre-entry custody", () => {
@@ -319,7 +513,42 @@ test("terminal arrivals display current evidence but never create an unreleasabl
   assert.equal(completed.diagnostics.released[0].releaseReason, DECISION_REASONS.TERMINAL_TRIP_COMPLETED);
 });
 
-test("origin departures retain their timetable countdown and cannot masquerade as arrivals at zero", () => {
+test("an expired terminal prediction cannot manufacture zero without fresh exact target VP", () => {
+  const result = reconcile(createForeverEngine(), [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 10 * 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS - 8 * 60 }
+    ],
+    vehicle: {
+      stopId: "704N",
+      timestamp: NOW_SECONDS - 30 * 60,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(result.diagnostics.counts.active, 0);
+});
+
+test("fresh exact target VP may hold terminal arrival zero after its clock expires", () => {
+  const result = reconcile(createForeverEngine(), [trip({
+    stopUpdates: [
+      { stopId: "704N", eventTime: NOW_SECONDS - 3 * 60 },
+      { stopId: TARGET, eventTime: NOW_SECONDS - 60 }
+    ],
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(result.arrivals[0].time, "0");
+  assert.equal(result.diagnostics.active[0].serviceRole,
+    SERVICE_ROLES.TERMINAL_ARRIVAL);
+});
+
+test("a fresh exact STOPPED_AT origin supersedes its timetable countdown with custody", () => {
   const engine = createForeverEngine();
   const origin = trip({
     destination: "Flushing-Main St",
@@ -337,8 +566,9 @@ test("origin departures retain their timetable countdown and cannot masquerade a
     }
   });
   const result = reconcile(engine, [origin]);
-  assert.equal(result.arrivals[0].time, "1");
+  assert.equal(result.arrivals[0].time, "0");
   assert.equal(result.arrivals[0].departureProofLocked, false);
+  assert.equal(result.arrivals[0].originDepartureCustody, true);
   assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
 });
 
@@ -1342,6 +1572,29 @@ test("normalizer preserves field presence and correlates only exact identities",
   assert.equal(exact.vehicle.currentStatusExplicit, true);
   assert.equal(exact.vehicle.currentStopSequenceExplicit, false);
   assert.equal(different.tripUpdatePresent, false);
+});
+
+test("normalized future TripUpdates with omitted protobuf timestamps remain eligible", () => {
+  const normalized = normalizeGtfsEntities({
+    feedTimestamp: NOW_SECONDS,
+    entities: [{
+      tripUpdate: {
+        trip: { tripId: "future-with-default-timestamp", startDate: "20260801", routeId: "4" },
+        timestamp: 0,
+        stopTimeUpdate: [
+          { stopId: "704N", arrival: { time: NOW_SECONDS + 60 } },
+          { stopId: TARGET, arrival: { time: NOW_SECONDS + 12 * 60 } },
+          { stopId: "706N", arrival: { time: NOW_SECONDS + 14 * 60 } }
+        ]
+      }
+    }]
+  });
+  assert.equal(normalized[0].tripUpdateTimestamp, null);
+
+  const result = reconcile(createForeverEngine(), normalized);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.arrivals[0].tripId, "future-with-default-timestamp");
+  assert.equal(result.arrivals[0].time, "12");
 });
 
 test("native confidence may match VehiclePosition by tripId without weakening exact movement identity", () => {

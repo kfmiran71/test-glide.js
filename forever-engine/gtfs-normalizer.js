@@ -8,6 +8,11 @@ function numberValue(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function timestampValue(value) {
+  const timestamp = numberValue(value);
+  return timestamp !== null && timestamp > 0 ? timestamp : null;
+}
+
 function hasOwn(object, field) {
   return Boolean(object) && Object.prototype.hasOwnProperty.call(object, field);
 }
@@ -27,7 +32,7 @@ function normalizeVehicle(entity) {
   if (!vehicle) return null;
   return {
     stopId: String(vehicle.stopId || ""),
-    timestamp: numberValue(vehicle.timestamp),
+    timestamp: timestampValue(vehicle.timestamp),
     currentStopSequence: hasOwn(vehicle, "currentStopSequence")
       ? numberValue(vehicle.currentStopSequence)
       : null,
@@ -47,7 +52,8 @@ export function normalizeGtfsEntities({
   entities = [],
   feedTimestamp = null,
   destinationForTrip = () => "",
-  directionForPlatform = () => ""
+  directionForPlatform = () => "",
+  originStopForTrip = () => ""
 } = {}) {
   const records = new Map();
   const vehicles = new Map();
@@ -96,13 +102,16 @@ export function normalizeGtfsEntities({
       tripUpdatePresent: true,
       cancelled: [3, 7].includes(Number(trip.scheduleRelationship)),
       tripScheduleRelationship: numberValue(trip.scheduleRelationship),
-      tripUpdateTimestamp: numberValue(entity.tripUpdate.timestamp),
+      // protobufjs materializes an omitted optional uint64 as zero. Zero is
+      // absence, not an ancient TripUpdate that should fail freshness checks.
+      tripUpdateTimestamp: timestampValue(entity.tripUpdate.timestamp),
       tripUpdateVehicleId,
       vehiclePositionMatched: tripId
         ? vehicleTripIds.has(tripId)
         : Boolean(tripUpdateVehicleId && vehicleIds.has(tripUpdateVehicleId)),
       destination: destinationForTrip(entity.tripUpdate),
       direction: directionForPlatform(stopUpdates),
+      originStopId: String(originStopForTrip(trip) || ""),
       stopUpdates,
       vehicle: vehicleMatch?.vehicle || null,
       vehicleAmbiguous: Boolean(vehicleMatch?.ambiguous),
@@ -130,6 +139,7 @@ export function normalizeGtfsEntities({
       vehiclePositionMatched: true,
       destination: "",
       direction: "",
+      originStopId: String(originStopForTrip(trip) || ""),
       stopUpdates: [],
       vehicle: vehicleMatch.vehicle,
       vehicleAmbiguous: Boolean(vehicleMatch.ambiguous),
@@ -140,4 +150,4 @@ export function normalizeGtfsEntities({
   return [...records.values()];
 }
 
-export const __test = Object.freeze({ identityKey, numberValue });
+export const __test = Object.freeze({ identityKey, numberValue, timestampValue });
