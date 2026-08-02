@@ -62,6 +62,86 @@ test("credible predictions receive exact-identity custody before the final minut
   assert.equal(result.diagnostics.active[0].movementState, MOVEMENT_STATES.MOVING_UPSTREAM);
 });
 
+test("a never-validated TripUpdate-only prediction is suppressed inside five minutes", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({ vehicle: null })]);
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(result.diagnostics.active.length, 0);
+  const inspected = engine.inspect(TARGET)[TARGET];
+  assert.equal(
+    inspected[0].decisionReason,
+    DECISION_REASONS.SUPPRESSED_ORPHAN_TRIP_UPDATE
+  );
+  assert.equal(inspected[0].departureLocked, false);
+});
+
+test("a TripUpdate-only future prediction remains visible outside the strict window", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    vehicle: null,
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS + 6 * 60 }
+      : stop)
+  })]);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.arrivals[0].time, "6");
+});
+
+test("fresh exact VehiclePosition admits a prediction inside five minutes", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip()]);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.arrivals[0].identityKey, "trip-a|20260801");
+});
+
+test("exact VehiclePosition confidence survives a temporary near-arrival VP gap", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS + 6 * 60 }
+      : stop)
+  })]);
+  const result = reconcile(engine, [trip({
+    vehicle: null,
+    feedTimestamp: NOW_SECONDS + 15,
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS + 4 * 60 }
+      : stop)
+  })], NOW + 15_000);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.arrivals[0].time, "4");
+});
+
+test("suppressed orphan cannot enter pre-entry custody or Departure-Proof Lock", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({ vehicle: null })]);
+  const missing = reconcile(engine, [], NOW + 15_000);
+  assert.equal(missing.arrivals.length, 0);
+  const zero = reconcile(engine, [trip({
+    vehicle: null,
+    feedTimestamp: NOW_SECONDS + 30,
+    stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
+      ? { ...stop, eventTime: NOW_SECONDS + 30 }
+      : stop)
+  })], NOW + 30_000);
+  assert.equal(zero.arrivals.length, 0);
+  assert.equal(engine.inspect(TARGET)[TARGET][0].departureLocked, false);
+});
+
+test("terminal-origin TripUpdate-only prediction keeps its admission exception", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    vehicle: null,
+    stopUpdates: [
+      { stopId: TARGET, stopSequence: 1, eventTime: NOW_SECONDS + 3 * 60 },
+      { stopId: "706N", stopSequence: 2, eventTime: NOW_SECONDS + 5 * 60 }
+    ]
+  })]);
+  assert.equal(result.arrivals.length, 1);
+  assert.equal(result.arrivals[0].time, "3");
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+});
+
 test("temporary TripUpdate disappearance preserves a train already in pre-entry custody", () => {
   const engine = createForeverEngine();
   reconcile(engine, [trip()]);
@@ -768,12 +848,11 @@ test("a fresh exact STOPPED_AT target observation promotes directly to zero", ()
   assert.equal(result.diagnostics.active[0].decisionReason, DECISION_REASONS.EXACT_STOPPED_AT_TARGET);
 });
 
-test("INCOMING_AT, IN_TRANSIT_TO, missing status and stale vehicle do not independently prove entry", () => {
+test("fresh non-stopped statuses do not prove entry and stale orphan evidence is suppressed", () => {
   for (const vehicle of [
     { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 0, currentStatusExplicit: true },
     { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: 2, currentStatusExplicit: true },
-    { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: null, currentStatusExplicit: false },
-    { stopId: TARGET, timestamp: NOW_SECONDS - 600, currentStatus: 1, currentStatusExplicit: true }
+    { stopId: TARGET, timestamp: NOW_SECONDS, currentStatus: null, currentStatusExplicit: false }
   ]) {
     const engine = createForeverEngine();
     const result = reconcile(engine, [trip({
@@ -785,6 +864,18 @@ test("INCOMING_AT, IN_TRANSIT_TO, missing status and stale vehicle do not indepe
     assert.equal(result.arrivals[0].time, "1");
     assert.equal(result.arrivals[0].departureProofLocked, false);
   }
+  const stale = reconcile(createForeverEngine(), [trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    ),
+    vehicle: {
+      stopId: TARGET,
+      timestamp: NOW_SECONDS - 600,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })]);
+  assert.equal(stale.arrivals.length, 0);
 });
 
 test("two distinct target-zero snapshots require established approach and fresh exact vehicle continuity", () => {
@@ -893,14 +984,16 @@ test("an uncertain expired identity can return when fresh current evidence reapp
 
 test("the same feed snapshot cannot manufacture repeated-zero confirmation", () => {
   const engine = createForeverEngine();
+  reconcile(engine, [trip()]);
   const zero = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
       stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
     ),
     vehicle: null
   });
-  reconcile(engine, [zero]);
-  const result = reconcile(engine, [zero], NOW + 15_000);
+  const first = { ...zero, feedTimestamp: NOW_SECONDS + 15 };
+  reconcile(engine, [first], NOW + 15_000);
+  const result = reconcile(engine, [first], NOW + 30_000);
   assert.equal(result.arrivals[0].time, "1");
 });
 
@@ -1020,7 +1113,12 @@ test("protected arrivals cannot be displaced by sorting or same-route limits", (
     stopUpdates: trip().stopUpdates.map(stop => stop.stopId === TARGET
       ? { ...stop, eventTime: NOW_SECONDS + index * 60 }
       : stop),
-    vehicle: null
+    vehicle: {
+      stopId: "704N",
+      timestamp: NOW_SECONDS + 15,
+      currentStatus: 2,
+      currentStatusExplicit: true
+    }
   }));
   const result = reconcile(engine, ordinary, NOW + 15_000);
   assert.equal(result.arrivals.filter(item => item.route === "7").length, 2);

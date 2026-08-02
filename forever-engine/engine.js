@@ -22,6 +22,7 @@ export const MOVEMENT_STATES = Object.freeze({
 
 export const DECISION_REASONS = Object.freeze({
   CURRENT_PREDICTION: "CURRENT_PREDICTION",
+  SUPPRESSED_ORPHAN_TRIP_UPDATE: "SUPPRESSED_ORPHAN_TRIP_UPDATE",
   PRE_ENTRY_CUSTODY: "PRE_ENTRY_CUSTODY",
   EXACT_STOPPED_AT_TARGET: "EXACT_STOPPED_AT_TARGET",
   REPEATED_TARGET_ZERO: "REPEATED_TARGET_ZERO",
@@ -47,6 +48,7 @@ export const SERVICE_ROLES = Object.freeze({
 const DEFAULTS = Object.freeze({
   boardWindowMinutes: 60,
   custodyWindowMinutes: 10,
+  nearArrivalStrictWindowMinutes: 5,
   preEntryMissingSnapshotLimit: 2,
   preEntryPredictionGraceSeconds: 45,
   vehicleFreshSeconds: 90,
@@ -288,6 +290,14 @@ function updateRecord(previous, observation, nowMs, options) {
   ) {
     record.serviceRole = observation.serviceRole;
   }
+  const nearArrivalOrphan = !record.departureLocked &&
+    observation.targetPresent &&
+    countdown !== null &&
+    countdown >= 0 &&
+    countdown <= options.nearArrivalStrictWindowMinutes &&
+    record.serviceRole !== SERVICE_ROLES.ORIGIN_DEPARTURE &&
+    !(vehicle.present && vehicle.fresh) &&
+    !record.freshVehicleContinuityEstablished;
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
   if (observation.targetPresent && countdown !== null && countdown >= 0) {
@@ -361,6 +371,20 @@ function updateRecord(previous, observation, nowMs, options) {
     record.releaseReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
     record.departureLocked = false;
     decisionReason = DECISION_REASONS.EXACT_TRIP_UPDATE_PROGRESSION;
+  } else if (nearArrivalOrphan) {
+    // TestFlight's proven near-arrival discipline: a TripUpdate that has never
+    // been correlated with the exact trip's VehiclePosition cannot enter the
+    // final five-minute window. Suppress it before it can consume a route slot,
+    // enter pre-entry custody, or manufacture a Departure-Proof lock. Exact
+    // identities that earned VehiclePosition confidence earlier retain it
+    // through a temporary VP gap; terminal-origin departures are handled by
+    // their dedicated branch below.
+    record.admitted = false;
+    record.departureLocked = false;
+    record.consecutiveTargetZeroSnapshots = 0;
+    record.lastDisplayedCountdown = null;
+    record.movementState = MOVEMENT_STATES.OBSERVED;
+    decisionReason = DECISION_REASONS.SUPPRESSED_ORPHAN_TRIP_UPDATE;
   } else {
     const eligiblePrediction = observation.targetPresent && countdown !== null &&
       countdown <= options.boardWindowMinutes;
