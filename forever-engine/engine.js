@@ -252,6 +252,8 @@ function createRecord(observation, nowMs) {
     preEntryMissingSnapshots: 0,
     lastPreEntryMissingFeedTimestamp: null,
     consecutiveTargetZeroSnapshots: 0,
+    approachContinuityEstablished: false,
+    freshVehicleContinuityEstablished: false,
     admitted: false,
     departureLocked: false,
     departureLockedAt: null,
@@ -290,6 +292,12 @@ function updateRecord(previous, observation, nowMs, options) {
   }
   record.lastObservedAt = nowMs;
   record.lastRawCountdown = countdown;
+  if (observation.targetPresent && countdown !== null && countdown >= 0) {
+    record.approachContinuityEstablished = true;
+  }
+  if (vehicle.present && vehicle.fresh) {
+    record.freshVehicleContinuityEstablished = true;
+  }
   const previousRealtimePattern = record.lastRealtimePattern || [];
   if (uniqueIndex(observation.pattern, observation.targetStop) !== null) {
     record.lastPattern = observation.pattern;
@@ -400,7 +408,15 @@ function updateRecord(previous, observation, nowMs, options) {
       record.lastDisplayedCountdown = 0;
       decisionReason = DECISION_REASONS.EXACT_STOPPED_AT_TARGET;
     } else if (observation.targetPresent && countdown !== null && countdown <= 0) {
-      if (distinctSnapshot) record.consecutiveTargetZeroSnapshots += 1;
+      const predictionEntryEligible =
+        record.approachContinuityEstablished &&
+        record.freshVehicleContinuityEstablished &&
+        !(vehicle.present && vehicle.fresh && vehicle.position === "UPSTREAM");
+      if (distinctSnapshot && predictionEntryEligible) {
+        record.consecutiveTargetZeroSnapshots += 1;
+      } else if (!predictionEntryEligible) {
+        record.consecutiveTargetZeroSnapshots = 0;
+      }
       if (record.consecutiveTargetZeroSnapshots >= options.zeroConfirmationSnapshots) {
         record.movementState = MOVEMENT_STATES.STOPPED_AT_TARGET;
         record.departureLocked = true;
@@ -410,6 +426,7 @@ function updateRecord(previous, observation, nowMs, options) {
       } else {
         record.movementState = MOVEMENT_STATES.ENTRY_UNCONFIRMED;
         record.lastDisplayedCountdown = 1;
+        record.admitted = predictionEntryEligible || record.admitted;
       }
     } else if (record.departureLocked) {
       record.movementState = MOVEMENT_STATES.DEPARTURE_UNCONFIRMED;

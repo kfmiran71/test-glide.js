@@ -747,19 +747,76 @@ test("INCOMING_AT, IN_TRANSIT_TO, missing status and stale vehicle do not indepe
   }
 });
 
-test("two distinct target-zero snapshots provide a prediction fallback without assuming sequence arithmetic", () => {
+test("two distinct target-zero snapshots require established approach and fresh exact vehicle continuity", () => {
   const engine = createForeverEngine();
+  reconcile(engine, [trip()]);
   const zero = trip({
     stopUpdates: trip().stopUpdates.map(stop =>
       stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
     ),
     vehicle: null
   });
-  let result = reconcile(engine, [zero]);
+  let result = reconcile(engine, [{ ...zero, feedTimestamp: NOW_SECONDS + 15 }], NOW + 15_000);
   assert.equal(result.arrivals[0].time, "1");
-  result = reconcile(engine, [{ ...zero, feedTimestamp: NOW_SECONDS + 15 }], NOW + 15_000);
+  result = reconcile(engine, [{ ...zero, feedTimestamp: NOW_SECONDS + 30 }], NOW + 30_000);
   assert.equal(result.arrivals[0].time, "0");
   assert.equal(result.diagnostics.active[0].decisionReason, DECISION_REASONS.REPEATED_TARGET_ZERO);
+});
+
+test("an identity first discovered with an expired target prediction cannot manufacture entry", () => {
+  const engine = createForeverEngine();
+  const expired = trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS - 10 * 60 } : stop
+    ),
+    vehicle: null
+  });
+  reconcile(engine, [expired]);
+  const result = reconcile(
+    engine,
+    [{ ...expired, feedTimestamp: NOW_SECONDS + 15 }],
+    NOW + 15_000
+  );
+  assert.equal(result.arrivals.length, 0);
+  assert.equal(result.diagnostics.active.length, 0);
+  assert.equal(result.diagnostics.counts.board, 0);
+});
+
+test("a TripUpdate-only approach cannot turn prediction expiry into a locked zero", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip({ vehicle: null })]);
+  const expired = trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    ),
+    vehicle: null
+  });
+  reconcile(engine, [{ ...expired, feedTimestamp: NOW_SECONDS + 15 }], NOW + 15_000);
+  const result = reconcile(
+    engine,
+    [{ ...expired, feedTimestamp: NOW_SECONDS + 30 }],
+    NOW + 30_000
+  );
+  assert.equal(result.arrivals[0].departureProofLocked, false);
+  assert.equal(result.arrivals[0].time, "1");
+});
+
+test("fresh exact upstream VehiclePosition contradicts prediction-only entry", () => {
+  const engine = createForeverEngine();
+  reconcile(engine, [trip()]);
+  const zero = trip({
+    stopUpdates: trip().stopUpdates.map(stop =>
+      stop.stopId === TARGET ? { ...stop, eventTime: NOW_SECONDS } : stop
+    )
+  });
+  reconcile(engine, [{ ...zero, feedTimestamp: NOW_SECONDS + 15 }], NOW + 15_000);
+  const result = reconcile(
+    engine,
+    [{ ...zero, feedTimestamp: NOW_SECONDS + 30 }],
+    NOW + 30_000
+  );
+  assert.equal(result.arrivals[0].departureProofLocked, false);
+  assert.equal(result.arrivals[0].time, "1");
 });
 
 test("the same feed snapshot cannot manufacture repeated-zero confirmation", () => {
