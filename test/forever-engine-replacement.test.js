@@ -1693,8 +1693,10 @@ test("Glide refresh requests bypass caches and cannot hold the refresh loop inde
 test("Glide refresh recovers from lost touches, foreground restore, and bfcache restore", () => {
   assert.match(html, /const touchScrollHardResetMs = 5000/);
   assert.match(html, /activeTouchCount = event\.touches\.length/);
-  assert.match(html, /refreshReason: "VISIBILITY_RESTORED"/);
-  assert.match(html, /refreshReason: "BFCACHE_RESTORED"/);
+  assert.match(html, /requestRefreshCatchUp\("VISIBILITY_RESTORED"\)/);
+  assert.match(html, /requestRefreshCatchUp\("BFCACHE_RESTORED"\)/);
+  assert.match(html, /requestRefreshCatchUp\("WINDOW_FOCUS_RESTORED"\)/);
+  assert.match(html, /requestRefreshCatchUp\("NETWORK_RESTORED"\)/);
   assert.match(html, /if \(!event\.persisted\) return/);
 });
 

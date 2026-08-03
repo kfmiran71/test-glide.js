@@ -1292,6 +1292,7 @@ let queuedLoadOptions = null;
 let loadSequence = 0;
 let hasRenderedArrivals = false;
 let lastSuccessfulSelectionKey = "";
+let lastSuccessfulBoardCommitAt = 0;
 let openStationSelectId = "";
 const openAlertDirections = new Set();
 let activeTouchCount = 0;
@@ -1300,6 +1301,96 @@ const touchScrollQuietMs = 900;
 const touchScrollHardResetMs = 5000;
 const realtimeRequestTimeoutMs = 12000;
 let realtimeRequestCounter = 0;
+
+function createRefreshCoordinator(options = {}) {
+
+  const intervalMs =
+    Math.max(1000, Number(options.intervalMs) || 15000);
+  const dedupeMs =
+    Math.max(0, Number(options.dedupeMs) || 1000);
+  const now =
+    options.now || (() => Date.now());
+  const setTimer =
+    options.setTimer || ((callback, delay) => window.setTimeout(callback, delay));
+  const clearTimer =
+    options.clearTimer || (timerId => window.clearTimeout(timerId));
+  const shouldRefresh =
+    options.shouldRefresh || (() => true);
+  const requestRefresh =
+    options.requestRefresh || (() => {});
+  const onWake =
+    options.onWake || (() => {});
+  let timerId = null;
+  let running = false;
+  let nextDeadlineAt = 0;
+  let lastRequestAt = 0;
+
+  const schedule = () => {
+    if (!running) return;
+    if (timerId !== null) clearTimer(timerId);
+    const delay = Math.max(0, nextDeadlineAt - now());
+    timerId = setTimer(onTimer, delay);
+  };
+
+  const request = (reason, { force = false } = {}) => {
+    const requestedAt = now();
+    const sinceLastRequestMs =
+      lastRequestAt ? requestedAt - lastRequestAt : null;
+    if (force && sinceLastRequestMs !== null && sinceLastRequestMs < dedupeMs) {
+      onWake({ reason, requestedAt, skipped: "DEDUPED", sinceLastRequestMs });
+      return false;
+    }
+    if (!shouldRefresh()) {
+      onWake({ reason, requestedAt, skipped: "INTERACTION_ACTIVE", sinceLastRequestMs });
+      return false;
+    }
+    lastRequestAt = requestedAt;
+    onWake({ reason, requestedAt, skipped: "", sinceLastRequestMs });
+    requestRefresh({ reason, requestedAt });
+    return true;
+  };
+
+  function onTimer() {
+    timerId = null;
+    if (!running) return;
+    const wokeAt = now();
+    const overdueMs = Math.max(0, wokeAt - nextDeadlineAt);
+    const missedIntervals = Math.floor(overdueMs / intervalMs);
+    nextDeadlineAt += (missedIntervals + 1) * intervalMs;
+    request(
+      missedIntervals > 0 ? "MISSED_INTERVAL_CATCH_UP" : "NORMAL_15_SECOND_REFRESH"
+    );
+    schedule();
+  }
+
+  return {
+    start() {
+      if (running) return;
+      running = true;
+      lastRequestAt = now();
+      nextDeadlineAt = lastRequestAt + intervalMs;
+      schedule();
+    },
+    stop() {
+      running = false;
+      if (timerId !== null) clearTimer(timerId);
+      timerId = null;
+    },
+    catchUp(reason) {
+      const requestedAt = now();
+      if (running && requestedAt >= nextDeadlineAt) {
+        const missedIntervals = Math.floor((requestedAt - nextDeadlineAt) / intervalMs);
+        nextDeadlineAt += (missedIntervals + 1) * intervalMs;
+        schedule();
+      }
+      return request(reason, { force: true });
+    },
+    inspect() {
+      return { running, nextDeadlineAt, lastRequestAt };
+    }
+  };
+
+}
 
 async function fetchRealtime(url, options = {}) {
 
@@ -3326,6 +3417,10 @@ function attachRouteAlertHandlers() {
 
 async function loadArrivals(options = {}) {
 
+  const refreshRequestedAt =
+    Number(options.refreshRequestedAt) || Date.now();
+  const refreshStartedAt =
+    Date.now();
   const preserveScroll =
     options.preserveScroll === true;
   const refreshReason =
@@ -3336,12 +3431,25 @@ async function loadArrivals(options = {}) {
     refreshReason,
     selectedContext: currentSelection(),
     loadInFlight,
-    visibilityState: document.visibilityState
+    visibilityState: document.visibilityState,
+    requestQueueDelayMs: Math.max(0, refreshStartedAt - refreshRequestedAt),
+    msSinceLastBoardCommit: lastSuccessfulBoardCommitAt
+      ? Math.max(0, refreshStartedAt - lastSuccessfulBoardCommitAt)
+      : null
   });
 
   if (loadInFlight) {
-    queuedLoadOptions =
-      preserveScroll ? { preserveScroll: true } : {};
+    queuedLoadOptions = {
+      preserveScroll,
+      refreshReason,
+      refreshRequestedAt
+    };
+
+    recordForeverEngineTrace("REFRESH_QUEUED", {
+      refreshReason,
+      selectedContext: currentSelection(),
+      queuedAt: refreshStartedAt
+    });
 
     if (!preserveScroll) {
       loadSequence++;
@@ -3551,6 +3659,8 @@ const routeAlertData =
   routeAlertsWithPlatformFallback(routeAlertDataRaw, [uptownAlerts, downtownAlerts], selectedRoute);
 
 resultsEl.innerHTML = renderShell(groupedUptown, groupedDowntown, transferGroups, latestAlerts, routeAlertData);
+const boardCommittedAt = Date.now();
+lastSuccessfulBoardCommitAt = boardCommittedAt;
 
 populateSelectedStationHero(
   uptownStationData.currentStation ? uptownStationData : downtownStationData
@@ -3660,6 +3770,9 @@ if (foreverEngineTraceEnabled) {
       refreshReason,
       selectedContext: currentSelection(),
       platforms: [uptownStop, downtownStop],
+      requestQueueDelayMs: Math.max(0, refreshStartedAt - refreshRequestedAt),
+      requestToCommitMs: Math.max(0, boardCommittedAt - refreshRequestedAt),
+      loadToCommitMs: Math.max(0, boardCommittedAt - refreshStartedAt),
       finalBoard: {
         uptown: uptownArrivals.map(item => ({ identityKey: item.identityKey, routeId: item.route, countdown: Number(item.time) })),
         downtown: downtownArrivals.map(item => ({ identityKey: item.identityKey, routeId: item.route, countdown: Number(item.time) }))
@@ -3743,43 +3856,61 @@ if (foreverEngineTraceEnabled) {
   }).catch(() => {});
 }
 
+const refreshCoordinator = createRefreshCoordinator({
+  intervalMs: 15000,
+  shouldRefresh: () => !isStationMenuOpen() && !isTouchScrollActive(),
+  requestRefresh: ({ reason, requestedAt }) => {
+    loadArrivals({
+      preserveScroll: true,
+      refreshReason: reason,
+      refreshRequestedAt: requestedAt
+    });
+  },
+  onWake: details => {
+    recordForeverEngineTrace("REFRESH_SCHEDULER_WAKE", {
+      ...details,
+      visibilityState: document.visibilityState,
+      selectedContext: currentSelection(),
+      msSinceLastBoardCommit: lastSuccessfulBoardCommitAt
+        ? Math.max(0, details.requestedAt - lastSuccessfulBoardCommitAt)
+        : null
+    });
+  }
+});
+
+function requestRefreshCatchUp(reason) {
+
+  activeTouchCount = 0;
+  lastTouchScrollAt = 0;
+  refreshCoordinator.catchUp(reason);
+
+}
+
 document.addEventListener("visibilitychange", () => {
   recordForeverEngineTrace("VISIBILITY_CHANGED", {
     visibilityState: document.visibilityState,
     selectedContext: currentSelection()
   });
   if (document.visibilityState === "visible") {
-    activeTouchCount = 0;
-    lastTouchScrollAt = 0;
-    loadArrivals({
-      preserveScroll: true,
-      refreshReason: "VISIBILITY_RESTORED"
-    });
+    requestRefreshCatchUp("VISIBILITY_RESTORED");
   }
 });
 
 window.addEventListener("pageshow", event => {
   if (!event.persisted) return;
-  activeTouchCount = 0;
-  lastTouchScrollAt = 0;
-  loadArrivals({
-    preserveScroll: true,
-    refreshReason: "BFCACHE_RESTORED"
-  });
+  requestRefreshCatchUp("BFCACHE_RESTORED");
+});
+
+window.addEventListener("focus", () => {
+  requestRefreshCatchUp("WINDOW_FOCUS_RESTORED");
+});
+
+window.addEventListener("online", () => {
+  requestRefreshCatchUp("NETWORK_RESTORED");
 });
 
 loadArrivals({ refreshReason: "PAGE_LOAD" });
-
-setInterval(() => {
-  // Glide/iOS scroll stability: avoid background refresh scroll restoration while
-  // the user's finger is actively driving the iframe scroll surface.
-  if (!isStationMenuOpen() && !isTouchScrollActive()) {
-    loadArrivals({
-      preserveScroll: true,
-      refreshReason: "NORMAL_15_SECOND_REFRESH"
-    });
-  }
-}, 15000);
+refreshCoordinator.start();
 </script>
 </body>
 </html>
