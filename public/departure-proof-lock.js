@@ -56,6 +56,10 @@ export function classifyTargetServiceRole(stopUpdates = [], targetStop, targetUp
 
   const targetSequence = numberValue(updates[targetIndex]?.stopSequence);
 
+  if (targetIndex === 0 && targetSequence !== null && targetSequence > 1) {
+    return "INTERMEDIATE";
+  }
+
   if (targetSequence !== null && targetSequence <= 1) {
     return "ORIGIN_DEPARTURE";
   }

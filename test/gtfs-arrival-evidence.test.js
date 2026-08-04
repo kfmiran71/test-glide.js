@@ -274,3 +274,28 @@ test("terminal arrival and ambiguous partial updates prefer arrival time", () =>
   assert.equal(partialSelection.selectedEventType, "ARRIVAL");
   assert.equal(partialSelection.timestampSelectionReason, "UNRESOLVED_ARRIVAL_TIME");
 });
+
+test("target-first partial update with sequence above one is intermediate, not origin", () => {
+  const feedTimestamp = 1_800_000_000;
+  const partial = [
+    {
+      arrival: { time: feedTimestamp + 240 },
+      departure: { time: feedTimestamp + 540 },
+      stopId: "251S",
+      stopSequence: 31
+    },
+    {
+      arrival: { time: feedTimestamp + 660 },
+      departure: { time: feedTimestamp + 690 },
+      stopId: "252S",
+      stopSequence: 32
+    }
+  ];
+  const serviceRole = classifyTargetServiceRole(partial, "251S", partial[0]);
+  const selected = selectRiderFacingStopTime(partial[0], serviceRole);
+
+  assert.equal(serviceRole, "INTERMEDIATE");
+  assert.equal(selected.selectedEventTime, feedTimestamp + 240);
+  assert.equal(selected.selectedEventType, "ARRIVAL");
+  assert.equal(selected.timestampSelectionReason, "INTERMEDIATE_ARRIVAL_TIME");
+});
