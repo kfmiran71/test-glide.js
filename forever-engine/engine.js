@@ -113,6 +113,8 @@ function normalizedPattern(stopUpdates = []) {
     stopId: String(stop.stopId || ""),
     stopSequence: numberOrNull(stop.stopSequence),
     eventTime: numberOrNull(stop.eventTime),
+    arrivalTime: numberOrNull(stop.arrivalTime),
+    departureTime: numberOrNull(stop.departureTime),
     confidenceTime: numberOrNull(stop.arrivalTime ?? stop.departureTime ?? stop.eventTime),
     realtimeIndex: index
   })).filter(stop => stop.stopId);
@@ -140,9 +142,6 @@ function serviceRole(
   vehicle = null,
   staticOriginStop = ""
 ) {
-  if (staticOriginStop && staticOriginStop === targetStop) {
-    return SERVICE_ROLES.ORIGIN_DEPARTURE;
-  }
   const candidates = [pattern, previousPattern]
     .filter(candidate => Array.isArray(candidate) && candidate.length > 1)
     .sort((a, b) => b.length - a.length);
@@ -172,7 +171,52 @@ function serviceRole(
     if (targetIndex === candidate.length - 1) return SERVICE_ROLES.TERMINAL_ARRIVAL;
     return SERVICE_ROLES.INTERMEDIATE;
   }
+  // Route-level first-stop data remains diagnostic context only. It is not
+  // exact-trip proof and therefore cannot manufacture an origin role.
   return SERVICE_ROLES.UNRESOLVED;
+}
+
+function selectTargetTimestamp(targetUpdate, role) {
+  const arrivalTime = numberOrNull(targetUpdate?.arrivalTime);
+  const departureTime = numberOrNull(targetUpdate?.departureTime);
+  const fallbackTime = numberOrNull(targetUpdate?.eventTime);
+  const dwellSeconds = arrivalTime !== null && departureTime !== null
+    ? Math.max(0, departureTime - arrivalTime)
+    : null;
+  if (role === SERVICE_ROLES.ORIGIN_DEPARTURE && departureTime !== null) {
+    return {
+      arrivalTime,
+      departureTime,
+      dwellSeconds,
+      selectedEventType: "DEPARTURE",
+      selectedEventTime: departureTime,
+      timestampSelectionReason: "ORIGIN_DEPARTURE_DEPARTURE_TIME"
+    };
+  }
+  if (arrivalTime !== null) {
+    return {
+      arrivalTime,
+      departureTime,
+      dwellSeconds,
+      selectedEventType: "ARRIVAL",
+      selectedEventTime: arrivalTime,
+      timestampSelectionReason: role === SERVICE_ROLES.INTERMEDIATE
+        ? "INTERMEDIATE_ARRIVAL_TIME"
+        : role === SERVICE_ROLES.TERMINAL_ARRIVAL
+          ? "TERMINAL_ARRIVAL_ARRIVAL_TIME"
+          : "UNRESOLVED_ARRIVAL_TIME"
+    };
+  }
+  return {
+    arrivalTime,
+    departureTime,
+    dwellSeconds,
+    selectedEventType: departureTime !== null ? "DEPARTURE" : "UNKNOWN",
+    selectedEventTime: departureTime ?? fallbackTime,
+    timestampSelectionReason: departureTime !== null
+      ? `${role}_DEPARTURE_FALLBACK`
+      : "LEGACY_EVENT_TIME_FALLBACK"
+  };
 }
 
 function targetConclusivePattern(pattern, previousPattern, targetStop) {
@@ -242,7 +286,15 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
   const pattern = normalizedPattern(raw.stopUpdates);
   const targetUpdates = pattern.filter(stop => stop.stopId === platform);
   const targetUpdate = targetUpdates.length === 1 ? targetUpdates[0] : null;
-  const targetTime = numberOrNull(targetUpdate?.eventTime);
+  const role = serviceRole(
+    pattern,
+    previousPattern,
+    platform,
+    raw.vehicle,
+    String(raw.originStopId || "")
+  );
+  const timestampSelection = selectTargetTimestamp(targetUpdate, role);
+  const targetTime = numberOrNull(timestampSelection.selectedEventTime);
   const confidenceTargetTime = numberOrNull(targetUpdate?.confidenceTime);
   const rawCountdown = targetTime === null
     ? null
@@ -260,13 +312,13 @@ function makeObservation(raw, platform, nowSeconds, previousPattern, options) {
     rawCountdown,
     pattern,
     previousPattern,
-    serviceRole: serviceRole(
-      pattern,
-      previousPattern,
-      platform,
-      raw.vehicle,
-      String(raw.originStopId || "")
-    ),
+    serviceRole: role,
+    arrivalTime: timestampSelection.arrivalTime,
+    departureTime: timestampSelection.departureTime,
+    dwellSeconds: timestampSelection.dwellSeconds,
+    selectedEventType: timestampSelection.selectedEventType,
+    selectedEventTime: timestampSelection.selectedEventTime,
+    timestampSelectionReason: timestampSelection.timestampSelectionReason,
     staticOriginStop: String(raw.originStopId || ""),
     cancelled: Boolean(raw.cancelled),
     targetScheduleRelationship: numberOrNull(
@@ -296,6 +348,12 @@ function createRecord(observation, nowMs) {
     destination: observation.destination,
     direction: observation.direction,
     serviceRole: observation.serviceRole,
+    arrivalTime: observation.arrivalTime,
+    departureTime: observation.departureTime,
+    dwellSeconds: observation.dwellSeconds,
+    selectedEventType: observation.selectedEventType,
+    selectedEventTime: observation.selectedEventTime,
+    timestampSelectionReason: observation.timestampSelectionReason,
     staticOriginStop: observation.staticOriginStop,
     movementState: MOVEMENT_STATES.OBSERVED,
     firstObservedAt: nowMs,
@@ -422,12 +480,15 @@ function updateRecord(previous, observation, nowMs, options) {
   record.route = observation.routeId || record.route;
   record.destination = observation.destination || record.destination;
   record.direction = observation.direction || record.direction;
-  if (
-    (!record.serviceRole || record.serviceRole === SERVICE_ROLES.UNRESOLVED) &&
-    observation.serviceRole !== SERVICE_ROLES.UNRESOLVED
-  ) {
+  if (observation.serviceRole !== SERVICE_ROLES.UNRESOLVED) {
     record.serviceRole = observation.serviceRole;
   }
+  record.arrivalTime = observation.arrivalTime;
+  record.departureTime = observation.departureTime;
+  record.dwellSeconds = observation.dwellSeconds;
+  record.selectedEventType = observation.selectedEventType;
+  record.selectedEventTime = observation.selectedEventTime;
+  record.timestampSelectionReason = observation.timestampSelectionReason;
   const terminalOriginConfidence = observation.targetPresent &&
     observation.pattern[0]?.stopId === observation.targetStop;
   const recoveredConfidence = !observation.vehiclePositionMatched &&

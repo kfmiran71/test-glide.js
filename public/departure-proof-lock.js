@@ -53,16 +53,16 @@ export function classifyTargetServiceRole(stopUpdates = [], targetStop, targetUp
     return "INTERMEDIATE";
   }
 
-  if (targetSequence !== null && targetSequence <= 1) {
-    return "ORIGIN_DEPARTURE";
-  }
-
   if (targetIndex === updates.length - 1 && updates.length > 1) {
     return "TERMINAL_ARRIVAL";
   }
 
   if (targetIndex > 0 && targetIndex < updates.length - 1) {
     return "INTERMEDIATE";
+  }
+
+  if (targetIndex === 0 && targetSequence !== null && targetSequence <= 1) {
+    return "ORIGIN_DEPARTURE";
   }
 
   return "UNRESOLVED";

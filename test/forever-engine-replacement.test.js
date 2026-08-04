@@ -249,18 +249,134 @@ test("terminal-origin TripUpdate-only prediction keeps its admission exception",
   assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
 });
 
-test("static first-stop evidence identifies an origin when realtime sequences are absent", () => {
+test("route-level static origin alone cannot manufacture an exact-trip origin", () => {
   const result = reconcile(createForeverEngine(), [trip({
     originStopId: TARGET,
-    vehicle: null,
+    vehiclePositionMatched: true,
     stopUpdates: [
-      { stopId: TARGET, eventTime: NOW_SECONDS + 3 * 60 },
-      { stopId: "706N", eventTime: NOW_SECONDS + 5 * 60 }
+      {
+        stopId: TARGET,
+        arrivalTime: NOW_SECONDS + 3 * 60,
+        departureTime: NOW_SECONDS + 8 * 60,
+        eventTime: NOW_SECONDS + 8 * 60
+      },
+      { stopId: "706N", eventTime: NOW_SECONDS + 10 * 60 }
     ]
   })]);
   assert.equal(result.arrivals.length, 1);
-  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+  assert.equal(result.arrivals[0].time, "3");
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.UNRESOLVED);
+  assert.equal(result.diagnostics.active[0].selectedEventType, "ARRIVAL");
+  assert.equal(
+    result.diagnostics.active[0].timestampSelectionReason,
+    "UNRESOLVED_ARRIVAL_TIME"
+  );
   assert.equal(result.diagnostics.active[0].staticOriginStop, TARGET);
+});
+
+test("actual 250S late-night through pattern overrides route-level origin metadata", () => {
+  const engine = createForeverEngine();
+  const result = reconcile(engine, [trip({
+    trip: { tripId: "late-night-through-4", startDate: "20260804", routeId: "4" },
+    originStopId: "250S",
+    destination: "New Lots Av",
+    vehiclePositionMatched: true,
+    stopUpdates: [
+      {
+        stopId: "239S", stopSequence: 30,
+        arrivalTime: NOW_SECONDS + 120, departureTime: NOW_SECONDS + 150,
+        eventTime: NOW_SECONDS + 150
+      },
+      {
+        stopId: "250S", stopSequence: 1,
+        arrivalTime: NOW_SECONDS + 240, departureTime: NOW_SECONDS + 540,
+        eventTime: NOW_SECONDS + 540
+      },
+      {
+        stopId: "251S", stopSequence: 2,
+        arrivalTime: NOW_SECONDS + 660, departureTime: NOW_SECONDS + 690,
+        eventTime: NOW_SECONDS + 690
+      }
+    ],
+    vehicle: {
+      stopId: "239S",
+      timestamp: NOW_SECONDS,
+      currentStopSequence: 30,
+      currentStopSequenceExplicit: true,
+      currentStatus: 2,
+      currentStatusExplicit: true
+    }
+  })], NOW, "250S");
+
+  assert.equal(result.arrivals[0].time, "4");
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.INTERMEDIATE);
+  assert.equal(result.diagnostics.active[0].arrivalTime, NOW_SECONDS + 240);
+  assert.equal(result.diagnostics.active[0].departureTime, NOW_SECONDS + 540);
+  assert.equal(result.diagnostics.active[0].dwellSeconds, 300);
+  assert.equal(result.diagnostics.active[0].selectedEventType, "ARRIVAL");
+  assert.equal(result.diagnostics.active[0].selectedEventTime, NOW_SECONDS + 240);
+  assert.equal(
+    result.diagnostics.active[0].timestampSelectionReason,
+    "INTERMEDIATE_ARRIVAL_TIME"
+  );
+
+  const zero = reconcile(engine, [trip({
+    trip: { tripId: "late-night-through-4", startDate: "20260804", routeId: "4" },
+    originStopId: "250S",
+    destination: "New Lots Av",
+    feedTimestamp: NOW_SECONDS + 240,
+    vehiclePositionMatched: true,
+    stopUpdates: [
+      { stopId: "239S", stopSequence: 30, eventTime: NOW_SECONDS - 60 },
+      {
+        stopId: "250S", stopSequence: 1,
+        arrivalTime: NOW_SECONDS + 240, departureTime: NOW_SECONDS + 540,
+        eventTime: NOW_SECONDS + 540
+      },
+      { stopId: "251S", stopSequence: 2, eventTime: NOW_SECONDS + 660 }
+    ],
+    vehicle: {
+      stopId: "250S",
+      timestamp: NOW_SECONDS + 240,
+      currentStopSequence: 31,
+      currentStopSequenceExplicit: true,
+      currentStatus: 1,
+      currentStatusExplicit: true
+    }
+  })], NOW + 240_000, "250S");
+  assert.equal(zero.arrivals[0].time, "0");
+  assert.equal(zero.arrivals[0].departureProofLocked, true);
+  assert.equal(zero.arrivals[0].originDepartureCustody, false);
+});
+
+test("true 250S origin still selects its departure timestamp", () => {
+  const result = reconcile(createForeverEngine(), [trip({
+    trip: { tripId: "true-origin-4", startDate: "20260804", routeId: "4" },
+    originStopId: "250S",
+    destination: "New Lots Av",
+    vehiclePositionMatched: true,
+    stopUpdates: [
+      {
+        stopId: "250S", stopSequence: 1,
+        arrivalTime: NOW_SECONDS + 240, departureTime: NOW_SECONDS + 540,
+        eventTime: NOW_SECONDS + 540
+      },
+      {
+        stopId: "251S", stopSequence: 2,
+        arrivalTime: NOW_SECONDS + 660, departureTime: NOW_SECONDS + 690,
+        eventTime: NOW_SECONDS + 690
+      }
+    ],
+    vehicle: null
+  })], NOW, "250S");
+
+  assert.equal(result.arrivals[0].time, "9");
+  assert.equal(result.diagnostics.active[0].serviceRole, SERVICE_ROLES.ORIGIN_DEPARTURE);
+  assert.equal(result.diagnostics.active[0].selectedEventType, "DEPARTURE");
+  assert.equal(
+    result.diagnostics.active[0].timestampSelectionReason,
+    "ORIGIN_DEPARTURE_DEPARTURE_TIME"
+  );
 });
 
 test("target-first realtime suffix alone does not manufacture an origin role", () => {

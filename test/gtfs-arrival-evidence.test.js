@@ -114,18 +114,18 @@ test("timestamp selection uses arrival time for intermediate passenger stops", (
   assert.equal(selected.dwellSeconds, 300);
 });
 
-test("Crown Heights downtown 4 fixture selects platform arrival, not later departure", () => {
+test("late-night through 4 at actual Crown Heights 250S selects arrival", () => {
   const feedTimestamp = 1_800_000_000;
   const evidence = buildGtfsEvidence([{
     tripUpdate: {
-      trip: { routeId: "4", startDate: "20260804", tripId: "crown-heights-4-downtown" },
+      trip: { routeId: "4", startDate: "20260804", tripId: "late-night-through-4" },
       stopTimeUpdate: [
-        { arrival: { time: feedTimestamp + 120 }, departure: { time: feedTimestamp + 150 }, stopId: "250S", stopSequence: 30 },
-        { arrival: { time: feedTimestamp + 240 }, departure: { time: feedTimestamp + 540 }, stopId: "251S", stopSequence: 31 },
-        { arrival: { time: feedTimestamp + 660 }, departure: { time: feedTimestamp + 690 }, stopId: "252S", stopSequence: 32 }
+        { arrival: { time: feedTimestamp + 120 }, departure: { time: feedTimestamp + 150 }, stopId: "239S", stopSequence: 30 },
+        { arrival: { time: feedTimestamp + 240 }, departure: { time: feedTimestamp + 540 }, stopId: "250S", stopSequence: 1 },
+        { arrival: { time: feedTimestamp + 660 }, departure: { time: feedTimestamp + 690 }, stopId: "251S", stopSequence: 2 }
       ]
     }
-  }], "251S", feedTimestamp);
+  }], "250S", feedTimestamp);
 
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0].serviceRole, "INTERMEDIATE");
