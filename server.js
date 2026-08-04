@@ -4,8 +4,10 @@ import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 import fs from "fs";
 import {
   buildGtfsEvidence,
+  classifyTargetServiceRole,
   exactTripIdentity,
-  runGlideMutationIfBaseline
+  runGlideMutationIfBaseline,
+  selectRiderFacingStopTime
 } from "./public/departure-proof-lock.js";
 import {
   evaluatePlatformAlertEntity
@@ -1544,9 +1546,16 @@ for (const url of feeds) {
 
   if (targetPlatform && stopId !== targetPlatform) continue;
 
-  const eventTime =
-  stopTimeUpdate.departure?.time ||
-  stopTimeUpdate.arrival?.time;
+  const serviceRole = classifyTargetServiceRole(
+    entity.tripUpdate.stopTimeUpdate || [],
+    stopId,
+    stopTimeUpdate
+  );
+  const timestampSelection = selectRiderFacingStopTime(
+    stopTimeUpdate,
+    serviceRole
+  );
+  const eventTime = timestampSelection.selectedEventTime;
 
 if (!eventTime) continue;
 
@@ -1591,7 +1600,15 @@ if (departureProofLockEnabled && !exactIdentity) continue;
     ? {
         identityKey: exactIdentity.identityKey,
         tripId: exactIdentity.tripId,
-        startDate: exactIdentity.startDate
+        startDate: exactIdentity.startDate,
+        arrivalTimestamp: timestampSelection.arrivalTime,
+        departureTimestamp: timestampSelection.departureTime,
+        selectedEventTimestamp: timestampSelection.selectedEventTime,
+        selectedEventType: timestampSelection.selectedEventType,
+        timestampSelectionReason:
+          timestampSelection.timestampSelectionReason,
+        dwellSeconds: timestampSelection.dwellSeconds,
+        serviceRole
       }
     : {})
 });

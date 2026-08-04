@@ -22,11 +22,116 @@ function numberValue(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function eventSeconds(update) {
-  return numberValue(
-    update?.departure?.time ??
-    update?.arrival?.time
+function arrivalSeconds(update) {
+  return numberValue(update?.arrivalTime ?? update?.arrival?.time);
+}
+
+function departureSeconds(update) {
+  return numberValue(update?.departureTime ?? update?.departure?.time);
+}
+
+function legacyEventSeconds(update) {
+  return numberValue(update?.eventTime);
+}
+
+export function classifyTargetServiceRole(stopUpdates = [], targetStop, targetUpdate) {
+  if (!targetStop || !targetUpdate) {
+    return "UNRESOLVED";
+  }
+
+  const updates = (stopUpdates || [])
+    .map(normalizeStopUpdate)
+    .filter(stop => stop.stopId);
+  const targetIndex = updates.findIndex(stop =>
+    stop.stopId === targetStop &&
+    (
+      stop.stopSequence === numberValue(targetUpdate.stopSequence) ||
+      numberValue(targetUpdate.stopSequence) === null
+    )
   );
+
+  if (targetIndex === -1) {
+    return "UNRESOLVED";
+  }
+
+  const targetSequence = numberValue(updates[targetIndex]?.stopSequence);
+
+  if (targetSequence !== null && targetSequence <= 1) {
+    return "ORIGIN_DEPARTURE";
+  }
+
+  if (targetIndex === updates.length - 1 && updates.length > 1) {
+    return "TERMINAL_ARRIVAL";
+  }
+
+  if (targetIndex > 0 && targetIndex < updates.length - 1) {
+    return "INTERMEDIATE";
+  }
+
+  return "UNRESOLVED";
+}
+
+export function selectRiderFacingStopTime(update = {}, serviceRole = "UNRESOLVED") {
+  const arrivalTime = arrivalSeconds(update);
+  const departureTime = departureSeconds(update);
+  const fallbackTime = legacyEventSeconds(update);
+  const dwellSeconds =
+    arrivalTime !== null && departureTime !== null
+      ? Math.max(0, departureTime - arrivalTime)
+      : null;
+
+  if (serviceRole === "ORIGIN_DEPARTURE") {
+    if (departureTime !== null) {
+      return {
+        arrivalTime,
+        departureTime,
+        dwellSeconds,
+        selectedEventType: "DEPARTURE",
+        selectedEventTime: departureTime,
+        timestampSelectionReason: "ORIGIN_DEPARTURE_DEPARTURE_TIME"
+      };
+    }
+
+    return {
+      arrivalTime,
+      departureTime,
+      dwellSeconds,
+      selectedEventType: arrivalTime !== null ? "ARRIVAL" : "UNKNOWN",
+      selectedEventTime: arrivalTime ?? fallbackTime,
+      timestampSelectionReason:
+        arrivalTime !== null
+          ? "ORIGIN_DEPARTURE_ARRIVAL_FALLBACK"
+          : "LEGACY_EVENT_TIME_FALLBACK"
+    };
+  }
+
+  if (arrivalTime !== null) {
+    return {
+      arrivalTime,
+      departureTime,
+      dwellSeconds,
+      selectedEventType: "ARRIVAL",
+      selectedEventTime: arrivalTime,
+      timestampSelectionReason:
+        serviceRole === "TERMINAL_ARRIVAL"
+          ? "TERMINAL_ARRIVAL_ARRIVAL_TIME"
+          : serviceRole === "INTERMEDIATE"
+            ? "INTERMEDIATE_ARRIVAL_TIME"
+            : "UNRESOLVED_ARRIVAL_TIME"
+    };
+  }
+
+  return {
+    arrivalTime,
+    departureTime,
+    dwellSeconds,
+    selectedEventType: departureTime !== null ? "DEPARTURE" : "UNKNOWN",
+    selectedEventTime: departureTime ?? fallbackTime,
+    timestampSelectionReason:
+      departureTime !== null
+        ? `${serviceRole}_DEPARTURE_FALLBACK`
+        : "LEGACY_EVENT_TIME_FALLBACK"
+  };
 }
 
 export function exactTripIdentity(descriptor = {}) {
@@ -41,10 +146,22 @@ export function exactTripIdentity(descriptor = {}) {
 }
 
 function normalizeStopUpdate(update = {}) {
+  const arrivalTime = arrivalSeconds(update);
+  const departureTime = departureSeconds(update);
+  const selected = selectRiderFacingStopTime(
+    { ...update, arrivalTime, departureTime },
+    "UNRESOLVED"
+  );
+
   return {
+    arrivalTime,
+    departureTime,
+    dwellSeconds: selected.dwellSeconds,
     stopId: String(update.stopId || ""),
     stopSequence: numberValue(update.stopSequence),
-    eventTime: eventSeconds(update)
+    eventTime: selected.selectedEventTime,
+    selectedEventType: selected.selectedEventType,
+    timestampSelectionReason: selected.timestampSelectionReason
   };
 }
 
@@ -100,6 +217,21 @@ export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
     const vehicleMatch = vehicles.get(identityKey);
     const targetUpdate = update?.stopUpdates
       .find(stop => stop.stopId === targetStop) || null;
+    const serviceRole = classifyTargetServiceRole(
+      update?.stopUpdates || [],
+      targetStop,
+      targetUpdate
+    );
+    const targetSelection = targetUpdate
+      ? selectRiderFacingStopTime(targetUpdate, serviceRole)
+      : null;
+
+    if (targetUpdate && targetSelection) {
+      targetUpdate.eventTime = targetSelection.selectedEventTime;
+      targetUpdate.selectedEventType = targetSelection.selectedEventType;
+      targetUpdate.timestampSelectionReason =
+        targetSelection.timestampSelectionReason;
+    }
 
     return {
       identityKey,
@@ -110,10 +242,18 @@ export function buildGtfsEvidence(entities, targetStop, feedTimestamp) {
       route: String(update?.trip?.routeId || ""),
       targetStop,
       targetStopPresent: Boolean(targetUpdate),
+      targetArrivalTime: targetSelection?.arrivalTime ?? null,
+      targetDepartureTime: targetSelection?.departureTime ?? null,
+      targetDwellSeconds: targetSelection?.dwellSeconds ?? null,
+      targetSelectedEventTime: targetSelection?.selectedEventTime ?? null,
+      targetSelectedEventType: targetSelection?.selectedEventType ?? "UNKNOWN",
+      targetTimestampSelectionReason:
+        targetSelection?.timestampSelectionReason ?? null,
       targetStopSequence: targetUpdate?.stopSequence ?? null,
       tripUpdatePresent: Boolean(update),
       tripUpdateProgressionSequence:
         update?.progressionStopSequence ?? null,
+      serviceRole,
       stopUpdates: update?.stopUpdates || [],
       vehiclePositionPresent: Boolean(vehicleMatch?.vehicle),
       vehiclePositionAmbiguous: Boolean(vehicleMatch?.ambiguous),
